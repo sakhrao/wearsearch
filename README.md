@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WearSearch
 
-## Getting Started
+A clothing search application: natural-language queries ("black tank top", "men shirt", "h&m jeans") are parsed into structured intents and matched against a product catalog with a strict two-tier result model (Exact / Similar), exposed through `/api/search` and a filterable React UI.
 
-First, run the development server:
+**Status: MVP freeze.** The ranking/parser engine is feature-frozen. Any future change is either a confirmed bug or an approved new feature — not an open-ended tuning effort.
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000
+npx prisma db seed   # demo catalog (12 products)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Environment: `DATABASE_URL` in `.env` (PostgreSQL via Prisma 7 + driver adapter).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Scope |
+|---|---|
+| `npm run test:search` | 99-case golden regression over the live API (counts, structured interpretation, ordering pins, categoryStatus) |
+| `npm run test:ranking` | 10 specification checks for scoring/ordering behavior |
+| `npx tsc --noEmit` | type safety |
 
-## Learn More
+Both suites must pass against a running dev server (`localhost:3000`).
 
-To learn more about Next.js, take a look at the following resources:
+## What the search supports
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Parsing (`src/lib/search-parser.ts`)
+- **Brand** detection from a brand vocabulary (masked spans; "h&m" never parses as size M).
+- **Category** detection incl. synonyms (`tee`, `trainers`, `tank top`…), plural forms, and compact spellings (`tshirt`, `tanktop`).
+- **Color** detection from catalog colors.
+- **Size** detection incl. verbose aliases (`extra small`→XS … `double extra large`→XXL); possessive clitics stripped (`women's`→women).
+- **Gender** detection (men/women/unisex) as a hard filter (MEN/WOMEN admit UNISEX).
+- **Attributes** as explicit constraints (e.g. Style:Classic) with penalties for misses.
+- **Unsupported categories** (jacket, hoodie, dress, pants…) suppress misleading Exact matches while still allowing suggestions.
+- Free-text words act as relevance signals only; they can never satisfy Exact by themselves.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Matching & ranking (`src/app/api/search/route.ts`)
+- **Exact**: every detected structural intent must match literally (raw category match).
+- **Similar**: scored candidates with brand/category/color/size/attribute credits, coherence halving off-subtree, admission gates (mismatch budget ≤2, positive score, meaningful relevance).
+- **Category scope gate**: Similar never admits products from unrelated branches when an explicit non-empty category intent exists (color/brand alone cannot smuggle a cross-branch item in).
+- **Empty-node sibling substitution**: if the requested category exists in the taxonomy but stocks zero products, sibling categories may stand in for Similar results only — all other explicit constraints must still hold; Exact remains impossible.
+- **`categoryStatus` metadata** in the response (requested node, stocked subtree count, siblings) powers UI messaging.
 
-## Deploy on Vercel
+### UI (`src/app/page.tsx`)
+- Always-visible Exact and Similar sections, search-interpretation chip, three-way empty-state messaging driven by `categoryStatus`.
+- Display-level facet filters (gender/category/color/size/brand) over the current response only — no re-querying, no engine involvement.
+- Product cards: image (lazy), name, brand, derived store (from URL host), colors, sizes, attributes, price, availability badge, outbound purchase link.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## What it deliberately does NOT support
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Fuzzy/typo-tolerant matching beyond the fixed spelling vocabulary.
+- Price intent ("under $50"), price sorting/filtering.
+- Multi-intent ("mixed") queries such as "hoodie and tee".
+- Query-time taxonomy browsing or autocomplete.
+- Pagination (result sets are small by design).
+
+## Deferred backlog (known, documented, intentionally open)
+
+| Item | Class |
+|---|---|
+| G5 latent collision: attribute values that double as words (e.g. "Classic") can silently block sibling substitution under extra intents | watch on catalog expansion |
+| Price intent (G7) | future feature |
+| Mixed-intent policy ("hoodie tee" → suggest from the supported part) | future feature |
+| Similar-quality tuning (e.g. which non-sibling tail is acceptable when no color intent exists) | future feature |
+| Tailored message for "empty category AND zero substitutes" (currently generic empty state) | UX nicety |
+| Catalog expansion → re-run both suites; latent issues surface at scale | ops |
+
+## Roadmap after freeze
+
+1. Catalog expansion (more products, real stores/sources; validate URLs, images, prices, sizes).
+2. Production deployment (managed PostgreSQL, environment variables, hosted Next.js).
+3. Bug-driven maintenance only for ranking/parser.
