@@ -1216,15 +1216,22 @@ export async function GET(
           productGenderMatches &&
           allAttributesMatched;
 
+        /* Free-text words are relevance signals,
+           never hard Exact gates. A word that
+           happens to exist in catalog vocabulary
+           adds tiered points when found, but its
+           absence cannot veto a candidate whose
+           structured intent is complete. Only the
+           unknown-noise guard (no recognizable
+           free words AND no strong structural
+           filter) still blocks Exact. */
         const unknownOnlyNoise =
           requiredFreeWords.length === 0 &&
           freeTextWords.length > 0 &&
           !hasStrongStructuredFilter;
 
         const allFreeTextMatched =
-          !unknownOnlyNoise &&
-          matchedRequiredWords ===
-            requiredFreeWords.length;
+          !unknownOnlyNoise;
 
         const exactMatch =
           hasSearchSignal &&
