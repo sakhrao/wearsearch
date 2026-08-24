@@ -9,7 +9,7 @@ A clothing search application: natural-language queries ("black tank top", "men 
 ```bash
 npm install
 npm run dev          # http://localhost:3000
-npx prisma db seed   # demo catalog (12 products)
+npx prisma db seed   # demo catalog (79 products, 15 stocked categories, 2 sources)
 ```
 
 Environment: `DATABASE_URL` in `.env` (PostgreSQL via Prisma 7 + driver adapter).

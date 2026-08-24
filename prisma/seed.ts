@@ -12,6 +12,11 @@ import {
 
 import { PrismaPg } from "@prisma/adapter-pg";
 
+import {
+  expansionProducts,
+  type ExpansionProductSpec,
+} from "./catalog-data";
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });
@@ -36,6 +41,19 @@ async function main() {
       name: "WearSearch Demo Store",
       type: SourceType.DEMO,
       baseUrl: "https://example.com",
+      status: SourceStatus.ACTIVE,
+    },
+  });
+
+  const affiliateSource = await prisma.source.upsert({
+    where: {
+      name: "StyleHub Affiliate Feed",
+    },
+    update: {},
+    create: {
+      name: "StyleHub Affiliate Feed",
+      type: SourceType.AFFILIATE_FEED,
+      baseUrl: "https://feeds.stylehub.example",
       status: SourceStatus.ACTIVE,
     },
   });
@@ -190,6 +208,132 @@ async function main() {
       parentId: shoes.id,
     },
   });
+
+  const polos = await prisma.category.upsert({
+    where: { slug: "polos" },
+    update: {},
+    create: {
+      name: "Polos",
+      slug: "polos",
+      parentId: tops.id,
+    },
+  });
+
+  const blouses = await prisma.category.upsert({
+    where: { slug: "blouses" },
+    update: {},
+    create: {
+      name: "Blouses",
+      slug: "blouses",
+      parentId: tops.id,
+    },
+  });
+
+  const cardigans = await prisma.category.upsert({
+    where: { slug: "cardigans" },
+    update: {},
+    create: {
+      name: "Cardigans",
+      slug: "cardigans",
+      parentId: tops.id,
+    },
+  });
+
+  const chinos = await prisma.category.upsert({
+    where: { slug: "chinos" },
+    update: {},
+    create: {
+      name: "Chinos",
+      slug: "chinos",
+      parentId: bottoms.id,
+    },
+  });
+
+  const trousers = await prisma.category.upsert({
+    where: { slug: "trousers" },
+    update: {},
+    create: {
+      name: "Trousers",
+      slug: "trousers",
+      parentId: bottoms.id,
+    },
+  });
+
+  const leggings = await prisma.category.upsert({
+    where: { slug: "leggings" },
+    update: {},
+    create: {
+      name: "Leggings",
+      slug: "leggings",
+      parentId: bottoms.id,
+    },
+  });
+
+  const joggers = await prisma.category.upsert({
+    where: { slug: "joggers" },
+    update: {},
+    create: {
+      name: "Joggers",
+      slug: "joggers",
+      parentId: bottoms.id,
+    },
+  });
+
+  const boots = await prisma.category.upsert({
+    where: { slug: "boots" },
+    update: {},
+    create: {
+      name: "Boots",
+      slug: "boots",
+      parentId: shoes.id,
+    },
+  });
+
+  const loafers = await prisma.category.upsert({
+    where: { slug: "loafers" },
+    update: {},
+    create: {
+      name: "Loafers",
+      slug: "loafers",
+      parentId: shoes.id,
+    },
+  });
+
+  const sandals = await prisma.category.upsert({
+    where: { slug: "sandals" },
+    update: {},
+    create: {
+      name: "Sandals",
+      slug: "sandals",
+      parentId: shoes.id,
+    },
+  });
+
+  const categoryBySlug: Record<string, any> = {
+    "t-shirts": tShirts,
+    "tank-tops": tankTops,
+    jeans,
+    sneakers,
+    "formal-shoes": formalShoes,
+    polos,
+    blouses,
+    cardigans,
+    chinos,
+    trousers,
+    leggings,
+    joggers,
+    boots,
+    loafers,
+    sandals,
+  };
+
+  const SHOE_CATEGORY_SLUGS = new Set([
+    "sneakers",
+    "formal-shoes",
+    "boots",
+    "loafers",
+    "sandals",
+  ]);
 
   // ==========================================
   // COLORS
@@ -638,6 +782,110 @@ async function main() {
       Pattern: "Solid",
     },
   });
+
+  /* ==========================================
+     EXPANSION CATALOG (StyleHub feed)
+     Multi-variant, realistic store URLs.
+  ========================================== */
+
+  async function createExpansionProduct(
+    spec: ExpansionProductSpec
+  ) {
+    const category = categoryBySlug[
+      spec.categorySlug
+    ];
+
+    const product = await prisma.product.upsert({
+      where: {
+        sourceId_externalId: {
+          sourceId: affiliateSource.id,
+          externalId: spec.externalId,
+        },
+      },
+      update: {
+        name: spec.name,
+        price: spec.price,
+        productUrl: spec.productUrl,
+      },
+      create: {
+        sourceId: affiliateSource.id,
+        externalId: spec.externalId,
+        brandId: brands[spec.brand].id,
+        categoryId: category.id,
+        name: spec.name,
+        slug: spec.externalId,
+        description: spec.description,
+        price: spec.price,
+        currency: "EUR",
+        productUrl: spec.productUrl,
+        imageUrl: "https://placehold.co/600x800",
+        gender: spec.gender,
+        availability: Availability.AVAILABLE,
+      },
+    });
+
+    for (const [
+      variantIndex,
+      variantSpec,
+    ] of spec.variants.entries()) {
+      const sizeKey = SHOE_CATEGORY_SLUGS.has(
+        spec.categorySlug
+      )
+        ? `EU-${variantSpec.size}`
+        : variantSpec.size;
+
+      await prisma.productVariant.upsert({
+        where: {
+          id: `${product.id}-${variantSpec.color}-${variantSpec.size}`,
+        },
+        update: {},
+        create: {
+          id: `${product.id}-${variantSpec.color}-${variantSpec.size}`,
+          productId: product.id,
+          colorId:
+            colors[variantSpec.color].id,
+          sizeId: sizes[sizeKey].id,
+          sku: `${spec.externalId}-${variantSpec.color}-${variantSpec.size}`.toUpperCase(),
+          price: variantSpec.price ?? spec.price,
+          currency: "EUR",
+          availability:
+            variantSpec.availability ??
+            Availability.AVAILABLE,
+        },
+      });
+    }
+
+    for (const [attributeName, value] of Object.entries(
+      spec.attributes
+    )) {
+      await prisma.productAttribute.upsert({
+        where: {
+          productId_attributeId_value: {
+            productId: product.id,
+            attributeId:
+              attributes[attributeName].id,
+            value,
+          },
+        },
+        update: {},
+        create: {
+          productId: product.id,
+          attributeId: attributes[attributeName].id,
+          value,
+        },
+      });
+    }
+
+    return product;
+  }
+
+  console.log(
+    `📦 Importing ${expansionProducts.length} expansion products...`
+  );
+
+  for (const spec of expansionProducts) {
+    await createExpansionProduct(spec);
+  }
 
   console.log("✅ Database seed completed successfully!");
 }
