@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type ProductAttribute = {
   value: string;
@@ -96,6 +96,34 @@ type CategoryStatus = {
   siblings: string[];
 } | null;
 
+type FacetKey =
+  | "gender"
+  | "category"
+  | "color"
+  | "size"
+  | "brand";
+
+type ActiveFilters = Record<
+  FacetKey,
+  Set<string>
+>;
+
+const EMPTY_FILTERS: ActiveFilters = {
+  gender: new Set(),
+  category: new Set(),
+  color: new Set(),
+  size: new Set(),
+  brand: new Set(),
+};
+
+const FACET_LABELS: Record<FacetKey, string> = {
+  gender: "Gender",
+  category: "Category",
+  color: "Color",
+  size: "Size",
+  brand: "Brand",
+};
+
 type SearchResponse = {
   success: boolean;
   query: string;
@@ -110,6 +138,115 @@ type SearchResponse = {
   exactProducts: Product[];
   similarProducts: Product[];
 };
+
+/* ============================================================
+   FACET HELPERS (display-level filtering only)
+============================================================ */
+
+const FACET_KEYS: FacetKey[] = [
+  "gender",
+  "category",
+  "color",
+  "size",
+  "brand",
+];
+
+type FacetEntry = {
+  value: string;
+  label: string;
+};
+
+function getProductFacets(
+  product: Product
+): Record<FacetKey, FacetEntry[]> {
+  const entries: Record<FacetKey, FacetEntry[]> = {
+    gender: [],
+    category: [],
+    color: [],
+    size: [],
+    brand: [],
+  };
+
+  if (product.gender) {
+    entries.gender.push({
+      value: product.gender,
+      label: product.gender,
+    });
+  }
+
+  entries.category.push({
+    value: product.category.id,
+    label: product.category.name,
+  });
+
+  for (const variant of product.variants) {
+    if (
+      variant.color &&
+      !entries.color.some(
+        (entry) => entry.value === variant.color!.id
+      )
+    ) {
+      entries.color.push({
+        value: variant.color.id,
+        label: variant.color.name,
+      });
+    }
+
+    if (
+      variant.size &&
+      !entries.size.some(
+        (entry) => entry.value === variant.size!.value
+      )
+    ) {
+      entries.size.push({
+        value: variant.size.value,
+        label: variant.size.value,
+      });
+    }
+  }
+
+  entries.brand.push({
+    value: product.brand.id,
+    label: product.brand.name,
+  });
+
+  return entries;
+}
+
+function productMatchesFilters(
+  product: Product,
+  activeFilters: ActiveFilters
+) {
+  const facets = getProductFacets(product);
+
+  for (const key of FACET_KEYS) {
+    const selected = activeFilters[key];
+
+    if (selected.size === 0) {
+      continue;
+    }
+
+    const values =
+      facets[key].map((entry) => entry.value);
+
+    const matches =
+      key === "gender"
+        ? values.some(
+            (value) =>
+              selected.has(value) ||
+              value === "UNISEX"
+          )
+        : values.some((value) =>
+            selected.has(value)
+          );
+
+    if (!matches) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -129,6 +266,9 @@ export default function Home() {
     string | null
   >(null);
 
+  const [activeFilters, setActiveFilters] =
+    useState<ActiveFilters>(EMPTY_FILTERS);
+
   async function handleSearch() {
     const trimmedQuery = query.trim();
 
@@ -139,6 +279,13 @@ export default function Home() {
     setLoading(true);
     setSearched(true);
     setErrorMessage(null);
+    setActiveFilters({
+      gender: new Set(),
+      category: new Set(),
+      color: new Set(),
+      size: new Set(),
+      brand: new Set(),
+    });
 
     try {
       const response = await fetch(
@@ -168,6 +315,13 @@ export default function Home() {
       setSimilarProducts([]);
       setStructuredQuery(null);
       setCategoryStatus(null);
+      setActiveFilters({
+        gender: new Set(),
+        category: new Set(),
+        color: new Set(),
+        size: new Set(),
+        brand: new Set(),
+      });
       setErrorMessage(
         "Something went wrong while searching. Please try again."
       );
@@ -217,6 +371,90 @@ export default function Home() {
   }
 
   const searchDescription = getSearchDescription();
+
+  const allProducts = useMemo(
+    () => [...exactProducts, ...similarProducts],
+    [exactProducts, similarProducts]
+  );
+
+  const facetOptions = useMemo(() => {
+    const options: Record<
+      FacetKey,
+      Map<string, { label: string; count: number }>
+    > = {
+      gender: new Map(),
+      category: new Map(),
+      color: new Map(),
+      size: new Map(),
+      brand: new Map(),
+    };
+
+    for (const product of allProducts) {
+      const facets = getProductFacets(product);
+
+      for (const key of FACET_KEYS) {
+        for (const entry of facets[key]) {
+          const existing = options[key].get(
+            entry.value
+          );
+
+          options[key].set(entry.value, {
+            label: entry.label,
+            count: (existing?.count ?? 0) + 1,
+          });
+        }
+      }
+    }
+
+    return options;
+  }, [allProducts]);
+
+  const filteredExactProducts = useMemo(
+    () =>
+      exactProducts.filter((product) =>
+        productMatchesFilters(product, activeFilters)
+      ),
+    [exactProducts, activeFilters]
+  );
+
+  const filteredSimilarProducts = useMemo(
+    () =>
+      similarProducts.filter((product) =>
+        productMatchesFilters(product, activeFilters)
+      ),
+    [similarProducts, activeFilters]
+  );
+
+  const hasActiveFilters = FACET_KEYS.some(
+    (key) => activeFilters[key].size > 0
+  );
+
+  function toggleFilter(
+    key: FacetKey,
+    value: string
+  ) {
+    setActiveFilters((previous) => {
+      const next = new Set(previous[key]);
+
+      if (next.has(value)) {
+        next.delete(value);
+      } else {
+        next.add(value);
+      }
+
+      return { ...previous, [key]: next };
+    });
+  }
+
+  function clearAllFilters() {
+    setActiveFilters({
+      gender: new Set(),
+      category: new Set(),
+      color: new Set(),
+      size: new Set(),
+      brand: new Set(),
+    });
+  }
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -310,9 +548,90 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* FILTERS */}
+
+                {allProducts.length > 0 && (
+                  <div className="mb-10 rounded-2xl border border-gray-200 p-5">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                        Refine results
+                      </h2>
+
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          onClick={clearAllFilters}
+                          className="text-xs font-medium text-gray-500 underline transition hover:text-black"
+                        >
+                          Clear filters
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                      {FACET_KEYS.map((key) => {
+                        const options = [
+                          ...(facetOptions[key] ??
+                            new Map()).entries(),
+                        ].sort((a, b) =>
+                          a[1].label.localeCompare(
+                            b[1].label
+                          )
+                        );
+
+                        if (options.length === 0) {
+                          return null;
+                        }
+
+                        return (
+                          <div key={key}>
+                            <p className="text-xs font-semibold text-gray-400">
+                              {FACET_LABELS[key]}
+                            </p>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {options.map(
+                                ([
+                                  value,
+                                  { label, count },
+                                ]) => {
+                                  const selected =
+                                    activeFilters[
+                                      key
+                                    ].has(value);
+
+                                  return (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() =>
+                                        toggleFilter(
+                                          key,
+                                          value
+                                        )
+                                      }
+                                      className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                                        selected
+                                          ? "bg-black text-white"
+                                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                      }`}
+                                    >
+                                      {label} ({count})
+                                    </button>
+                                  );
+                                }
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* EXACT RESULTS */}
 
-                {exactProducts.length > 0 && (
+                {filteredExactProducts.length > 0 && (
                   <>
                     <div className="mb-6">
                       <h2 className="text-2xl font-semibold">
@@ -320,8 +639,10 @@ export default function Home() {
                       </h2>
 
                       <p className="mt-1 text-sm text-gray-500">
-                        {exactProducts.length} exact{" "}
-                        {exactProducts.length === 1
+                        {filteredExactProducts.length}{" "}
+                        exact{" "}
+                        {filteredExactProducts.length ===
+                        1
                           ? "match"
                           : "matches"}{" "}
                         found
@@ -329,12 +650,14 @@ export default function Home() {
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                      {exactProducts.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                        />
-                      ))}
+                      {filteredExactProducts.map(
+                        (product) => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                          />
+                        )
+                      )}
                     </div>
                   </>
                 )}
@@ -385,10 +708,12 @@ export default function Home() {
 
                 {/* SIMILAR RESULTS */}
 
-                {similarProducts.length > 0 && (
+                {filteredSimilarProducts.length >
+                  0 && (
                   <div
                     className={
-                      exactProducts.length > 0
+                      filteredExactProducts.length >
+                      0
                         ? "mt-16"
                         : "mt-12"
                     }
@@ -399,9 +724,12 @@ export default function Home() {
                       </h2>
 
                       <p className="mt-1 text-sm text-gray-500">
-                        {similarProducts.length}{" "}
+                        {
+                          filteredSimilarProducts.length
+                        }{" "}
                         similar{" "}
-                        {similarProducts.length === 1
+                        {filteredSimilarProducts.length ===
+                        1
                           ? "product"
                           : "products"}{" "}
                         from related matches
@@ -409,15 +737,48 @@ export default function Home() {
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                      {similarProducts.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                        />
-                      ))}
+                      {filteredSimilarProducts.map(
+                        (product) => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                          />
+                        )
+                      )}
                     </div>
                   </div>
                 )}
+
+                {/* FILTERS HIDE EVERYTHING */}
+
+                {hasActiveFilters &&
+                  allProducts.length > 0 &&
+                  filteredExactProducts.length ===
+                    0 &&
+                  filteredSimilarProducts.length ===
+                    0 && (
+                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
+                      <EmptyStateIcon />
+
+                      <h2 className="mt-4 text-xl font-semibold">
+                        No products match your
+                        filters
+                      </h2>
+
+                      <p className="mt-2 text-gray-500">
+                        Try removing one or more
+                        filters to see more results.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="mt-6 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  )}
 
                 {/* NOTHING FOUND */}
 
