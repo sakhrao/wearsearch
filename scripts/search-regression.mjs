@@ -619,24 +619,24 @@ const CASES = [
   {
     q: "shirt",
     exact: 0,
-    similar: 0,
+    similar: 7,
     status: {
       requested: "Shirts",
       productCount: 0,
       siblings: ["T-Shirts", "Tank Tops"],
     },
-    note: "new in 6.7.1: empty-category metadata explains the dead end; results untouched (G4 policy is data-first)",
+    note: "updated in 6.7.2 INTENTIONALLY: empty-category sibling substitution fills the dead end with constraint-clean siblings (no color/gender/attr intent here -> all 7)",
   },
   {
     q: "shirts",
     exact: 0,
-    similar: 0,
+    similar: 7,
     status: {
       requested: "Shirts",
       productCount: 0,
       siblings: ["T-Shirts", "Tank Tops"],
     },
-    note: "new in 6.7.1: plural form reports the same empty node",
+    note: "updated in 6.7.2 INTENTIONALLY: same detection as 'shirt', sibling substitution applies identically",
   },
   {
     q: "black shirt",
@@ -663,13 +663,13 @@ const CASES = [
   {
     q: "men shirt",
     exact: 0,
-    similar: 0,
+    similar: 5,
     status: {
       requested: "Shirts",
       productCount: 0,
       siblings: ["T-Shirts", "Tank Tops"],
     },
-    note: "new in 6.7.1: gender+empty category still metadata-only",
+    note: "updated in 6.7.2 INTENTIONALLY: sibling substitution preserves explicit gender constraint (MEN-compatible siblings only)",
   },
   {
     q: "classic shirt",

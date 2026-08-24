@@ -889,6 +889,94 @@ export async function GET(
       filteredQueryWords.length > 0;
 
     /* =====================================================
+       CATEGORY STATUS METADATA + EMPTY-NODE POLICY STATE
+       Describes the requested category node, how many
+       products its subtree stocks, and which sibling
+       nodes exist. The metadata itself is informational;
+       the derived empty/sibling flags below feed ONLY
+       the similar-path substitution policy (6.7.2).
+    ===================================================== */
+
+    let categoryStatus: {
+      requested: string;
+      productCount: number;
+      siblings: string[];
+    } | null = null;
+
+    if (detectedCategory) {
+      const requestedNode =
+        categories.find(
+          (category) =>
+            category.name ===
+            detectedCategory
+        );
+
+      if (requestedNode) {
+        const subtreeIds = new Set([
+          requestedNode.id,
+        ]);
+
+        let subtreeChanged = true;
+
+        while (subtreeChanged) {
+          subtreeChanged = false;
+
+          for (const category of categories) {
+            if (
+              !subtreeIds.has(category.id) &&
+              category.parentId !== null &&
+              subtreeIds.has(category.parentId)
+            ) {
+              subtreeIds.add(category.id);
+              subtreeChanged = true;
+            }
+          }
+        }
+
+        const productCount =
+          products.filter(
+            (product) =>
+              product.category &&
+              subtreeIds.has(product.category.id)
+          ).length;
+
+        const siblings = categories
+          .filter(
+            (category) =>
+              requestedNode.parentId !==
+                null &&
+              category.id !==
+                requestedNode.id &&
+              category.parentId ===
+                requestedNode.parentId
+          )
+          .map((category) => category.name)
+          .sort();
+
+        categoryStatus = {
+          requested: detectedCategory,
+          productCount,
+          siblings,
+        };
+      }
+    }
+
+    /* B2-gated substitution trigger: the requested
+       node exists in taxonomy but stocks nothing.
+       Siblings may then stand in for it in the
+       similar path only - never for Exact. */
+    const requestedCategoryIsEmpty =
+      categoryStatus !== null &&
+      categoryStatus.productCount === 0;
+
+    const siblingCategoryNames =
+      new Set(
+        categoryStatus
+          ? categoryStatus.siblings
+          : []
+      );
+
+    /* =====================================================
        SCORE PRODUCTS
     ===================================================== */
 
@@ -1108,8 +1196,26 @@ export async function GET(
             : -80;
         }
 
+        /* B2 substitution credit: a sibling of an
+           empty requested node that satisfies every
+           other explicit structural constraint is
+           scored as if the category matched, in the
+           similar path only. */
+        const categoryCredit =
+          categoryMatches ||
+          (requestedCategoryIsEmpty &&
+            !categoryMatches &&
+            product.category !== null &&
+            siblingCategoryNames.has(
+              product.category.name
+            ) &&
+            brandMatches &&
+            colorMatches &&
+            sizeMatches &&
+            allAttributesMatched);
+
         if (detectedCategory) {
-          score += categoryMatches
+          score += categoryCredit
             ? 400
             : -220;
         }
@@ -1143,7 +1249,8 @@ export async function GET(
           ),
           Boolean(
             detectedCategory &&
-              !categoryMatches
+              !categoryMatches &&
+              !categoryCredit
           ),
           Boolean(
             detectedColor &&
@@ -1198,7 +1305,8 @@ export async function GET(
 
         const categoryCoherent =
           !detectedCategory ||
-          categoryMatches;
+          categoryMatches ||
+          categoryCredit;
 
         if (!categoryCoherent) {
           score = Math.round(score * 0.5);
@@ -1251,7 +1359,8 @@ export async function GET(
           ) ||
           Boolean(
             detectedCategory &&
-            categoryMatches
+            (categoryMatches ||
+              categoryCredit)
           ) ||
           Boolean(
             detectedColor &&
@@ -1382,79 +1491,6 @@ export async function GET(
             b.score - a.score ||
             (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
         );
-
-    /* =====================================================
-       CATEGORY STATUS METADATA
-       Purely informational: describes the requested
-       category node, how many products its subtree
-       actually stocks, and which sibling nodes exist.
-       It never influences matching, scoring,
-       admission, or ordering.
-    ===================================================== */
-
-    let categoryStatus: {
-      requested: string;
-      productCount: number;
-      siblings: string[];
-    } | null = null;
-
-    if (detectedCategory) {
-      const requestedNode =
-        categories.find(
-          (category) =>
-            category.name ===
-            detectedCategory
-        );
-
-      if (requestedNode) {
-        const subtreeIds = new Set([
-          requestedNode.id,
-        ]);
-
-        let subtreeChanged = true;
-
-        while (subtreeChanged) {
-          subtreeChanged = false;
-
-          for (const category of categories) {
-            if (
-              !subtreeIds.has(category.id) &&
-              category.parentId !== null &&
-              subtreeIds.has(category.parentId)
-            ) {
-              subtreeIds.add(category.id);
-              subtreeChanged = true;
-            }
-          }
-        }
-
-        const productCount =
-          products.filter(
-            (product) =>
-              product.category &&
-              subtreeIds.has(product.category.id)
-          ).length;
-
-        const siblings = categories
-          .filter(
-            (category) =>
-              requestedNode.parentId !==
-                null &&
-              category.id !==
-                requestedNode.id &&
-              category.parentId ===
-                requestedNode.parentId
-          )
-          .map((category) => category.name)
-          .sort();
-
-        categoryStatus = {
-          requested: detectedCategory,
-          productCount,
-          siblings,
-        };
-      }
-    }
 
     /* =====================================================
        RESPONSE
