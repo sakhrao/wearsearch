@@ -340,10 +340,10 @@ const CASES = [
   },
   {
     q: "black nike hoodie for men",
-    exact: 1,
-    similar: 2,
+    exact: 0,
+    similar: 3,
     struct: { brand: "Nike", color: "Black", gender: "MEN" },
-    note: "new in 6.2: unknown garment word ('hoodie') is aspirational, structured intent still exacts",
+    note: "changed intentionally in 6.4.2: unsupported category intent (hoodie) makes Exact impossible; structured constraints still produce Similar candidates",
   },
   {
     q: "men hoodie",

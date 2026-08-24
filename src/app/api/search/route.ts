@@ -633,6 +633,54 @@ export async function GET(
       "for",
     ]);
 
+    /* =====================================================
+       CATEGORY INTENT VOCABULARY (Phase 6.4.2)
+       Known clothing categories that do NOT exist in the
+       catalog taxonomy. A query token from this list is
+       recognized as category intent and consumed, but it
+       makes Exact impossible regardless of remaining
+       constraint matches. Purely subtractive: it never
+       adds score, strength, or candidates.
+    ===================================================== */
+
+    const UNSUPPORTED_CATEGORY_WORDS =
+      new Set([
+        "jacket",
+        "hoodie",
+        "coat",
+        "dress",
+        "skirt",
+        "short",
+        "sweater",
+        "blazer",
+      ]);
+
+    const singularizeCategoryWord = (
+      word: string
+    ): string | null => {
+      if (
+        UNSUPPORTED_CATEGORY_WORDS.has(
+          word
+        )
+      ) {
+        return word;
+      }
+
+      if (
+        word.endsWith("s") &&
+        UNSUPPORTED_CATEGORY_WORDS.has(
+          word.slice(0, -1)
+        )
+      ) {
+        return word.slice(0, -1);
+      }
+
+      return null;
+    };
+
+    const unsupportedIntentWords =
+      new Set<string>();
+
     const queryWords =
       getWords(query);
 
@@ -640,6 +688,12 @@ export async function GET(
       queryWords.filter(
         (word) => !SEARCH_STOP_WORDS.has(word)
       );
+
+    for (const word of filteredQueryWords) {
+      if (singularizeCategoryWord(word)) {
+        unsupportedIntentWords.add(word);
+      }
+    }
 
     /* =====================================================
        STRUCTURED WORDS
@@ -677,7 +731,10 @@ export async function GET(
     const freeTextWords =
       filteredQueryWords.filter(
         (word) =>
-          !structuredWords.has(word)
+          !structuredWords.has(word) &&
+          !unsupportedIntentWords.has(
+            word
+          )
       );
 
     const hasStructuredFilterGlobal =
@@ -1095,7 +1152,9 @@ export async function GET(
         const exactMatch =
           hasSearchSignal &&
           structuredFiltersMatch &&
-          allFreeTextMatched;
+          allFreeTextMatched &&
+          unsupportedIntentWords.size ===
+            0;
 
         /* ===============================================
            SIMILAR MATCH
