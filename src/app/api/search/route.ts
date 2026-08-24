@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 function normalizeText(text: string | null | undefined): string {
   return (text ?? "")
+    .replace(/['’]s(?=\s|$)/gi, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
     .replace(/\s+/g, " ")
@@ -148,6 +149,18 @@ function maskValue(
    GENDER
 ========================================================= */
 
+const SIZE_ALIAS_WORDS: Record<
+  string,
+  string
+> = {
+  "extra small": "XS",
+  small: "S",
+  medium: "M",
+  large: "L",
+  "extra large": "XL",
+  "double extra large": "XXL",
+};
+
 type Gender =
   | "MEN"
   | "WOMEN"
@@ -162,7 +175,10 @@ function normalizeGender(
   if (
     gender === "men" ||
     gender === "man" ||
-    gender === "male"
+    gender === "male" ||
+    gender === "mens" ||
+    gender === "gentleman" ||
+    gender === "gentlemen"
   ) {
     return "MEN";
   }
@@ -170,7 +186,10 @@ function normalizeGender(
   if (
     gender === "women" ||
     gender === "woman" ||
-    gender === "female"
+    gender === "female" ||
+    gender === "womens" ||
+    gender === "ladies" ||
+    gender === "lady"
   ) {
     return "WOMEN";
   }
@@ -409,15 +428,35 @@ export async function GET(
     const detectedColor =
       detectEntity(colorNames);
 
+    const detectedSizeRaw =
+      detectEntity([
+        ...sizeValues,
+        ...Object.keys(
+          SIZE_ALIAS_WORDS
+        ),
+      ]);
+
     const detectedSize =
-      detectEntity(sizeValues);
+      detectedSizeRaw
+        ? (SIZE_ALIAS_WORDS[
+            looseNormalize(
+              detectedSizeRaw
+            )
+          ] ?? detectedSizeRaw)
+        : null;
 
     const genderWords = [
       "women",
       "woman",
+      "womens",
+      "ladies",
+      "lady",
       "female",
       "men",
       "man",
+      "mens",
+      "gentleman",
+      "gentlemen",
       "male",
       "unisex",
     ];
@@ -717,9 +756,13 @@ export async function GET(
     addStructuredWords(detectedBrand);
     addStructuredWords(detectedCategory);
     addStructuredWords(detectedColor);
+    addStructuredWords(detectedSizeRaw);
     addStructuredWords(detectedSize);
     addStructuredWords(
       detectedGenderRaw
+    );
+    addStructuredWords(
+      detectedGender
     );
 
     for (const attribute of detectedAttributes) {
