@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:search": "node scripts/search-regression.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

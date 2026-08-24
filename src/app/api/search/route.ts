@@ -15,7 +15,7 @@ function normalizeText(text: string | null | undefined): string {
 
 function getWords(text: string): string[] {
   return normalizeText(text)
-    .split(/\s+/)
+    .split(/[\s-]+/)
     .filter((word) => word.length > 1);
 }
 
@@ -76,6 +76,72 @@ function findMatch(
   }
 
   return null;
+}
+
+function findMatchSpan(
+  query: string,
+  values: string[]
+): { value: string; index: number; length: number } | null {
+  const normalizedQuery = looseNormalize(query);
+
+  const sortedValues = [...new Set(values)]
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        looseNormalize(b).length -
+        looseNormalize(a).length
+    );
+
+  for (const value of sortedValues) {
+    const normalizedValue =
+      looseNormalize(value);
+
+    if (!normalizedValue) {
+      continue;
+    }
+
+    const escaped = normalizedValue.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+    const regex = new RegExp(
+      `(^|\\s)${buildFlexiblePattern(escaped)}($|\\s)`,
+      "i"
+    );
+
+    const match = regex.exec(normalizedQuery);
+
+    if (match && match.index !== undefined) {
+      return {
+        value,
+        index: match.index,
+        length: match[0].length,
+      };
+    }
+  }
+
+  return null;
+}
+
+function maskValue(
+  queryText: string,
+  value: string
+): string {
+  const escaped = looseNormalize(value).replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+
+  const regex = new RegExp(
+    `(^|\\s)${buildFlexiblePattern(escaped)}(?=$|\\s)`,
+    "gi"
+  );
+
+  return queryText.replace(
+    regex,
+    (matched) => " ".repeat(matched.length)
+  );
 }
 
 /* =========================================================
@@ -308,23 +374,43 @@ export async function GET(
 
     /* =====================================================
        DETECT STRUCTURED QUERY
+       (sequential detection with span masking: each matched
+       entity is consumed before the next dictionary runs)
     ===================================================== */
+
+    let workingQuery = looseNormalize(query);
+
+    const detectEntity = (
+      values: string[]
+    ): string | null => {
+      const hit = findMatchSpan(
+        workingQuery,
+        values
+      );
+
+      if (!hit) {
+        return null;
+      }
+
+      workingQuery = maskValue(
+        workingQuery,
+        hit.value
+      );
+
+      return hit.value;
+    };
 
     const detectedBrand =
-      findMatch(query, brandNames);
+      detectEntity(brandNames);
 
     const detectedCategory =
-      findMatch(query, categoryNames);
+      detectEntity(categoryNames);
 
     const detectedColor =
-      findMatch(query, colorNames);
+      detectEntity(colorNames);
 
     const detectedSize =
-      findMatch(query, sizeValues);
-
-    /* =====================================================
-       DETECT GENDER
-    ===================================================== */
+      detectEntity(sizeValues);
 
     const genderWords = [
       "women",
@@ -337,7 +423,7 @@ export async function GET(
     ];
 
     const detectedGenderRaw =
-      findMatch(query, genderWords);
+      detectEntity(genderWords);
 
     const detectedGender =
       normalizeGender(
@@ -505,9 +591,17 @@ export async function GET(
     }
 
     for (const item of uniqueAttributes.values()) {
-      if (
-        findMatch(query, [item.value])
-      ) {
+      const attributeHit = findMatchSpan(
+        workingQuery,
+        [item.value]
+      );
+
+      if (attributeHit) {
+        workingQuery = maskValue(
+          workingQuery,
+          item.value
+        );
+
         detectedAttributes.push({
           attributeName:
             item.attributeName,
@@ -533,8 +627,19 @@ export async function GET(
        QUERY WORDS
     ===================================================== */
 
+    const SEARCH_STOP_WORDS = new Set([
+      "size",
+      "sizes",
+      "for",
+    ]);
+
     const queryWords =
       getWords(query);
+
+    const filteredQueryWords =
+      queryWords.filter(
+        (word) => !SEARCH_STOP_WORDS.has(word)
+      );
 
     /* =====================================================
        STRUCTURED WORDS
@@ -570,10 +675,75 @@ export async function GET(
     }
 
     const freeTextWords =
-      queryWords.filter(
+      filteredQueryWords.filter(
         (word) =>
           !structuredWords.has(word)
       );
+
+    const hasStructuredFilterGlobal =
+      Boolean(
+        detectedBrand ||
+          detectedCategory ||
+          detectedColor ||
+          detectedSize ||
+          detectedGender ||
+          detectedAttributes.length > 0
+      );
+
+    const hasStrongStructuredFilter =
+      Boolean(
+        detectedBrand ||
+          detectedCategory ||
+          detectedColor ||
+          detectedSize ||
+          detectedAttributes.length > 0
+      );
+
+    const corpusWords = new Set<string>();
+
+    for (const product of products) {
+      const corpusTexts = [
+        product.name,
+        product.description,
+        product.brand?.name,
+        product.category?.name,
+        String(product.gender ?? ""),
+
+        ...product.variants.map(
+          (variant) =>
+            variant.color?.name ?? ""
+        ),
+
+        ...product.variants.map(
+          (variant) =>
+            variant.size?.value ?? ""
+        ),
+
+        ...product.attributes.map(
+          (attribute) => attribute.value
+        ),
+
+        ...product.attributes.map(
+          (attribute) =>
+            attribute.attribute.name
+        ),
+      ];
+
+      for (const word of getWords(
+        corpusTexts.join(" ")
+      )) {
+        corpusWords.add(word);
+      }
+    }
+
+    const requiredFreeWords =
+      freeTextWords.filter((word) =>
+        corpusWords.has(word)
+      );
+
+    const requiredWordSet = new Set(
+      requiredFreeWords
+    );
 
     const hasSearchSignal =
       Boolean(detectedBrand) ||
@@ -582,7 +752,7 @@ export async function GET(
       Boolean(detectedSize) ||
       Boolean(detectedGender) ||
       detectedAttributes.length > 0 ||
-      queryWords.length > 0;
+      filteredQueryWords.length > 0;
 
     /* =====================================================
        SCORE PRODUCTS
@@ -755,32 +925,40 @@ export async function GET(
         =============================================== */
 
         let matchedFreeTextWords = 0;
+        let matchedRequiredWords = 0;
         let score = 0;
+
+        const applyWordMatch = (
+          word: string,
+          points: number
+        ) => {
+          score += points;
+          matchedFreeTextWords++;
+
+          if (requiredWordSet.has(word)) {
+            matchedRequiredWords++;
+          }
+        };
 
         for (const word of freeTextWords) {
           if (nameText.includes(word)) {
-            score += 100;
-            matchedFreeTextWords++;
+            applyWordMatch(word, 100);
           } else if (
             categoryText.includes(word)
           ) {
-            score += 80;
-            matchedFreeTextWords++;
+            applyWordMatch(word, 80);
           } else if (
             brandText.includes(word)
           ) {
-            score += 70;
-            matchedFreeTextWords++;
+            applyWordMatch(word, 70);
           } else if (
             descriptionText.includes(word)
           ) {
-            score += 40;
-            matchedFreeTextWords++;
+            applyWordMatch(word, 40);
           } else if (
             searchableText.includes(word)
           ) {
-            score += 20;
-            matchedFreeTextWords++;
+            applyWordMatch(word, 20);
           }
         }
 
@@ -856,10 +1034,15 @@ export async function GET(
           productGenderMatches &&
           allAttributesMatched;
 
+        const unknownOnlyNoise =
+          requiredFreeWords.length === 0 &&
+          freeTextWords.length > 0 &&
+          !hasStrongStructuredFilter;
+
         const allFreeTextMatched =
-          freeTextWords.length === 0 ||
-          matchedFreeTextWords ===
-            freeTextWords.length;
+          !unknownOnlyNoise &&
+          matchedRequiredWords ===
+            requiredFreeWords.length;
 
         const exactMatch =
           hasSearchSignal &&
@@ -996,7 +1179,7 @@ export async function GET(
             matchedFreeTextWords,
 
           totalQueryWords:
-            queryWords.length,
+            filteredQueryWords.length,
 
           matchedColors:
             detectedColor &&
