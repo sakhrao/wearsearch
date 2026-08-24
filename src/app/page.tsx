@@ -90,11 +90,19 @@ type StructuredQuery = {
   }[];
 };
 
+type CategoryStatus = {
+  requested: string;
+  productCount: number;
+  siblings: string[];
+} | null;
+
 type SearchResponse = {
   success: boolean;
   query: string;
 
   structuredQuery: StructuredQuery;
+
+  categoryStatus: CategoryStatus;
 
   exactCount: number;
   similarCount: number;
@@ -112,8 +120,10 @@ export default function Home() {
   const [structuredQuery, setStructuredQuery] =
     useState<StructuredQuery | null>(null);
 
+  const [categoryStatus, setCategoryStatus] =
+    useState<CategoryStatus>(null);
+
   const [searched, setSearched] = useState(false);
-  const [showSimilar, setShowSimilar] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<
     string | null
@@ -128,7 +138,6 @@ export default function Home() {
 
     setLoading(true);
     setSearched(true);
-    setShowSimilar(false);
     setErrorMessage(null);
 
     try {
@@ -151,12 +160,14 @@ export default function Home() {
       setExactProducts(data.exactProducts ?? []);
       setSimilarProducts(data.similarProducts ?? []);
       setStructuredQuery(data.structuredQuery ?? null);
+      setCategoryStatus(data.categoryStatus ?? null);
     } catch (error) {
       console.error("Search failed:", error);
 
       setExactProducts([]);
       setSimilarProducts([]);
       setStructuredQuery(null);
+      setCategoryStatus(null);
       setErrorMessage(
         "Something went wrong while searching. Please try again."
       );
@@ -328,10 +339,35 @@ export default function Home() {
                   </>
                 )}
 
-                {/* NO EXACT RESULTS */}
+                {/* NO EXACT RESULTS CONTEXT */}
 
-                {exactProducts.length === 0 && (
-                  <>
+                {exactProducts.length === 0 &&
+                  similarProducts.length > 0 &&
+                  categoryStatus &&
+                  categoryStatus.productCount === 0 && (
+                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
+                      <EmptyStateIcon />
+
+                      <h2 className="mt-4 text-xl font-semibold">
+                        No{" "}
+                        {categoryStatus.requested.toLowerCase()}
+                        s found yet
+                      </h2>
+
+                      <p className="mt-2 text-gray-500">
+                        We don&apos;t stock any{" "}
+                        {categoryStatus.requested.toLowerCase()}
+                        s right now. Here are similar
+                        options from related categories.
+                      </p>
+                    </div>
+                  )}
+
+                {exactProducts.length === 0 &&
+                  (!categoryStatus ||
+                    categoryStatus.productCount >
+                      0) &&
+                  similarProducts.length > 0 && (
                     <div className="rounded-2xl border border-gray-200 p-10 text-center">
                       <EmptyStateIcon />
 
@@ -340,65 +376,68 @@ export default function Home() {
                       </h2>
 
                       <p className="mt-2 text-gray-500">
-                        We couldn&apos;t find any products that
-                        exactly match your search.
+                        We couldn&apos;t find any products
+                        that exactly match your search,
+                        but these are close.
                       </p>
+                    </div>
+                  )}
 
-                      {similarProducts.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setShowSimilar(true)}
-                          className="mt-6 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
-                        >
-                          Show similar results (
-                          {similarProducts.length})
-                        </button>
-                      )}
+                {/* SIMILAR RESULTS */}
+
+                {similarProducts.length > 0 && (
+                  <div
+                    className={
+                      exactProducts.length > 0
+                        ? "mt-16"
+                        : "mt-12"
+                    }
+                  >
+                    <div className="mb-6">
+                      <h2 className="text-2xl font-semibold">
+                        Similar options
+                      </h2>
+
+                      <p className="mt-1 text-sm text-gray-500">
+                        {similarProducts.length}{" "}
+                        similar{" "}
+                        {similarProducts.length === 1
+                          ? "product"
+                          : "products"}{" "}
+                        from related matches
+                      </p>
                     </div>
 
-                    {/* SIMILAR RESULTS */}
-
-                    {showSimilar &&
-                      similarProducts.length > 0 && (
-                        <div className="mt-12">
-                          <div className="mb-6">
-                            <h2 className="text-2xl font-semibold">
-                              Similar results
-                            </h2>
-
-                            <p className="mt-1 text-sm text-gray-500">
-                              These products are similar to what
-                              you searched for.
-                            </p>
-                          </div>
-
-                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                            {similarProducts.map((product) => (
-                              <ProductCard
-                                key={product.id}
-                                product={product}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                  </>
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                      {similarProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* NOTHING FOUND */}
 
                 {exactProducts.length === 0 &&
                   similarProducts.length === 0 && (
-                    <div className="mt-8 rounded-2xl border border-gray-200 p-10 text-center">
+                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
-                        Nothing found
+                        {categoryStatus &&
+                        categoryStatus.productCount > 0
+                          ? `Nothing matched your full ${categoryStatus.requested.toLowerCase()} search`
+                          : "Nothing found"}
                       </h2>
 
                       <p className="mt-2 text-gray-500">
-                        We couldn&apos;t find any products matching
-                        your search.
+                        {categoryStatus &&
+                        categoryStatus.productCount > 0
+                          ? `We carry ${categoryStatus.requested.toLowerCase()}s, but none matched everything you asked for.`
+                          : "We couldn't find any products matching your search."}
                       </p>
 
                       <p className="mt-4 text-sm text-gray-400">
@@ -442,6 +481,21 @@ function EmptyStateIcon() {
 }
 
 /* ============================================================
+   STORE NAME DERIVATION
+============================================================ */
+
+function getStoreName(productUrl: string) {
+  try {
+    return new URL(productUrl).hostname.replace(
+      /^www\./,
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+/* ============================================================
    PRODUCT CARD
 ============================================================ */
 
@@ -450,6 +504,10 @@ function ProductCard({
 }: {
   product: Product;
 }) {
+  const storeName = getStoreName(
+    product.productUrl
+  );
+
   const variantColors: {
     id: string;
     name: string;
@@ -511,10 +569,16 @@ function ProductCard({
 
       <div className="p-5">
 
-        {/* BRAND */}
+        {/* BRAND + STORE */}
 
         <p className="text-sm text-gray-500">
           {product.brand.name}
+          {storeName && (
+            <span className="text-gray-400">
+              {" "}
+              • {storeName}
+            </span>
+          )}
         </p>
 
         {/* NAME */}
