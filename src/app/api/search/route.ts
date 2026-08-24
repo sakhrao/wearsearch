@@ -1385,9 +1385,21 @@ export async function GET(
             !productGenderMatches
         );
 
+        /* Category scope gate (Similar path only):
+           with an explicit non-empty category intent,
+           candidates must belong to the requested
+           subtree, or qualify as empty-node sibling
+           substitutions. Unrelated branches (e.g.
+           Shoes for "white shirt") never enter. */
+        const categoryScopeAllowed =
+          !detectedCategory ||
+          categoryMatches ||
+          categoryCredit;
+
         const similarMatch =
           !exactMatch &&
           !genderMismatch &&
+          categoryScopeAllowed &&
           structuralMismatches <= 2 &&
           meaningfulRelevance &&
           score > 0;
