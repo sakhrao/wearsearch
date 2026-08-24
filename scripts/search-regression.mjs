@@ -616,6 +616,127 @@ const CASES = [
     similar: 0,
     note: "new in 6.2: structural stopword alone produces no signal",
   },
+  {
+    q: "shirt",
+    exact: 0,
+    similar: 0,
+    status: {
+      requested: "Shirts",
+      productCount: 0,
+      siblings: ["T-Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: empty-category metadata explains the dead end; results untouched (G4 policy is data-first)",
+  },
+  {
+    q: "shirts",
+    exact: 0,
+    similar: 0,
+    status: {
+      requested: "Shirts",
+      productCount: 0,
+      siblings: ["T-Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: plural form reports the same empty node",
+  },
+  {
+    q: "black shirt",
+    exact: 0,
+    similar: 4,
+    status: {
+      requested: "Shirts",
+      productCount: 0,
+      siblings: ["T-Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: fallback Similar must stay exactly as before while metadata explains requested category",
+  },
+  {
+    q: "white shirt",
+    exact: 0,
+    similar: 4,
+    status: {
+      requested: "Shirts",
+      productCount: 0,
+      siblings: ["T-Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: known cross-branch suggestion flaw documented separately as Similar-quality issue, NOT fixed here",
+  },
+  {
+    q: "men shirt",
+    exact: 0,
+    similar: 0,
+    status: {
+      requested: "Shirts",
+      productCount: 0,
+      siblings: ["T-Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: gender+empty category still metadata-only",
+  },
+  {
+    q: "classic shirt",
+    exact: 0,
+    similar: 0,
+    status: {
+      requested: "Shirts",
+      productCount: 0,
+      siblings: ["T-Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: attribute+empty category still metadata-only",
+  },
+  {
+    q: "t-shirt",
+    exact: 3,
+    similar: 0,
+    struct: { category: "T-Shirts" },
+    status: {
+      requested: "T-Shirts",
+      productCount: 3,
+      siblings: ["Shirts", "Tank Tops"],
+    },
+    note: "new in 6.7.1: stocked category reports its own count and taxonomy siblings",
+  },
+  {
+    q: "tank top",
+    exact: 4,
+    similar: 0,
+    struct: { category: "Tank Tops" },
+    status: {
+      requested: "Tank Tops",
+      productCount: 4,
+      siblings: ["Shirts", "T-Shirts"],
+    },
+    note: "new in 6.7.1: sibling list includes empty Shirts too - data first, merchandising later",
+  },
+  {
+    q: "jeans",
+    exact: 2,
+    similar: 0,
+    struct: { category: "Jeans" },
+    status: {
+      requested: "Jeans",
+      productCount: 2,
+      siblings: [],
+    },
+    note: "new in 6.7.1: only child under Bottoms -> empty siblings",
+  },
+  {
+    q: "shoes",
+    exact: 3,
+    similar: 0,
+    struct: { category: "Shoes" },
+    status: {
+      requested: "Shoes",
+      productCount: 3,
+      siblings: [],
+    },
+    note: "new in 6.7.1: top-level node has no parent hence no siblings; count = subtree products",
+  },
+  {
+    q: "nike",
+    exact: 1,
+    similar: 0,
+    status: null,
+    note: "new in 6.7.1: brand-only query has no detected category -> categoryStatus stays null",
+  },
 ];
 
 const GENDER_COMPATIBILITY = {
@@ -705,6 +826,17 @@ async function runCase(client, testCase) {
           `structured.attributes=[${actualSig}], expected [${expectedSig}]`
         );
       }
+    }
+  }
+
+  if ("status" in testCase) {
+    const actual = data.categoryStatus ?? null;
+    if (
+      JSON.stringify(actual) !== JSON.stringify(testCase.status)
+    ) {
+      problems.push(
+        `categoryStatus=${JSON.stringify(actual)}, expected ${JSON.stringify(testCase.status)}`
+      );
     }
   }
 

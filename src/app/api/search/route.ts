@@ -1384,6 +1384,79 @@ export async function GET(
         );
 
     /* =====================================================
+       CATEGORY STATUS METADATA
+       Purely informational: describes the requested
+       category node, how many products its subtree
+       actually stocks, and which sibling nodes exist.
+       It never influences matching, scoring,
+       admission, or ordering.
+    ===================================================== */
+
+    let categoryStatus: {
+      requested: string;
+      productCount: number;
+      siblings: string[];
+    } | null = null;
+
+    if (detectedCategory) {
+      const requestedNode =
+        categories.find(
+          (category) =>
+            category.name ===
+            detectedCategory
+        );
+
+      if (requestedNode) {
+        const subtreeIds = new Set([
+          requestedNode.id,
+        ]);
+
+        let subtreeChanged = true;
+
+        while (subtreeChanged) {
+          subtreeChanged = false;
+
+          for (const category of categories) {
+            if (
+              !subtreeIds.has(category.id) &&
+              category.parentId !== null &&
+              subtreeIds.has(category.parentId)
+            ) {
+              subtreeIds.add(category.id);
+              subtreeChanged = true;
+            }
+          }
+        }
+
+        const productCount =
+          products.filter(
+            (product) =>
+              product.category &&
+              subtreeIds.has(product.category.id)
+          ).length;
+
+        const siblings = categories
+          .filter(
+            (category) =>
+              requestedNode.parentId !==
+                null &&
+              category.id !==
+                requestedNode.id &&
+              category.parentId ===
+                requestedNode.parentId
+          )
+          .map((category) => category.name)
+          .sort();
+
+        categoryStatus = {
+          requested: detectedCategory,
+          productCount,
+          siblings,
+        };
+      }
+    }
+
+    /* =====================================================
        RESPONSE
     ===================================================== */
 
@@ -1393,6 +1466,8 @@ export async function GET(
       query,
 
       structuredQuery,
+
+      categoryStatus,
 
       exactCount:
         exactProducts.length,
