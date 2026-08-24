@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type ProductAttribute = {
   value: string;
@@ -269,6 +269,9 @@ export default function Home() {
   const [activeFilters, setActiveFilters] =
     useState<ActiveFilters>(EMPTY_FILTERS);
 
+  const resultsRef =
+    useRef<HTMLElement | null>(null);
+
   async function handleSearch() {
     const trimmedQuery = query.trim();
 
@@ -308,6 +311,11 @@ export default function Home() {
       setSimilarProducts(data.similarProducts ?? []);
       setStructuredQuery(data.structuredQuery ?? null);
       setCategoryStatus(data.categoryStatus ?? null);
+
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     } catch (error) {
       console.error("Search failed:", error);
 
@@ -474,7 +482,7 @@ export default function Home() {
 
         {/* SEARCH */}
 
-        <div className="mx-auto flex max-w-3xl gap-3">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row">
           <input
             type="text"
             value={query}
@@ -487,6 +495,7 @@ export default function Home() {
               }
             }}
             placeholder="Search for clothes..."
+            aria-label="Search for clothes"
             className="flex-1 rounded-xl border border-gray-300 px-5 py-4 outline-none transition focus:border-black"
           />
 
@@ -494,7 +503,8 @@ export default function Home() {
             type="button"
             onClick={handleSearch}
             disabled={loading || !query.trim()}
-            className="rounded-xl bg-black px-7 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Run search"
+            className="w-full rounded-xl bg-black px-7 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[150px]"
           >
             {loading ? "Searching..." : "Search"}
           </button>
@@ -504,7 +514,8 @@ export default function Home() {
 
         {searched && (
           <section
-            className={`mt-12 transition-opacity ${
+            ref={resultsRef}
+            className={`mt-12 scroll-mt-6 transition-opacity ${
               loading
                 ? "pointer-events-none opacity-50"
                 : ""
@@ -909,8 +920,15 @@ function ProductCard({
     }
   }
 
+  const outOfStock =
+    product.variants.length > 0 &&
+    !product.variants.some(
+      (variant) =>
+        variant.availability === "AVAILABLE"
+    );
+
   return (
-    <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:shadow-lg">
+    <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:shadow-lg">
 
       {/* IMAGE */}
 
@@ -918,12 +936,22 @@ function ProductCard({
         <img
           src={product.imageUrl}
           alt={product.name}
+          loading="lazy"
+          decoding="async"
           className="h-80 w-full object-cover"
         />
       ) : (
         <div className="flex h-80 w-full items-center justify-center bg-gray-100 text-gray-400">
           No image
         </div>
+      )}
+
+      {/* AVAILABILITY BADGE */}
+
+      {outOfStock && (
+        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-red-600 shadow">
+          Out of stock
+        </span>
       )}
 
       {/* CONTENT */}
