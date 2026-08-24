@@ -167,10 +167,14 @@ const CATEGORY_ALIAS_WORDS: Record<
 > = {
   tee: "T-Shirts",
   tees: "T-Shirts",
+  tshirt: "T-Shirts",
+  tshirts: "T-Shirts",
   trainer: "Sneakers",
   trainers: "Sneakers",
   tank: "Tank Tops",
   tanks: "Tank Tops",
+  tanktop: "Tank Tops",
+  tanktops: "Tank Tops",
 };
 
 type Gender =
