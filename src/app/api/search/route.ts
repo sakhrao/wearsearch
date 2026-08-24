@@ -161,6 +161,18 @@ const SIZE_ALIAS_WORDS: Record<
   "double extra large": "XXL",
 };
 
+const CATEGORY_ALIAS_WORDS: Record<
+  string,
+  string
+> = {
+  tee: "T-Shirts",
+  tees: "T-Shirts",
+  trainer: "Sneakers",
+  trainers: "Sneakers",
+  tank: "Tank Tops",
+  tanks: "Tank Tops",
+};
+
 type Gender =
   | "MEN"
   | "WOMEN"
@@ -422,8 +434,22 @@ export async function GET(
     const detectedBrand =
       detectEntity(brandNames);
 
+    const detectedCategoryRaw =
+      detectEntity([
+        ...categoryNames,
+        ...Object.keys(
+          CATEGORY_ALIAS_WORDS
+        ),
+      ]);
+
     const detectedCategory =
-      detectEntity(categoryNames);
+      detectedCategoryRaw
+        ? (CATEGORY_ALIAS_WORDS[
+            looseNormalize(
+              detectedCategoryRaw
+            )
+          ] ?? detectedCategoryRaw)
+        : null;
 
     const detectedColor =
       detectEntity(colorNames);
@@ -692,6 +718,7 @@ export async function GET(
         "short",
         "sweater",
         "blazer",
+        "pant",
       ]);
 
     const singularizeCategoryWord = (
@@ -754,6 +781,9 @@ export async function GET(
     };
 
     addStructuredWords(detectedBrand);
+    addStructuredWords(
+      detectedCategoryRaw
+    );
     addStructuredWords(detectedCategory);
     addStructuredWords(detectedColor);
     addStructuredWords(detectedSizeRaw);
