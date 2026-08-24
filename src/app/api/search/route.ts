@@ -927,17 +927,19 @@ export async function GET(
         let matchedFreeTextWords = 0;
         let matchedRequiredWords = 0;
         let score = 0;
+        let freeTextPoints = 0;
 
         const applyWordMatch = (
           word: string,
           points: number
         ) => {
-          score += points;
           matchedFreeTextWords++;
 
           if (requiredWordSet.has(word)) {
             matchedRequiredWords++;
           }
+
+          freeTextPoints += points;
         };
 
         for (const word of freeTextWords) {
@@ -968,58 +970,104 @@ export async function GET(
 
         if (detectedBrand) {
           score += brandMatches
-            ? 500
-            : -500;
+            ? 240
+            : -80;
         }
 
         if (detectedCategory) {
           score += categoryMatches
             ? 400
-            : -400;
+            : -220;
         }
 
         if (detectedColor) {
           score += colorMatches
-            ? 300
-            : -300;
+            ? 320
+            : -80;
         }
 
         if (detectedSize) {
           score += sizeMatches
-            ? 250
-            : -250;
-        }
-
-        if (detectedGender) {
-          score += productGenderMatches
-            ? 600
-            : -600;
+            ? 140
+            : -100;
         }
 
         if (detectedAttributes.length > 0) {
           score +=
-            matchedAttributes * 200;
+            matchedAttributes * 160;
 
           score -=
             (detectedAttributes.length -
               matchedAttributes) *
-            150;
+            120;
         }
 
+        const structuralMismatches = [
+          Boolean(
+            detectedBrand &&
+              !brandMatches
+          ),
+          Boolean(
+            detectedCategory &&
+              !categoryMatches
+          ),
+          Boolean(
+            detectedColor &&
+              !colorMatches
+          ),
+          Boolean(
+            detectedSize &&
+              !sizeMatches
+          ),
+          Boolean(
+            detectedAttributes.length > 0 &&
+              matchedAttributes <
+                detectedAttributes.length
+          ),
+        ].filter(Boolean).length;
+
         /* ===============================================
-           EXACT PHRASE
+           FREE TEXT APPLICATION
+           Structured intent dominates: free-text and
+           phrase bonuses only apply when the candidate
+           has no structural mismatch against detected
+           intent, or when the query had none.
         =============================================== */
 
         const normalizedQuery =
           normalizeText(query);
 
-        if (
+        const phraseBonus =
           normalizedQuery.length > 0 &&
           searchableText.includes(
             normalizedQuery
           )
-        ) {
-          score += 100;
+            ? 100
+            : 0;
+
+        const freeTextAllowed =
+          !hasStructuredFilterGlobal ||
+          structuralMismatches === 0;
+
+        if (freeTextAllowed) {
+          score += freeTextPoints + phraseBonus;
+        }
+
+        /* ===============================================
+           CATEGORY COHERENCE FACTOR
+           The detected category is the spine of query
+           intent. A candidate outside an explicitly
+           requested category carries half relevance,
+           so refinement stacks (brand/color) can never
+           outrank on-category candidates.
+        =============================================== */
+
+        const categoryCoherent =
+          !detectedCategory ||
+          categoryMatches;
+
+        if (!categoryCoherent) {
+          score = Math.round(score * 0.5);
         }
 
         /* ===============================================
@@ -1053,114 +1101,44 @@ export async function GET(
            SIMILAR MATCH
         =============================================== */
 
-        const hasBrandMatch =
+        const hasAnyPositiveComponent =
           Boolean(
             detectedBrand &&
             brandMatches
-          );
-
-        const hasCategoryMatch =
+          ) ||
           Boolean(
             detectedCategory &&
             categoryMatches
-          );
-
-        const hasColorMatch =
+          ) ||
           Boolean(
             detectedColor &&
             colorMatches
-          );
-
-        const hasSizeMatch =
+          ) ||
           Boolean(
             detectedSize &&
             sizeMatches
-          );
-
-        const hasGenderMatch =
-          Boolean(
-            detectedGender &&
-            productGenderMatches
-          );
-
-        const hasAttributeMatch =
+          ) ||
           matchedAttributes > 0;
 
         const hasFreeTextMatch =
           matchedFreeTextWords > 0;
 
-        const hasStructuredFilter =
-          Boolean(
-            detectedBrand ||
-              detectedCategory ||
-              detectedColor ||
-              detectedSize ||
-              detectedGender ||
-              detectedAttributes.length > 0
-          );
-
-        const mismatches = [
-          Boolean(
-            detectedBrand &&
-              !brandMatches
-          ),
-          Boolean(
-            detectedCategory &&
-              !categoryMatches
-          ),
-          Boolean(
-            detectedColor &&
-              !colorMatches
-          ),
-          Boolean(
-            detectedSize &&
-              !sizeMatches
-          ),
-          Boolean(
-            detectedGender &&
-              !productGenderMatches
-          ),
-        ].filter(Boolean).length;
+        const meaningfulRelevance =
+          hasAnyPositiveComponent ||
+          (!hasStructuredFilterGlobal &&
+            hasFreeTextMatch);
 
         const genderMismatch = Boolean(
           detectedGender &&
             !productGenderMatches
         );
 
-        let similarMatch = false;
-
-        if (
+        const similarMatch =
           !exactMatch &&
-          !genderMismatch
-        ) {
-          const meaningfulMatch =
-            hasBrandMatch ||
-            hasCategoryMatch ||
-            hasColorMatch ||
-            hasSizeMatch ||
-            hasGenderMatch ||
-            hasAttributeMatch ||
-            hasFreeTextMatch;
-
-          if (meaningfulMatch) {
-            if (!hasStructuredFilter) {
-              similarMatch = true;
-            } else if (mismatches === 0) {
-              similarMatch = true;
-            } else if (
-              mismatches === 1 &&
-              (
-                hasFreeTextMatch ||
-                hasAttributeMatch ||
-                hasBrandMatch ||
-                hasCategoryMatch ||
-                hasColorMatch
-              )
-            ) {
-              similarMatch = true;
-            }
-          }
-        }
+          !genderMismatch &&
+          structuralMismatches <= 2 &&
+          meaningfulRelevance &&
+          score > 0;
 
         /* ===============================================
            RESULT
@@ -1241,7 +1219,8 @@ export async function GET(
         )
         .sort(
           (a, b) =>
-            b.score - a.score
+            b.score - a.score ||
+            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
         );
 
     /* =====================================================
@@ -1253,11 +1232,12 @@ export async function GET(
         .filter(
           (product) =>
             product.similarMatch &&
-            product.score >= 0
+            product.score > 0
         )
         .sort(
           (a, b) =>
-            b.score - a.score
+            b.score - a.score ||
+            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
         );
 
     /* =====================================================

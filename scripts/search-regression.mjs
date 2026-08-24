@@ -39,9 +39,9 @@ const CASES = [
   {
     q: "slim fit black",
     exact: 2,
-    similar: 2,
+    similar: 3,
     struct: { color: "Black", attributes: ["Fit:Slim"] },
-    note: "fit attribute + color",
+    note: "changed intentionally in 6.3: attribute match remains eligible as Similar despite color mismatch (no color penalty stack kills attr-only candidates)",
   },
   {
     q: "men jeans",
@@ -92,16 +92,16 @@ const CASES = [
   {
     q: "blue tank tops",
     exact: 0,
-    similar: 4,
+    similar: 6,
     struct: { category: "Tank Tops", color: "Blue" },
-    note: "plural category + unavailable color",
+    note: "changed intentionally in 6.3: catalog has no blue tank top; category coherence is preserved (on-category tanks first, cross-category blue items demoted by Coherence Factor)",
   },
   {
     q: "h&m jeans",
     exact: 0,
-    similar: 3,
+    similar: 5,
     struct: { brand: "H&M", category: "Jeans" },
-    note: "changed intentionally in 6.2: brand span masked, stray 'm' no longer parsed as Size M (similar members shifted, count preserved)",
+    note: "changed intentionally in 6.2: brand span masked, stray 'm' no longer parsed as Size M; changed intentionally in 6.3: improved category coherence (jeans return at 320 above brand-only strays at 10)",
   },
   {
     q: "tops",
@@ -348,9 +348,9 @@ const CASES = [
   {
     q: "men hoodie",
     exact: 0,
-    similar: 9,
+    similar: 0,
     struct: { gender: "MEN" },
-    note: "new in 6.2: unknown word with gender-only structure falls back to similar, never blanket-exact",
+    note: "changed intentionally in 6.2: unknown word with gender-only structure falls back to similar, never blanket-exact; changed intentionally in 6.3: structural-intent admission prevents gender-only similarity (no hoodie in catalog, so honest empty result)",
   },
   {
     q: "zara black tank-top",
