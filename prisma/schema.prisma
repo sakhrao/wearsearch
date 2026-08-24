@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id         String      @id @default(cuid())
+  name       String?
+  email      String?     @unique
+  image      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  favorites  Favorite[]
+  searchLogs SearchLog[]
+}
+
+model Brand {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  slug       String    @unique
+  logoUrl    String?
+  websiteUrl String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  products   Product[]
+}
+
+model Source {
+  id           String       @id @default(cuid())
+  name         String       @unique
+  type         SourceType
+  baseUrl      String?
+  status       SourceStatus @default(ACTIVE)
+  lastSyncedAt DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  products     Product[]
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+}
+
+model Product {
+  id           String             @id @default(cuid())
+  sourceId     String
+  externalId   String
+  brandId      String
+  categoryId   String
+  name         String
+  slug         String
+  description  String?
+  price        Decimal            @db.Decimal(10, 2)
+  currency     String             @default("EUR")
+  productUrl   String
+  imageUrl     String?
+  gender       Gender?
+  availability Availability       @default(AVAILABLE)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  lastSyncedAt DateTime?
+  favorites    Favorite[]
+  brand        Brand              @relation(fields: [brandId], references: [id])
+  category     Category           @relation(fields: [categoryId], references: [id])
+  source       Source             @relation(fields: [sourceId], references: [id])
+  attributes   ProductAttribute[]
+  variants     ProductVariant[]
+
+  @@unique([sourceId, externalId])
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([sourceId])
+  @@index([availability])
+}
+
+model ProductVariant {
+  id           String       @id @default(cuid())
+  productId    String
+  sizeId       String?
+  colorId      String?
+  sku          String?
+  price        Decimal      @db.Decimal(10, 2)
+  currency     String       @default("EUR")
+  availability Availability @default(AVAILABLE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  color        Color?       @relation(fields: [colorId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size         Size?        @relation(fields: [sizeId], references: [id])
+
+  @@index([productId])
+  @@index([sizeId])
+  @@index([colorId])
+}
+
+model Size {
+  id              String           @id @default(cuid())
+  category        String
+  system          SizeSystem
+  value           String
+  normalizedValue String
+  createdAt       DateTime         @default(now())
+  variants        ProductVariant[]
+
+  @@unique([category, system, value])
+  @@index([normalizedValue])
+}
+
+model Color {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  slug      String           @unique
+  hex       String?
+  createdAt DateTime         @default(now())
+  variants  ProductVariant[]
+}
+
+model Attribute {
+  id        String             @id @default(cuid())
+  name      String             @unique
+  type      AttributeType
+  createdAt DateTime           @default(now())
+  products  ProductAttribute[]
+}
+
+model ProductAttribute {
+  id          String    @id @default(cuid())
+  productId   String
+  attributeId String
+  value       String
+  createdAt   DateTime  @default(now())
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, attributeId, value])
+  @@index([attributeId])
+  @@index([value])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model SearchLog {
+  id              String   @id @default(cuid())
+  userId          String?
+  queryText       String?
+  structuredQuery Json?
+  resultsCount    Int?
+  createdAt       DateTime @default(now())
+  user            User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Questionnaire {
+  id         String     @id @default(cuid())
+  name       String
+  categoryId String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  questions  Question[]
+}
+
+model Question {
+  id              String           @id @default(cuid())
+  questionnaireId String
+  text            String
+  type            QuestionType
+  order           Int
+  createdAt       DateTime         @default(now())
+  questionnaire   Questionnaire    @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  options         QuestionOption[]
+
+  @@index([questionnaireId])
+}
+
+model QuestionOption {
+  id             String   @id @default(cuid())
+  questionId     String
+  label          String
+  value          String
+  nextQuestionId String?
+  createdAt      DateTime @default(now())
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+enum SourceType {
+  OFFICIAL_API
+  AFFILIATE_FEED
+  AUTHORIZED_FEED
+  CRAWLER
+  MANUAL
+  DEMO
+}
+
+enum SourceStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum Availability {
+  AVAILABLE
+  OUT_OF_STOCK
+  UNKNOWN
+}
+
+enum Gender {
+  MEN
+  WOMEN
+  UNISEX
+  KIDS
+}
+
+enum SizeSystem {
+  INTERNATIONAL
+  EU
+  US
+  UK
+  IT
+  FR
+  UNKNOWN
+}
+
+enum AttributeType {
+  TEXT
+  BOOLEAN
+  NUMBER
+  SELECT
+  MULTI_SELECT
+}
+
+enum QuestionType {
+  SINGLE_SELECT
+  MULTI_SELECT
+  TEXT
+  NUMBER
+  RANGE
+}
