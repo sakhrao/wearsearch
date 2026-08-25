@@ -43,6 +43,7 @@ const SUBTREE = {
     "Polos",
     "Blouses",
     "Cardigans",
+    "Button-Ups",
   ],
   Bottoms: [
     "Bottoms",
@@ -70,12 +71,14 @@ const SUBTREE = {
     "Boots",
     "Loafers",
     "Sandals",
+    "Heels",
   ],
   Sneakers: ["Sneakers"],
   "Formal Shoes": ["Formal Shoes"],
   Boots: ["Boots"],
   Loafers: ["Loafers"],
   Sandals: ["Sandals"],
+  Heels: ["Heels"],
 };
 
 function subtreeOf(node) {

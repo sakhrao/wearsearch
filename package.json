@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:search": "node scripts/search-regression.mjs",
-    "test:ranking": "node scripts/ranking-spec.mjs"
+    "test:ranking": "node scripts/ranking-spec.mjs",
+    "sync:providers": "tsx src/lib/providers/sync.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
