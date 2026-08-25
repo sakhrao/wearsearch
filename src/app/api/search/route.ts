@@ -505,8 +505,6 @@ export async function GET(
 
     const products =
       await prisma.product.findMany({
-        take: 100,
-
         select: {
           id: true,
           name: true,

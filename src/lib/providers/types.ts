@@ -2,6 +2,13 @@ export type UnifiedAvailability = "AVAILABLE" | "OUT_OF_STOCK";
 
 export type UnifiedGender = "MEN" | "WOMEN" | "UNISEX";
 
+export interface UnifiedVariant {
+  color: string | null;
+  size: string | null;
+  price: number;
+  inStock: boolean;
+}
+
 export interface UnifiedProduct {
   externalId: string;
   name: string;
@@ -15,6 +22,9 @@ export interface UnifiedProduct {
   imageUrl: string | null;
   productUrl: string;
   availability: UnifiedAvailability;
+  variants?: UnifiedVariant[];
+  sizeCategory?: "clothing" | "shoes";
+  sizeSystem?: "INTERNATIONAL" | "US" | "EU";
 }
 
 export interface DroppedItem {

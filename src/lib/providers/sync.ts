@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import {
   PrismaClient,
+  SizeSystem,
   SourceStatus,
   SourceType,
   type Gender,
@@ -10,6 +11,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { dummyJsonProvider } from "./dummyjson";
 import { fakeStoreProvider } from "./fakestore";
+import { livostyleProvider } from "./livostyle";
 import type {
   ProductProvider,
   ProviderFetchResult,
@@ -27,6 +29,65 @@ function slugify(value: string): string {
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+const brandCache = new Map<string, string>();
+const colorCache = new Map<string, string | null>();
+const sizeCache = new Map<string, string | null>();
+
+async function brandIdOf(name: string) {
+  const hit = brandCache.get(name);
+  if (hit) return hit;
+  const brand = await prisma.brand.upsert({
+    where: { name },
+    update: {},
+    create: { name, slug: slugify(name) },
+  });
+  brandCache.set(name, brand.id);
+  return brand.id;
+}
+
+async function colorIdOf(
+  name: string | null
+): Promise<string | null> {
+  if (!name) return null;
+  const hit = colorCache.get(name);
+  if (hit !== undefined) return hit;
+  const color = await prisma.color.upsert({
+    where: { name },
+    update: {},
+    create: { name, slug: slugify(name) },
+  });
+  colorCache.set(name, color.id);
+  return color.id;
+}
+
+async function sizeIdOf(
+  category: string,
+  system: string,
+  value: string
+): Promise<string | null> {
+  const key = `${category}|${system}|${value}`;
+  const hit = sizeCache.get(key);
+  if (hit !== undefined) return hit;
+  const size = await prisma.size.upsert({
+    where: {
+      category_system_value: {
+        category,
+        system: system as SizeSystem,
+        value,
+      },
+    },
+    update: {},
+    create: {
+      category,
+      system: system as SizeSystem,
+      value,
+      normalizedValue: value.toLowerCase(),
+    },
+  });
+  sizeCache.set(key, size.id);
+  return size.id;
 }
 
 async function ensureTaxonomyLeaves() {
@@ -61,6 +122,87 @@ async function ensureTaxonomyLeaves() {
   });
 }
 
+async function syncVariants(
+  productId: string,
+  product: ProviderFetchResult["products"][number]
+) {
+  await prisma.productVariant.deleteMany({
+    where: { productId },
+  });
+
+  if (
+    product.variants &&
+    product.variants.length > 0
+  ) {
+    const seen = new Set<string>();
+    const rows: Array<{
+      productId: string;
+      sizeId: string | null;
+      colorId: string | null;
+      sku: string;
+      price: number;
+      currency: string;
+      availability: "AVAILABLE" | "OUT_OF_STOCK";
+    }> = [];
+
+    for (const [
+      index,
+      variant,
+    ] of product.variants.entries()) {
+      const colorId = await colorIdOf(
+        variant.color
+      );
+      const sizeId = variant.size
+        ? await sizeIdOf(
+            product.sizeCategory ?? "clothing",
+            product.sizeSystem ?? "INTERNATIONAL",
+            variant.size
+          )
+        : null;
+      const key = `${colorId ?? "-"}|${sizeId ?? "-"}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      rows.push({
+        productId,
+        sizeId,
+        colorId,
+        sku: `${product.externalId}-v${index}`,
+        price: variant.price,
+        currency: product.currency,
+        availability: variant.inStock
+          ? "AVAILABLE"
+          : "OUT_OF_STOCK",
+      });
+    }
+
+    if (rows.length > 0) {
+      await prisma.productVariant.createMany({
+        data: rows,
+      });
+    }
+    return;
+  }
+
+  let colorId: string | null = null;
+  const primaryColor = product.colors[0];
+  if (primaryColor) {
+    colorId = await colorIdOf(primaryColor);
+  }
+
+  await prisma.productVariant.create({
+    data: {
+      productId,
+      sizeId: null,
+      colorId,
+      sku: `${product.externalId}-OS`,
+      price: product.price,
+      currency: product.currency,
+      availability: product.availability,
+    },
+  });
+}
+
 async function syncProvider(
   provider: ProductProvider,
   result: ProviderFetchResult
@@ -70,7 +212,7 @@ async function syncProvider(
     update: {},
     create: {
       name: provider.sourceName,
-      type: SourceType.OFFICIAL_API,
+      type: SourceType.AUTHORIZED_FEED,
       baseUrl: null,
       status: SourceStatus.ACTIVE,
     },
@@ -88,28 +230,7 @@ async function syncProvider(
   let updated = 0;
 
   for (const product of result.products) {
-    const brand = await prisma.brand.upsert({
-      where: { name: product.brand },
-      update: {},
-      create: {
-        name: product.brand,
-        slug: slugify(product.brand),
-      },
-    });
-
-    let colorId: string | null = null;
-    const primaryColor = product.colors[0];
-    if (primaryColor) {
-      const color = await prisma.color.upsert({
-        where: { name: primaryColor },
-        update: {},
-        create: {
-          name: primaryColor,
-          slug: slugify(primaryColor),
-        },
-      });
-      colorId = color.id;
-    }
+    const brandId = await brandIdOf(product.brand);
 
     const category = await prisma.category.findUnique({
       where: { slug: product.categorySlug },
@@ -128,7 +249,7 @@ async function syncProvider(
         },
       },
       update: {
-        brandId: brand.id,
+        brandId,
         categoryId: category.id,
         name: product.name,
         price: product.price,
@@ -142,7 +263,7 @@ async function syncProvider(
       create: {
         sourceId: source.id,
         externalId: product.externalId,
-        brandId: brand.id,
+        brandId,
         categoryId: category.id,
         name: product.name,
         slug: `${provider.id}-${slugify(product.name).slice(0, 60)}`,
@@ -162,20 +283,7 @@ async function syncProvider(
       created += 1;
     }
 
-    await prisma.productVariant.deleteMany({
-      where: { productId: dbProduct.id },
-    });
-    await prisma.productVariant.create({
-      data: {
-        productId: dbProduct.id,
-        sizeId: null,
-        colorId,
-        sku: `${product.externalId}-OS`,
-        price: product.price,
-        currency: product.currency,
-        availability: product.availability,
-      },
-    });
+    await syncVariants(dbProduct.id, product);
   }
 
   await prisma.source.update({
@@ -189,9 +297,6 @@ async function syncProvider(
   console.log(
     `\n📥 ${provider.sourceName}: fetched=${result.fetched} included=${result.products.length} created=${created} updated=${updated}`
   );
-  for (const d of result.dropped) {
-    console.log(`   ⛔ [${d.id}] ${d.title} — ${d.reason}`);
-  }
 }
 
 async function main() {
@@ -202,6 +307,7 @@ async function main() {
   const providers: ProductProvider[] = [
     dummyJsonProvider,
     fakeStoreProvider,
+    livostyleProvider,
   ];
 
   let failures = 0;
