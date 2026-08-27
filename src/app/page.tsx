@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
+import {
+  buildSizeFacets,
+  type SizeFacetGroups,
+  type SizeFacetMap,
+} from "@/lib/facets";
+
 type ProductAttribute = {
   value: string;
   attribute: {
@@ -439,6 +445,10 @@ export default function Home() {
 
       for (const key of FACET_KEYS) {
         for (const entry of facets[key]) {
+          if (key === "size") {
+            continue;
+          }
+
           const existing = options[key].get(
             entry.value
           );
@@ -453,6 +463,11 @@ export default function Home() {
 
     return options;
   }, [allProducts]);
+
+  const sizeFacetGroups = useMemo(
+    () => buildSizeFacets(allProducts),
+    [allProducts]
+  );
 
   const filteredExactProducts = useMemo(
     () =>
@@ -627,6 +642,113 @@ export default function Home() {
 
                     <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                       {FACET_KEYS.map((key) => {
+                        if (key === "size") {
+                          const sections: {
+                            label: string;
+                            map: SizeFacetMap;
+                          }[] = (
+                            [
+                              {
+                                label: "Clothing",
+                                map: sizeFacetGroups.clothing,
+                              },
+                              {
+                                label: "Shoes",
+                                map: sizeFacetGroups.shoes,
+                              },
+                            ] as const
+                          ).filter(
+                            (section) =>
+                              section.map.size > 0
+                          );
+
+                          if (sections.length === 0) {
+                            return null;
+                          }
+
+                          const showCaptions = true;
+
+                          return (
+                            <div key={key}>
+                              <p className="text-xs font-semibold text-gray-400">
+                                {FACET_LABELS[key]}
+                              </p>
+
+                              <div className="mt-2 flex flex-col gap-3">
+                                {sections.map(
+                                  (section) => {
+                                    const options = [
+                                      ...section.map.entries(),
+                                    ].sort((a, b) =>
+                                      a[1].label.localeCompare(
+                                        b[1].label
+                                      )
+                                    );
+
+                                    return (
+                                      <div
+                                        key={section.label}
+                                      >
+                                        {showCaptions && (
+                                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                                            {section.label}
+                                          </p>
+                                        )}
+
+                                        <div
+                                          className={`flex flex-wrap gap-2 ${
+                                            showCaptions
+                                              ? "mt-1"
+                                              : ""
+                                          }`}
+                                        >
+                                          {options.map(
+                                            ([
+                                              value,
+                                              {
+                                                label,
+                                                count,
+                                              },
+                                            ]) => {
+                                              const selected =
+                                                activeFilters[
+                                                  key
+                                                ].has(
+                                                  value
+                                                );
+
+                                              return (
+                                                <button
+                                                  key={value}
+                                                  type="button"
+                                                  onClick={() =>
+                                                    toggleFilter(
+                                                      key,
+                                                      value
+                                                    )
+                                                  }
+                                                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                                                    selected
+                                                      ? "bg-black text-white"
+                                                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                                  }`}
+                                                >
+                                                  {label} (
+                                                  {count})
+                                                </button>
+                                              );
+                                            }
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+
                         const options = [
                           ...(facetOptions[key] ??
                             new Map()).entries(),
