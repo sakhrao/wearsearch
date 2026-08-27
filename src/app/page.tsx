@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 type ProductAttribute = {
   value: string;
@@ -135,6 +136,8 @@ type SearchResponse = {
   exactCount: number;
   similarCount: number;
 
+  similarMessage: string | null;
+
   exactProducts: Product[];
   similarProducts: Product[];
 };
@@ -254,6 +257,10 @@ export default function Home() {
   const [exactProducts, setExactProducts] = useState<Product[]>([]);
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
 
+  const [similarMessage, setSimilarMessage] = useState<
+    string | null
+  >(null);
+
   const [structuredQuery, setStructuredQuery] =
     useState<StructuredQuery | null>(null);
 
@@ -272,8 +279,36 @@ export default function Home() {
   const resultsRef =
     useRef<HTMLElement | null>(null);
 
-  async function handleSearch() {
-    const trimmedQuery = query.trim();
+  /* Consumes the /find questionnaire handoff once:
+     restores the built query into the search box and
+     runs the same search path as a direct query. */
+  const consumedFindQuery = useRef(false);
+
+  useEffect(() => {
+    if (consumedFindQuery.current) {
+      return;
+    }
+    consumedFindQuery.current = true;
+
+    const handedOff = sessionStorage.getItem(
+      "wearsearch-find-query"
+    );
+    if (!handedOff) {
+      return;
+    }
+
+    sessionStorage.removeItem(
+      "wearsearch-find-query"
+    );
+    setQuery(handedOff);
+    void handleSearch(handedOff);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSearch(overrideQuery?: string) {
+    const trimmedQuery = (
+      overrideQuery ?? query
+    ).trim();
 
     if (!trimmedQuery || loading) {
       return;
@@ -309,6 +344,7 @@ export default function Home() {
 
       setExactProducts(data.exactProducts ?? []);
       setSimilarProducts(data.similarProducts ?? []);
+      setSimilarMessage(data.similarMessage ?? null);
       setStructuredQuery(data.structuredQuery ?? null);
       setCategoryStatus(data.categoryStatus ?? null);
 
@@ -321,6 +357,7 @@ export default function Home() {
 
       setExactProducts([]);
       setSimilarProducts([]);
+      setSimilarMessage(null);
       setStructuredQuery(null);
       setCategoryStatus(null);
       setActiveFilters({
@@ -501,13 +538,22 @@ export default function Home() {
 
           <button
             type="button"
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             disabled={loading || !query.trim()}
             aria-label="Run search"
             className="w-full rounded-xl bg-black px-7 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[150px]"
           >
             {loading ? "Searching..." : "Search"}
           </button>
+        </div>
+
+        <div className="mx-auto mt-4 max-w-3xl text-center">
+          <Link
+            href="/find"
+            className="text-sm font-medium text-gray-500 underline-offset-4 transition hover:text-black hover:underline"
+          >
+            Not sure what to search? Find your perfect clothing →
+          </Link>
         </div>
 
         {/* RESULTS */}
@@ -536,7 +582,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={handleSearch}
+                  onClick={() => handleSearch()}
                   className="mt-6 rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
                 >
                   Try again
@@ -760,6 +806,28 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* SIMILAR GATED EMPTY (80%) */}
+
+                {similarMessage &&
+                  filteredSimilarProducts.length ===
+                    0 && (
+                    <div
+                      className={
+                        filteredExactProducts.length > 0
+                          ? "mt-12 rounded-2xl border border-dashed border-gray-300 p-10 text-center"
+                          : "mt-6 rounded-2xl border border-dashed border-gray-300 p-10 text-center"
+                      }
+                    >
+                      <h2 className="text-2xl font-semibold">
+                        Similar options
+                      </h2>
+
+                      <p className="mt-3 text-gray-500">
+                        {similarMessage}
+                      </p>
+                    </div>
+                  )}
+
                 {/* FILTERS HIDE EVERYTHING */}
 
                 {hasActiveFilters &&
@@ -794,7 +862,8 @@ export default function Home() {
                 {/* NOTHING FOUND */}
 
                 {exactProducts.length === 0 &&
-                  similarProducts.length === 0 && (
+                  similarProducts.length === 0 &&
+                  !similarMessage && (
                     <div className="rounded-2xl border border-gray-200 p-10 text-center">
                       <EmptyStateIcon />
 

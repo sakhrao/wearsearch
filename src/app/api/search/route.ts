@@ -1487,9 +1487,57 @@ export async function GET(
 
     /* =====================================================
        SIMILAR PRODUCTS
+       (80% structured-constraint gate: similar candidates
+       must match at least 80% of the structured
+       constraints the parser actually detected. Compute
+       the ratio independently from per-product
+       structuredMatches; the internal score is not used.
+       Exact is untouched.)
     ===================================================== */
 
-    const similarProducts =
+    const structuredMatchKeys = [
+      "brand",
+      "category",
+      "color",
+      "size",
+      "gender",
+      "attributes",
+    ] as const;
+
+    const detectedConstraintCount =
+      (() => {
+        const sample = scoredProducts[0];
+        if (!sample) {
+          return 0;
+        }
+        return structuredMatchKeys.filter(
+          (key) =>
+            sample.structuredMatches[key] !==
+            null
+        ).length;
+      })();
+
+    const matchesAtLeast80Percent = (
+      product: (typeof scoredProducts)[number]
+    ): boolean => {
+      if (detectedConstraintCount === 0) {
+        return true;
+      }
+
+      const matchedCount =
+        structuredMatchKeys.filter(
+          (key) =>
+            product.structuredMatches[key] ===
+            true
+        ).length;
+
+      return (
+        matchedCount * 5 >=
+        detectedConstraintCount * 4
+      );
+    };
+
+    const allSimilarProducts =
       scoredProducts
         .filter(
           (product) =>
@@ -1501,6 +1549,17 @@ export async function GET(
             b.score - a.score ||
             (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
         );
+
+    const similarProducts =
+      allSimilarProducts.filter((product) =>
+        matchesAtLeast80Percent(product)
+      );
+
+    const similarMessage =
+      detectedConstraintCount > 0 &&
+      similarProducts.length === 0
+        ? "No similar products match at least 80% of your preferences. Try fewer or less specific preferences."
+        : null;
 
     /* =====================================================
        RESPONSE
@@ -1520,6 +1579,8 @@ export async function GET(
 
       similarCount:
         similarProducts.length,
+
+      similarMessage,
 
       exactProducts,
 

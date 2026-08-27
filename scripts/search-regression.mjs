@@ -4,21 +4,21 @@ const CASES = [
   {
     q: "black tank top",
     exact: 26,
-    similar: 32,
+    similar: 0,
     struct: { category: "Tank Tops", color: "Black" },
     note: "core exact flow",
   },
   {
     q: "nike black tank top",
     exact: 1,
-    similar: 57,
+    similar: 0,
     struct: { brand: "Nike", category: "Tank Tops", color: "Black" },
     note: "brand+color+category combined",
   },
   {
     q: "white sneaker 41",
     exact: 2,
-    similar: 18,
+    similar: 0,
     struct: { category: "Sneakers", color: "White", size: "41" },
     note: "EU shoe size",
   },
@@ -32,14 +32,14 @@ const CASES = [
   {
     q: "leather shoes",
     exact: 12,
-    similar: 60,
+    similar: 0,
     struct: { category: "Shoes", attributes: ["Material:Leather"] },
     note: "material attribute",
   },
   {
     q: "slim fit black",
     exact: 5,
-    similar: 181,
+    similar: 0,
     struct: { color: "Black", attributes: ["Fit:Slim"] },
     note: "changed intentionally in 6.3: attribute match remains eligible as Similar despite color mismatch (no color penalty stack kills attr-only candidates)",
   },
@@ -130,32 +130,32 @@ const CASES = [
   {
     q: "BLACK TANK TOP",
     exact: 26,
-    similar: 32,
+    similar: 0,
     note: "case-insensitive normalization",
   },
   {
     q: "black   tank   top",
     exact: 26,
-    similar: 32,
+    similar: 0,
     note: "multi-space normalization",
   },
   {
     q: "black tank-top",
     exact: 26,
-    similar: 32,
+    similar: 0,
     note: "changed intentionally in 6.2: hyphen-split tokenization treats it like 'black tank top'",
   },
   {
     q: "blue tank tops",
         exact: 15,
-        similar: 43,
+        similar: 0,
         struct: { category: "Tank Tops", color: "Blue" },
         note: "updated intentionally in 6.8: cross-branch Similar leakage removal — blue Jeans no longer enter via color alone",
   },
   {
     q: "h&m jeans",
         exact: 1,
-        similar: 5,
+        similar: 0,
         struct: { brand: "H&M", category: "Jeans" },
         note: "updated intentionally in 6.8: cross-branch Similar leakage removal — non-Jeans H&M items no longer enter via brand alone",
   },
@@ -190,34 +190,34 @@ const CASES = [
   {
     q: "sneaker 42",
     exact: 2,
-    similar: 18,
+    similar: 0,
     note: "similar item at score 0 boundary (score>=0 inclusion)",
   },
   {
     q: "size medium black tank top",
     exact: 21,
-    similar: 37,
+    similar: 0,
     struct: { color: "Black", size: "M" },
     note: "new in 6.5.2: 'medium' -> M intent; 3 black tanks stock M, Women Black Basic Tank is S-only so it lands in Similar",
   },
   {
     q: "extra small tank top",
     exact: 2,
-    similar: 56,
+    similar: 0,
     struct: { category: "Tank Tops", size: "XS" },
     note: "new in 6.5.2: 'extra small' -> XS; no tank stocks XS so honest Similar-only (mirrors XXL behavior)",
   },
   {
     q: "double extra large tank top",
     exact: 6,
-    similar: 52,
+    similar: 0,
     struct: { category: "Tank Tops", size: "XXL" },
     note: "new in 6.5.2: longest-phrase 'double extra large' -> XXL; no tank stocks it so honest Similar-only",
   },
   {
     q: "eu 41 sneakers",
     exact: 3,
-    similar: 17,
+    similar: 0,
     struct: { category: "Sneakers", size: "41" },
     note: "new in 6.5.2: numeric system prefix 'eu' stays inert, numeric size untouched by letter aliases",
   },
@@ -238,14 +238,14 @@ const CASES = [
   {
     q: "black tee",
         exact: 3,
-        similar: 15,
+        similar: 0,
         struct: { category: "T-Shirts", color: "Black" },
         note: "updated intentionally in 6.8: cross-branch Similar leakage removal — only in-subtree black tees remain",
   },
   {
     q: "white tee",
         exact: 2,
-        similar: 16,
+        similar: 0,
         struct: { category: "T-Shirts", color: "White" },
         note: "updated intentionally in 6.8: cross-branch Similar leakage removal — only in-subtree white tees remain in Similar",
   },
@@ -266,7 +266,7 @@ const CASES = [
   {
     q: "white trainers",
         exact: 7,
-        similar: 13,
+        similar: 0,
         struct: { category: "Sneakers", color: "White" },
         note: "updated intentionally in 6.8: cross-branch Similar leakage removal — white tees no longer enter Sneakers queries via color alone",
   },
@@ -287,7 +287,7 @@ const CASES = [
   {
     q: "black tshirt",
         exact: 3,
-        similar: 15,
+        similar: 0,
         struct: { category: "T-Shirts", color: "Black" },
         note: "updated intentionally in 6.8: cross-branch Similar leakage removal — only in-subtree black tees remain",
   },
@@ -308,7 +308,7 @@ const CASES = [
   {
     q: "black tanktop",
     exact: 26,
-    similar: 32,
+    similar: 0,
     struct: { category: "Tank Tops", color: "Black" },
     note: "new in 6.5.5: compact spelling + color must equal native 'black tank top' result set",
   },
@@ -336,7 +336,7 @@ const CASES = [
   {
     q: "black tank",
     exact: 26,
-    similar: 32,
+    similar: 0,
     struct: { category: "Tank Tops", color: "Black" },
     note: "new in 6.5.3: must equal 'black tank top' result set exactly",
   },
@@ -376,35 +376,35 @@ const CASES = [
   {
     q: "jeans m",
     exact: 5,
-    similar: 1,
+    similar: 0,
     struct: { category: "Jeans", size: "M" },
     note: "clothing letter size",
   },
   {
     q: "tank top xl",
     exact: 36,
-    similar: 22,
+    similar: 0,
     struct: { category: "Tank Tops", size: "XL" },
     note: "size with no variants",
   },
   {
     q: "cotton tank top",
     exact: 5,
-    similar: 53,
+    similar: 0,
     struct: { category: "Tank Tops", attributes: ["Material:Cotton"] },
     note: "material attribute",
   },
   {
     q: "denim jeans",
     exact: 5,
-    similar: 1,
+    similar: 0,
     struct: { category: "Jeans", attributes: ["Material:Denim"] },
     note: "material attribute",
   },
   {
     q: "classic shoes",
     exact: 9,
-    similar: 63,
+    similar: 0,
     struct: { category: "Shoes", attributes: ["Style:Classic"] },
     note: "style attribute",
   },
@@ -466,14 +466,14 @@ const CASES = [
   {
     q: "red tank top",
     exact: 2,
-    similar: 56,
+    similar: 0,
     struct: { category: "Tank Tops", color: "Red" },
     note: "unavailable color",
   },
   {
     q: "green shoes",
     exact: 4,
-    similar: 68,
+    similar: 0,
     struct: { category: "Shoes", color: "Green" },
     note: "unavailable color",
   },
@@ -487,7 +487,7 @@ const CASES = [
   {
     q: "sleeveless top",
     exact: 7,
-    similar: 369,
+    similar: 0,
     struct: { category: "Tops", attributes: ["Sleeve:Sleeveless"] },
     note: "sleeve attribute + parent category",
   },
@@ -501,28 +501,28 @@ const CASES = [
   {
     q: "skinny jeans",
     exact: 3,
-    similar: 3,
+    similar: 0,
     struct: { category: "Jeans", attributes: ["Fit:Skinny"] },
     note: "fit attribute with one mismatch allowed",
   },
   {
     q: "straight jeans",
     exact: 2,
-    similar: 4,
+    similar: 0,
     struct: { category: "Jeans", attributes: ["Fit:Straight"] },
     note: "fit attribute with one mismatch allowed",
   },
   {
     q: "sport top",
     exact: 7,
-    similar: 369,
+    similar: 0,
     struct: { category: "Tops", attributes: ["Style:Sport"] },
     note: "style attribute broad similar set",
   },
   {
     q: "new balance sneaker",
     exact: 2,
-    similar: 18,
+    similar: 0,
     struct: { brand: "New Balance", category: "Sneakers" },
     note: "similar item at score 0 boundary (score>=0 inclusion)",
   },
@@ -536,7 +536,7 @@ const CASES = [
   {
     q: "brown shoe",
     exact: 8,
-    similar: 64,
+    similar: 0,
     struct: { category: "Shoes", color: "Brown" },
     note: "singular form matches plural dictionary entry",
   },
@@ -550,7 +550,7 @@ const CASES = [
   {
     q: "women's black cotton tank top size S",
     exact: 1,
-    similar: 51,
+    similar: 22,
     struct: {
       gender: "WOMEN",
       category: "Tank Tops",
@@ -563,7 +563,7 @@ const CASES = [
   {
     q: "WOMEN'S  Black COTTON Tank-Top  SIZE s",
     exact: 1,
-    similar: 51,
+    similar: 22,
     struct: {
       gender: "WOMEN",
       category: "Tank Tops",
@@ -576,7 +576,7 @@ const CASES = [
   {
     q: "black nike hoodie for men",
     exact: 0,
-    similar: 19,
+    similar: 5,
     struct: { brand: "Nike", color: "Black", gender: "MEN" },
     note: "changed intentionally in 6.4.2: unsupported category intent (hoodie) makes Exact impossible; structured constraints still produce Similar candidates",
   },
@@ -590,14 +590,14 @@ const CASES = [
   {
     q: "zara black tank-top",
     exact: 2,
-    similar: 56,
+    similar: 0,
     struct: { brand: "Zara", category: "Tank Tops", color: "Black" },
     note: "new in 6.2: hyphenated input with brand masking",
   },
   {
     q: "classic leather shoes",
     exact: 7,
-    similar: 65,
+    similar: 0,
     struct: {
       category: "Shoes",
       attributes: ["Style:Classic", "Material:Leather"],
@@ -619,7 +619,7 @@ const CASES = [
   {
     q: "shirt",
     exact: 0,
-    similar: 376,
+    similar: 0,
     status: {
       requested: "Shirts",
       productCount: 0,
@@ -630,7 +630,7 @@ const CASES = [
   {
     q: "shirts",
     exact: 0,
-    similar: 376,
+    similar: 0,
     status: {
       requested: "Shirts",
       productCount: 0,
@@ -641,7 +641,7 @@ const CASES = [
   {
     q: "black shirt",
     exact: 0,
-    similar: 97,
+    similar: 0,
     status: {
       requested: "Shirts",
       productCount: 0,
@@ -652,7 +652,7 @@ const CASES = [
   {
     q: "white shirt",
     exact: 0,
-    similar: 49,
+    similar: 0,
     status: {
       requested: "Shirts",
       productCount: 0,
@@ -663,7 +663,7 @@ const CASES = [
   {
     q: "men shirt",
     exact: 0,
-    similar: 23,
+    similar: 0,
     status: {
       requested: "Shirts",
       productCount: 0,
@@ -674,7 +674,7 @@ const CASES = [
   {
     q: "classic shirt",
     exact: 0,
-    similar: 2,
+    similar: 0,
     status: {
       requested: "Shirts",
       productCount: 0,

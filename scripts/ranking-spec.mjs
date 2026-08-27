@@ -21,6 +21,27 @@ function hasPositiveComponent(product) {
   );
 }
 
+const RATIO_KEYS = [
+  "brand",
+  "category",
+  "color",
+  "size",
+  "gender",
+  "attributes",
+];
+
+function ratioOf(product) {
+  const matches = product.structuredMatches ?? {};
+  const constraints = RATIO_KEYS.filter(
+    (key) => matches[key] !== null
+  );
+  if (constraints.length === 0) return 1;
+  const matched = RATIO_KEYS.filter(
+    (key) => matches[key] === true
+  ).length;
+  return matched / constraints.length;
+}
+
 const CHECKS = [
   {
     id: "SPEC-01",
@@ -57,72 +78,72 @@ const CHECKS = [
   },
   {
     id: "SPEC-03",
-    rule: "R3/R5 category+color match must outrank brand-only match (Tier order)",
+    rule: "R3 (gate v7.1) brand/attribute-mismatch rivals drop below the 80% threshold: no Similar item has ratio < 80%",
     async run() {
       const d = await search("adidas brown shoes");
-      const similar = d.similarProducts;
-      const derbyIdx = similar.findIndex((p) => p.name === "Brown Classic Derby");
-      const everydayIdx = similar.findIndex(
-        (p) => p.name === "White Everyday Sneaker"
-      );
-      const relevant = derbyIdx >= 0 && everydayIdx >= 0;
+      const below = d.similarProducts.filter((p) => ratioOf(p) < 0.8);
       return {
-        pass: relevant && derbyIdx < everydayIdx,
-        detail: relevant
-          ? `order: ${similar
-              .map((p) => `${p.name}(${p.score})`)
-              .join(" | ")}`
-          : `missing candidates (derby=${derbyIdx}, everyday=${everydayIdx})`,
+        pass:
+          (d.similarCount === 0 && Boolean(d.similarMessage)) ||
+          below.length === 0,
+        detail:
+          below.length > 0
+            ? `below-80% similar: ${below
+                .map((p) => `${p.name}`)
+                .join(", ")}`
+            : `similar=${d.similarCount} message=${d.similarMessage ?? "none"}`,
       };
     },
   },
   {
     id: "SPEC-04",
-    rule: "R4 brand mismatch stays soft: right-category right-color rival must survive",
+    rule: "R4 (gate v7.1) brand mismatch hard-cut: right-category rival is excluded when it matches <80% of constraints",
     async run() {
       const d = await search("adidas brown shoes");
       const derby = d.similarProducts.find(
         (p) => p.name === "Brown Classic Derby"
       );
       return {
-        pass: Boolean(derby),
+        pass: !derby && Boolean(d.similarMessage),
         detail: derby
-          ? `present with score ${derby.score}`
-          : "Brown Classic Derby (brand-mismatched) was excluded",
+          ? `Derby survived at ratio ${ratioOf(derby)}`
+          : "Derby (brand-mismatched, <80%) hard-excluded; no-similar message shown",
       };
     },
   },
   {
     id: "SPEC-05",
-    rule: "R9/R10 category mismatch stays soft: right-category rivals must survive brand-scoped query",
+    rule: "R9/R10 (gate v7.1) category mismatch hard-cut: no low-ratio rivals survive brand-scoped queries",
     async run() {
       const d = await search("h&m jeans");
-      const jeansLike = d.similarProducts.filter(
-        (p) => ["Jeans", "Bottoms"].includes(p.category.name)
-      );
+      const below = d.similarProducts.filter((p) => ratioOf(p) < 0.8);
       return {
-        pass: jeansLike.length > 0,
+        pass:
+          (d.similarCount === 0 && Boolean(d.similarMessage)) ||
+          below.length === 0,
         detail:
-          jeansLike.length > 0
-            ? `jeans present: ${jeansLike.map((p) => `${p.name}(${p.score})`).join(", ")}`
-            : `similar contains only: ${d.similarProducts.map((p) => `${p.name}(${p.score})`).join(", ")}`,
+          below.length > 0
+            ? `below-80% similar: ${below.map((p) => p.name).join(", ")}`
+            : `similar=${d.similarCount} message=${d.similarMessage ?? "none"}`,
       };
     },
   },
   {
     id: "SPEC-06",
-    rule: "R7/R8 no zero-score similar: admitted candidates need strictly positive score",
+    rule: "R7/R8 (gate v7.1) gated similar may be empty: an empty Similar with the 80% message is the correct outcome when no candidate reaches the threshold",
     async run() {
       const d = await search("new balance sneaker");
-      const zeros = d.similarProducts.filter((p) => p.score <= 0);
+      const zeroOrLow = d.similarProducts.filter(
+        (p) => p.score <= 0 || ratioOf(p) < 0.8
+      );
       return {
-        pass: d.similarProducts.length > 0 && zeros.length === 0,
+        pass:
+          (d.similarCount === 0 && Boolean(d.similarMessage)) ||
+          zeroOrLow.length === 0,
         detail:
-          zeros.length === 0
-            ? "all similar scores > 0"
-            : `zero/nonpositive similar: ${zeros
-                .map((p) => `${p.name}(${p.score})`)
-                .join(", ")}`,
+          zeroOrLow.length > 0
+            ? `zero/low similar: ${zeroOrLow.map((p) => p.name).join(", ")}`
+            : `similar=${d.similarCount} message=${d.similarMessage ?? "none"}`,
       };
     },
   },
@@ -148,25 +169,43 @@ const CHECKS = [
   },
   {
     id: "SPEC-08",
-    rule: "R6 explicit attribute mismatch causes observable penalty (demotion)",
+    rule: "R6 (gate v7.1) explicit attribute mismatch now causes hard exclusion below 80% (replaces demotion)",
     async run() {
-      const without = await search("adidas sneaker");
       const withAttr = await search("adidas leather sneaker");
       const target = "White Everyday Sneaker";
-      const baseScore = without.exactProducts.find((p) => p.name === target)?.score;
       const attrViolated = withAttr.similarProducts.find(
         (p) => p.name === target
       );
-      const demoted =
-        attrViolated &&
-        baseScore !== undefined &&
-        attrViolated.score < baseScore &&
-        withAttr.exactProducts.every((p) => p.name !== target);
+      const below = withAttr.similarProducts.filter(
+        (p) => ratioOf(p) < 0.8
+      );
       return {
-        pass: Boolean(demoted),
-        detail: demoted
-          ? `exact ${baseScore} -> similar ${attrViolated.score} after explicit material mismatch`
-          : `without=${baseScore}, with=${attrViolated ? attrViolated.score : "absent"}`,
+        pass: !attrViolated && below.length === 0,
+        detail: attrViolated
+          ? `target survived at ratio ${ratioOf(attrViolated)}`
+          : `target hard-excluded; ${withAttr.similarCount} similar remain (all >=80%)`,
+      };
+    },
+  },
+  {
+    id: "SPEC-11",
+    rule: "v7.1 80% structured-constraint gate: similar candidates must match >=80% of detected constraints (men Nike Black 41 Sneakers)",
+    async run() {
+      const d = await search("men Nike Black 41 Sneakers");
+      const below = d.similarProducts.filter((p) => ratioOf(p) < 0.8);
+      const jordan = d.similarProducts.find((p) =>
+        p.name.includes("Air Jordan 1 Red And Black")
+      );
+      const puma = d.similarProducts.find((p) =>
+        p.name.includes("Red Court Sneaker")
+      );
+      return {
+        pass: below.length === 0 && Boolean(jordan) && !puma,
+        detail: below.length > 0
+          ? `below-80% similar: ${below.map((p) => p.name).join(", ")}`
+          : `4/5 (Jordan) present=${
+              Boolean(jordan)
+            }, 2/5 Puma excluded=${!puma}, similar=${d.similarCount}`,
       };
     },
   },
