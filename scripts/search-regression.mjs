@@ -27,7 +27,7 @@ const CASES = [
     exact: 4,
     similar: 0,
     struct: { gender: "WOMEN", category: "Jeans" },
-    note: "gender isolation",
+    note: "gender isolation; UNISEX admitted to Exact per spec §2",
   },
   {
     q: "leather shoes",
@@ -370,8 +370,8 @@ const CASES = [
   {
     q: "cargo pants",
     exact: 0,
-    similar: 23,
-    note: "new in 6.5.3: 'cargo' stays inert (no auto-attribute), unsupported intent -> honest empty",
+    similar: 0,
+    note: "changed intentionally in 6.9: Cargo is now a real (empty) category; category scope + 80% gate -> honest empty instead of inert-word similarity",
   },
   {
     q: "jeans m",
@@ -576,9 +576,9 @@ const CASES = [
   {
     q: "black nike hoodie for men",
     exact: 0,
-    similar: 5,
-    struct: { brand: "Nike", color: "Black", gender: "MEN" },
-    note: "changed intentionally in 6.4.2: unsupported category intent (hoodie) makes Exact impossible; structured constraints still produce Similar candidates",
+    similar: 0,
+    struct: { brand: "Nike", color: "Black", category: "Hoodies", gender: "MEN" },
+    note: "changed intentionally in 6.9: Hoodies became a real (empty) category; sibling candidates fail the 80% gate (3/4) -> honest empty, diagnostic explains the blocked category",
   },
   {
     q: "men hoodie",
@@ -623,7 +623,7 @@ const CASES = [
     status: {
       requested: "Shirts",
       productCount: 0,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "T-Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "T-Shirts", "Tank Tops"],
     },
     note: "updated in 6.7.2 INTENTIONALLY: empty-category sibling substitution fills the dead end with constraint-clean siblings (no color/gender/attr intent here -> all 7)",
   },
@@ -634,7 +634,7 @@ const CASES = [
     status: {
       requested: "Shirts",
       productCount: 0,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "T-Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "T-Shirts", "Tank Tops"],
     },
     note: "updated in 6.7.2 INTENTIONALLY: same detection as 'shirt', sibling substitution applies identically",
   },
@@ -645,7 +645,7 @@ const CASES = [
     status: {
       requested: "Shirts",
       productCount: 0,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "T-Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "T-Shirts", "Tank Tops"],
     },
     note: "new in 6.7.1: fallback Similar must stay exactly as before while metadata explains requested category",
   },
@@ -656,7 +656,7 @@ const CASES = [
     status: {
       requested: "Shirts",
       productCount: 0,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "T-Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "T-Shirts", "Tank Tops"],
     },
     note: "updated intentionally in 6.8: cross-branch leak fix excludes Sneakers from Similar; only in-subtree white tees remain",
   },
@@ -667,7 +667,7 @@ const CASES = [
     status: {
       requested: "Shirts",
       productCount: 0,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "T-Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "T-Shirts", "Tank Tops"],
     },
     note: "updated in 6.7.2 INTENTIONALLY: sibling substitution preserves explicit gender constraint (MEN-compatible siblings only)",
   },
@@ -678,7 +678,7 @@ const CASES = [
     status: {
       requested: "Shirts",
       productCount: 0,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "T-Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "T-Shirts", "Tank Tops"],
     },
     note: "new in 6.7.1: attribute+empty category still metadata-only",
   },
@@ -690,7 +690,7 @@ const CASES = [
     status: {
       requested: "T-Shirts",
       productCount: 18,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "Shirts", "Tank Tops"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "Shirts", "Tank Tops"],
     },
     note: "new in 6.7.1: stocked category reports its own count and taxonomy siblings",
   },
@@ -702,7 +702,7 @@ const CASES = [
     status: {
       requested: "Tank Tops",
       productCount: 58,
-      siblings: ["Blouses", "Button-Ups", "Cardigans", "Polos", "Shirts", "T-Shirts"],
+      siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "Shirts", "T-Shirts"],
     },
     note: "new in 6.7.1: sibling list includes empty Shirts too - data first, merchandising later",
   },
@@ -714,9 +714,9 @@ const CASES = [
     status: {
       requested: "Jeans",
       productCount: 6,
-      siblings: ["Chinos", "Joggers", "Leggings", "Trousers"],
+      siblings: ["Cargo", "Chinos", "Joggers", "Leggings", "Shorts", "Socks", "Trousers", "Underwear"],
     },
-    note: "new in 6.7.1: only child under Bottoms -> empty siblings",
+    note: "updated for final-review taxonomy: Socks + Underwear added under Bottoms (both empty in catalog)",
   },
   {
     q: "shoes",
@@ -855,10 +855,30 @@ async function runCase(client, testCase) {
   }
 
   for (let i = 1; i < data.exactProducts.length; i++) {
+    const prev = data.exactProducts[i - 1];
+    const curr = data.exactProducts[i];
+    const reqGender = data.structuredQuery.gender;
+    const genderKey = (g) =>
+      reqGender === "MEN" || reqGender === "WOMEN" || reqGender === "KIDS"
+        ? g === reqGender
+          ? 0
+          : 1
+        : 0;
+
+    if (genderKey(prev.gender) > genderKey(curr.gender)) {
+      problems.push(
+        "exact results violate gender-priority ordering (same-gender must precede UNISEX regardless of score)"
+      );
+      break;
+    }
+
     if (
-      data.exactProducts[i - 1].score < data.exactProducts[i].score
+      genderKey(prev.gender) === genderKey(curr.gender) &&
+      prev.score < curr.score
     ) {
-      problems.push("exact results not sorted by score descending");
+      problems.push(
+        "exact results not sorted by score descending within gender bucket"
+      );
       break;
     }
   }

@@ -6,6 +6,7 @@ const KEYS = [
   "color",
   "size",
   "gender",
+  "budget",
   "attributes",
 ];
 
@@ -49,6 +50,10 @@ async function search(query) {
 
 const names = (products) => products.map((p) => p.name);
 
+function isExact(data, productName) {
+  return data.exactProducts.some((p) => p.name.includes(productName));
+}
+
 async function assertAllSimilarRatiosAtLeast80(query) {
   const data = await search(query);
   const products = data.similarProducts;
@@ -88,21 +93,19 @@ check(
   `<80% (2/5): "Puma Red Court Sneaker" is EXCLUDED`
 );
 
-console.log("\n== Case 2: 100% constraint match (all detected constraints matched) ==");
+console.log("\n== Case 2: 100% constraint match moves to Exact now that 'hoodie' is a real category ==");
 const case2 = await search("men black sneaker nike 42 hoodie");
+check(
+  isExact(case2, "Black Runner Sneaker"),
+  `100% product "Nike Black Runner Sneaker" is Exact (formerly Similar under unsupported-hoodie intent; got ${isExact(case2, "Black Runner Sneaker") ? "exact" : "not exact"})`
+);
 const runner2 = case2.similarProducts.filter((p) =>
   p.name.includes("Black Runner Sneaker")
 );
 check(
-  runner2.length > 0,
-  `100% product "Nike Black Runner Sneaker" included in Similar (got ${runner2.length})`
+  runner2.length === 0,
+  `"Nike Black Runner Sneaker" no longer appears in Similar (deduped into Exact; got ${runner2.length})`
 );
-for (const runner of runner2) {
-  check(
-    ratioOf(runner) === 1,
-    `100% ratio confirmed for "Nike Black Runner Sneaker" (got ${(ratioOf(runner) * 100).toFixed(0)}%)`
-  );
-}
 await assertAllSimilarRatiosAtLeast80("men black sneaker nike 42 hoodie");
 
 console.log("\n== Case 3: no product reaches 80% => empty Similar + message ==");

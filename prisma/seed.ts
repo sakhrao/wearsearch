@@ -71,7 +71,7 @@ async function main() {
     "New Balance",
   ];
 
-  const brands: Record<string, any> = {};
+  const brands: Record<string, { id: string }> = {};
 
   for (const name of brandNames) {
     brands[name] = await prisma.brand.upsert({
@@ -309,7 +309,185 @@ async function main() {
     },
   });
 
-  const categoryBySlug: Record<string, any> = {
+  const hoodies = await prisma.category.upsert({
+    where: { slug: "hoodies" },
+    update: {},
+    create: {
+      name: "Hoodies",
+      slug: "hoodies",
+      parentId: tops.id,
+    },
+  });
+
+  const jumpers = await prisma.category.upsert({
+    where: { slug: "jumpers" },
+    update: {},
+    create: {
+      name: "Jumpers",
+      slug: "jumpers",
+      parentId: tops.id,
+    },
+  });
+
+  const jackets = await prisma.category.upsert({
+    where: { slug: "jackets" },
+    update: {},
+    create: {
+      name: "Jackets",
+      slug: "jackets",
+      parentId: tops.id,
+    },
+  });
+
+  const shorts = await prisma.category.upsert({
+    where: { slug: "shorts" },
+    update: {},
+    create: {
+      name: "Shorts",
+      slug: "shorts",
+      parentId: bottoms.id,
+    },
+  });
+
+  const cargo = await prisma.category.upsert({
+    where: { slug: "cargo" },
+    update: {},
+    create: {
+      name: "Cargo",
+      slug: "cargo",
+      parentId: bottoms.id,
+    },
+  });
+
+  const socks = await prisma.category.upsert({
+    where: { slug: "socks" },
+    update: {},
+    create: {
+      name: "Socks",
+      slug: "socks",
+      parentId: bottoms.id,
+    },
+  });
+
+  const underwear = await prisma.category.upsert({
+    where: { slug: "underwear" },
+    update: {},
+    create: {
+      name: "Underwear",
+      slug: "underwear",
+      parentId: bottoms.id,
+    },
+  });
+
+  const runningTrainers = await prisma.category.upsert({
+    where: { slug: "running-trainers" },
+    update: {},
+    create: {
+      name: "Running Trainers",
+      slug: "running-trainers",
+      parentId: shoes.id,
+    },
+  });
+
+  const heels = await prisma.category.upsert({
+    where: { slug: "heels" },
+    update: {},
+    create: {
+      name: "Heels",
+      slug: "heels",
+      parentId: shoes.id,
+    },
+  });
+
+  const accessories = await prisma.category.upsert({
+    where: { slug: "accessories" },
+    update: {},
+    create: {
+      name: "Accessories",
+      slug: "accessories",
+    },
+  });
+
+  const sunglasses = await prisma.category.upsert({
+    where: { slug: "sunglasses" },
+    update: {},
+    create: {
+      name: "Sunglasses",
+      slug: "sunglasses",
+      parentId: accessories.id,
+    },
+  });
+
+  const watches = await prisma.category.upsert({
+    where: { slug: "watches" },
+    update: {},
+    create: {
+      name: "Watches",
+      slug: "watches",
+      parentId: accessories.id,
+    },
+  });
+
+  const belts = await prisma.category.upsert({
+    where: { slug: "belts" },
+    update: {},
+    create: {
+      name: "Belts",
+      slug: "belts",
+      parentId: accessories.id,
+    },
+  });
+
+  const ties = await prisma.category.upsert({
+    where: { slug: "ties" },
+    update: {},
+    create: {
+      name: "Ties",
+      slug: "ties",
+      parentId: accessories.id,
+    },
+  });
+
+  const headwear = await prisma.category.upsert({
+    where: { slug: "headwear" },
+    update: {},
+    create: {
+      name: "Headwear",
+      slug: "headwear",
+    },
+  });
+
+  const beanies = await prisma.category.upsert({
+    where: { slug: "beanies" },
+    update: {},
+    create: {
+      name: "Beanies",
+      slug: "beanies",
+      parentId: headwear.id,
+    },
+  });
+
+  const hats = await prisma.category.upsert({
+    where: { slug: "hats" },
+    update: {},
+    create: {
+      name: "Hats",
+      slug: "hats",
+      parentId: headwear.id,
+    },
+  });
+
+  const caps = await prisma.category.upsert({
+    where: { slug: "caps" },
+    update: {},
+    create: {
+      name: "Caps",
+      slug: "caps",
+      parentId: headwear.id,
+    },
+  });
+
+  const categoryBySlug: Record<string, { id: string }> = {
     "t-shirts": tShirts,
     "tank-tops": tankTops,
     jeans,
@@ -333,6 +511,8 @@ async function main() {
     "boots",
     "loafers",
     "sandals",
+    "running-trainers",
+    "heels",
   ]);
 
   // ==========================================
@@ -350,7 +530,7 @@ async function main() {
     { name: "Brown", slug: "brown", hex: "#8B4513" },
   ];
 
-  const colors: Record<string, any> = {};
+  const colors: Record<string, { id: string }> = {};
 
   for (const color of colorData) {
     colors[color.name] = await prisma.color.upsert({
@@ -368,7 +548,7 @@ async function main() {
 
   const clothingSizes = ["XS", "S", "M", "L", "XL", "XXL"];
 
-  const sizes: Record<string, any> = {};
+  const sizes: Record<string, { id: string }> = {};
 
   for (const value of clothingSizes) {
     sizes[value] = await prisma.size.upsert({
@@ -423,7 +603,7 @@ async function main() {
     { name: "Pattern", type: AttributeType.SELECT },
   ];
 
-  const attributes: Record<string, any> = {};
+  const attributes: Record<string, { id: string }> = {};
 
   for (const attribute of attributeData) {
     attributes[attribute.name] = await prisma.attribute.upsert({

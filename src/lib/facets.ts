@@ -5,6 +5,7 @@ export const SHOE_CATEGORY_NAMES = [
   "Loafers",
   "Sandals",
   "Heels",
+  "Running Trainers",
 ];
 
 export type Discipline = "shoes" | "clothing";

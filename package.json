@@ -9,6 +9,13 @@
     "lint": "eslint",
     "test:search": "node scripts/search-regression.mjs",
     "test:ranking": "node scripts/ranking-spec.mjs",
+    "test:similar-ratio": "node scripts/similar-ratio.test.mjs",
+    "test:gender-policy": "node scripts/gender-policy.test.mjs",
+    "test:gender-order": "node scripts/gender-order.test.mjs",
+    "test:questionnaire": "tsx scripts/questionnaire-policy.test.mjs",
+    "test:facet-policy": "tsx scripts/facet-policy.test.mjs",
+    "test:e2e": "node scripts/spec-e2e.test.mjs",
+    "test:currency": "tsx scripts/currency.test.mts",
     "sync:providers": "tsx src/lib/providers/sync.ts"
   },
   "prisma": {

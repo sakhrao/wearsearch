@@ -27,17 +27,27 @@ function looseNormalize(
 }
 
 function buildFlexiblePattern(
-  normalizedValue: string
+  normalizedValue: string,
+  allowPluralFlex = true
 ): string {
   return normalizedValue
     .split(" ")
     .map((word) =>
-      /^[a-z]{3,}s$/.test(word)
+      allowPluralFlex && /^[a-z]{3,}s$/.test(word)
         ? `${word.slice(0, -1)}s?`
         : word
     )
     .join("[\\s-]");
 }
+
+/* Values whose plural spelling collides with a common
+   adjective (e.g. "shorts" vs "short"). Detection requires
+   the exact dictionary spelling; the trailing-s elasticity
+   is disabled so "short sleeve" can never be mistaken for
+   the Shorts category. */
+const STRICT_PLURAL_VALUES = new Set([
+  "shorts",
+]);
 
 function findMatch(
   query: string,
@@ -66,8 +76,13 @@ function findMatch(
       "\\$&"
     );
 
+    const allowedPluralFlex =
+      !STRICT_PLURAL_VALUES.has(
+        normalizedValue
+      );
+
     const regex = new RegExp(
-      `(^|\\s)${buildFlexiblePattern(escaped)}($|\\s)`,
+      `(^|\\s)${buildFlexiblePattern(escaped, allowedPluralFlex)}($|\\s)`,
       "i"
     );
 
@@ -106,8 +121,13 @@ function findMatchSpan(
       "\\$&"
     );
 
+    const allowedPluralFlex =
+      !STRICT_PLURAL_VALUES.has(
+        normalizedValue
+      );
+
     const regex = new RegExp(
-      `(^|\\s)${buildFlexiblePattern(escaped)}($|\\s)`,
+      `(^|\\s)${buildFlexiblePattern(escaped, allowedPluralFlex)}($|\\s)`,
       "i"
     );
 
@@ -134,8 +154,13 @@ function maskValue(
     "\\$&"
   );
 
+  const allowedPluralFlex =
+    !STRICT_PLURAL_VALUES.has(
+      looseNormalize(value)
+    );
+
   const regex = new RegExp(
-    `(^|\\s)${buildFlexiblePattern(escaped)}(?=$|\\s)`,
+    `(^|\\s)${buildFlexiblePattern(escaped, allowedPluralFlex)}(?=$|\\s)`,
     "gi"
   );
 
@@ -175,11 +200,36 @@ const CATEGORY_ALIAS_WORDS: Record<
   tanks: "Tank Tops",
   tanktop: "Tank Tops",
   tanktops: "Tank Tops",
+  hoodie: "Hoodies",
+  hoodies: "Hoodies",
+  jumper: "Jumpers",
+  jumpers: "Jumpers",
+  jacket: "Jackets",
+  jackets: "Jackets",
+  heel: "Heels",
+  heels: "Heels",
+  "running trainer": "Running Trainers",
+  "running trainers": "Running Trainers",
+  sunglasses: "Sunglasses",
+  sunglass: "Sunglasses",
+  watch: "Watches",
+  watches: "Watches",
+  belt: "Belts",
+  belts: "Belts",
+  tie: "Ties",
+  ties: "Ties",
+  beanie: "Beanies",
+  beanies: "Beanies",
+  hat: "Hats",
+  hats: "Hats",
+  cap: "Caps",
+  caps: "Caps",
 };
 
 type Gender =
   | "MEN"
   | "WOMEN"
+  | "KIDS"
   | "UNISEX"
   | null;
 
@@ -210,6 +260,19 @@ function normalizeGender(
     return "WOMEN";
   }
 
+  if (
+    gender === "kids" ||
+    gender === "kid" ||
+    gender === "children" ||
+    gender === "child" ||
+    gender === "boys" ||
+    gender === "boy" ||
+    gender === "girls" ||
+    gender === "girl"
+  ) {
+    return "KIDS";
+  }
+
   if (gender === "unisex") {
     return "UNISEX";
   }
@@ -227,6 +290,12 @@ function normalizeGender(
     WOMEN  ✓
     UNISEX ✓
     MEN    ✗
+
+  KIDS search:
+    KIDS   ✓
+    UNISEX ✓
+    MEN    ✗
+    WOMEN  ✗
 
   UNISEX search:
     UNISEX ✓
@@ -260,8 +329,22 @@ function genderMatches(
     );
   }
 
+  if (requested === "KIDS") {
+    return (
+      product === "KIDS" ||
+      product === "UNISEX"
+    );
+  }
+
   return product === "UNISEX";
 }
+
+/* Explicit-gender admission is the same compatibility
+   rule used throughout (spec §2/§12): a Men/Women/Kids
+   search allows UNISEX products into Exact, but they are
+   ranked after same-gender products (see the exact-product
+   sorting key below). Hard isolation is preserved: no WOMEN
+   product ever enters a MEN search and vice versa. */
 
 /* =========================================================
    GET
@@ -276,6 +359,37 @@ export async function GET(
 
     const query =
       searchParams.get("q")?.trim() ?? "";
+
+    const parsePriceParam = (
+      raw: string | null
+    ): number | null => {
+      if (raw === null || raw.trim() === "") {
+        return null;
+      }
+      const value = Number(raw);
+      return Number.isFinite(value) && value >= 0
+        ? value
+        : null;
+    };
+
+    const priceMin = parsePriceParam(
+      searchParams.get("priceMin")
+    );
+
+    const priceMax = parsePriceParam(
+      searchParams.get("priceMax")
+    );
+
+    const hasBudget =
+      priceMin !== null ||
+      priceMax !== null;
+
+    const softAttributes =
+      (searchParams.get("soft") ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => normalizeText(value));
 
     /* =====================================================
        EMPTY QUERY
@@ -435,6 +549,32 @@ export async function GET(
       return hit.value;
     };
 
+    const detectEntities = (
+      values: string[]
+    ): string[] => {
+      const found: string[] = [];
+
+      for (;;) {
+        const hit = findMatchSpan(
+          workingQuery,
+          values
+        );
+
+        if (!hit) {
+          break;
+        }
+
+        workingQuery = maskValue(
+          workingQuery,
+          hit.value
+        );
+
+        found.push(hit.value);
+      }
+
+      return found;
+    };
+
     const detectedBrand =
       detectEntity(brandNames);
 
@@ -455,8 +595,11 @@ export async function GET(
           ] ?? detectedCategoryRaw)
         : null;
 
+    const detectedColors =
+      detectEntities(colorNames);
+
     const detectedColor =
-      detectEntity(colorNames);
+      detectedColors[0] ?? null;
 
     const detectedSizeRaw =
       detectEntity([
@@ -488,6 +631,14 @@ export async function GET(
       "gentleman",
       "gentlemen",
       "male",
+      "kids",
+      "kid",
+      "children",
+      "child",
+      "boys",
+      "boy",
+      "girls",
+      "girl",
       "unisex",
     ];
 
@@ -685,9 +836,13 @@ export async function GET(
       brand: detectedBrand,
       category: detectedCategory,
       color: detectedColor,
+      colors: detectedColors,
       size: detectedSize,
       gender: detectedGender,
       attributes: detectedAttributes,
+      budget: hasBudget
+        ? { min: priceMin, max: priceMax }
+        : null,
     };
 
     /* =====================================================
@@ -712,15 +867,15 @@ export async function GET(
 
     const UNSUPPORTED_CATEGORY_WORDS =
       new Set([
-        "jacket",
-        "hoodie",
+        "pant",
+        "pants",
         "coat",
         "dress",
         "skirt",
-        "short",
         "sweater",
         "blazer",
-        "pant",
+        "suit",
+        "suits",
       ]);
 
     const singularizeCategoryWord = (
@@ -1068,6 +1223,26 @@ export async function GET(
               detectedBrand
             );
 
+        /* Budget (spec §8): Exact requires the price inside
+           the requested bounds; a product within ±35% of the
+           bounds is "close" and eligible for Similar only. */
+        const productPrice =
+          Number(product.price);
+
+        const budgetMatches =
+          !hasBudget ||
+          ((priceMin === null ||
+            productPrice >= priceMin) &&
+            (priceMax === null ||
+              productPrice <= priceMax));
+
+        const budgetCompatible =
+          !hasBudget ||
+          ((priceMin === null ||
+            productPrice >= priceMin * 0.65) &&
+            (priceMax === null ||
+              productPrice <= priceMax * 1.35));
+
         const productCategoryChainNames =
           product.category
             ? getCategoryChainNames(
@@ -1081,13 +1256,48 @@ export async function GET(
             detectedCategory
           );
 
+        const selectedColorSet = new Set(
+          detectedColors.map((color) =>
+            normalizeText(color)
+          )
+        );
+
+        const productColorSet = new Set(
+          productColors
+        );
+
+        /* Color admission (spec §5):
+           - no color requested: vacuous
+           - one color: product must carry it (intersection)
+           - two+: subset semantics — every product color must
+             be inside the requested palette AND the product
+             carries at least one requested color */
         const colorMatches =
-          !detectedColor ||
-          productColors.includes(
-            normalizeText(
-              detectedColor
-            )
-          );
+          detectedColors.length === 0
+            ? true
+            : detectedColors.length === 1
+              ? productColorSet.has(
+                  normalizeText(
+                    detectedColor!
+                  )
+                )
+              : productColors.length > 0 &&
+                  productColors.every(
+                    (color) =>
+                      selectedColorSet.has(color)
+                  );
+
+        /* Compatibility for the Similar path / 80% gate:
+           a product sharing any requested color is a color
+           companion, even when it also carries off-palette
+           colors (e.g. a White/Red item for a White+Black
+           palette). */
+        const colorCompatible =
+          detectedColors.length === 0
+            ? true
+            : productColors.some((color) =>
+                selectedColorSet.has(color)
+              );
 
         const sizeMatches =
           !detectedSize ||
@@ -1139,6 +1349,19 @@ export async function GET(
           detectedAttributes.length === 0 ||
           matchedAttributes ===
             detectedAttributes.length;
+
+        /* Soft preferences (spec §9): context-aware hints
+           (Fit/Material/Style/…) nudge ranking inside Exact
+           only; they never gate Exact or Similar admission. */
+        const softMatchedCount =
+          softAttributes.filter((hint) =>
+            product.attributes.some(
+              (attribute) =>
+                normalizeText(
+                  attribute.value
+                ) === hint
+            )
+          ).length;
 
         /* ===============================================
            FREE TEXT
@@ -1194,6 +1417,14 @@ export async function GET(
             : -80;
         }
 
+        if (hasBudget) {
+          score += budgetMatches
+            ? 180
+            : budgetCompatible
+              ? -30
+              : -70;
+        }
+
         /* B2 substitution credit: a sibling of an
            empty requested node that satisfies every
            other explicit structural constraint is
@@ -1240,6 +1471,10 @@ export async function GET(
             120;
         }
 
+        if (softMatchedCount > 0) {
+          score += softMatchedCount * 40;
+        }
+
         const structuralMismatches = [
           Boolean(
             detectedBrand &&
@@ -1257,6 +1492,10 @@ export async function GET(
           Boolean(
             detectedSize &&
               !sizeMatches
+          ),
+          Boolean(
+            hasBudget &&
+              !budgetCompatible
           ),
           Boolean(
             detectedAttributes.length > 0 &&
@@ -1319,7 +1558,11 @@ export async function GET(
           categoryMatches &&
           colorMatches &&
           sizeMatches &&
-          productGenderMatches &&
+          genderMatches(
+            detectedGender,
+            productGender
+          ) &&
+          budgetMatches &&
           allAttributesMatched;
 
         /* Free-text words are relevance signals,
@@ -1367,6 +1610,10 @@ export async function GET(
           Boolean(
             detectedSize &&
             sizeMatches
+          ) ||
+          Boolean(
+            hasBudget &&
+            budgetCompatible
           ) ||
           matchedAttributes > 0;
 
@@ -1422,10 +1669,18 @@ export async function GET(
             filteredQueryWords.length,
 
           matchedColors:
-            detectedColor &&
-            colorMatches
-              ? 1
-              : 0,
+            detectedColors.length === 0
+              ? 0
+              : detectedColors.reduce(
+                  (count, color) =>
+                    count +
+                    (productColorSet.has(
+                      normalizeText(color)
+                    )
+                      ? 1
+                      : 0),
+                  0
+                ),
 
           matchedCategories:
             detectedCategory &&
@@ -1434,6 +1689,8 @@ export async function GET(
               : 0,
 
           matchedAttributes,
+
+          softMatched: softMatchedCount,
 
           structuredMatches: {
             brand:
@@ -1448,7 +1705,7 @@ export async function GET(
 
             color:
               detectedColor
-                ? colorMatches
+                ? colorCompatible
                 : null,
 
             size:
@@ -1461,6 +1718,11 @@ export async function GET(
                 ? productGenderMatches
                 : null,
 
+            budget:
+              hasBudget
+                ? budgetCompatible
+                : null,
+
             attributes:
               detectedAttributes.length > 0
                 ? allAttributesMatched
@@ -1471,7 +1733,31 @@ export async function GET(
 
     /* =====================================================
        EXACT PRODUCTS
+       Gender priority is a PRIMARY sort key, not a
+       tie-break: for an explicit Men/Women/Kids request,
+       same-gender products always come before UNISEX
+       products regardless of score, then (within each
+       gender bucket) score descending (spec §1/§12).
     ===================================================== */
+
+    const genderOrderKey = (
+      product: (typeof scoredProducts)[number]
+    ): number => {
+      if (
+        detectedGender !== "MEN" &&
+        detectedGender !== "WOMEN" &&
+        detectedGender !== "KIDS"
+      ) {
+        return 0;
+      }
+
+      const same =
+        normalizeGender(
+          String(product.gender ?? "")
+        ) === detectedGender;
+
+      return same ? 0 : 1;
+    };
 
     const exactProducts =
       scoredProducts
@@ -1481,8 +1767,14 @@ export async function GET(
         )
         .sort(
           (a, b) =>
+            genderOrderKey(a) -
+              genderOrderKey(b) ||
             b.score - a.score ||
-            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+            (a.id < b.id
+              ? -1
+              : a.id > b.id
+                ? 1
+                : 0)
         );
 
     /* =====================================================
@@ -1501,6 +1793,7 @@ export async function GET(
       "color",
       "size",
       "gender",
+      "budget",
       "attributes",
     ] as const;
 
@@ -1562,6 +1855,164 @@ export async function GET(
         : null;
 
     /* =====================================================
+       EMPTY-RESULT DIAGNOSTICS (spec §11)
+       Evidence-based only: each message names a detected
+       hard constraint that has zero matching products in
+       the catalog. Never guesses.
+    ===================================================== */
+
+    const diagnostics: string[] = [];
+
+    if (
+      exactProducts.length === 0 &&
+      scoredProducts.length > 0
+    ) {
+      diagnostics.push(
+        "No products match all your preferences."
+      );
+
+      if (
+        unsupportedIntentWords.size > 0
+      ) {
+        const word = [
+          ...unsupportedIntentWords,
+        ][0];
+        diagnostics.push(
+          `No products in the catalog for "${word}".`
+        );
+      }
+
+      const categoryClause = detectedCategory
+        ? ` in ${detectedCategory.toLowerCase()}`
+        : "";
+
+      const scopeProducts = detectedCategory
+        ? products.filter(
+            (product) =>
+              product.category &&
+              getCategoryChainNames(
+                product.category.id
+              ).includes(
+                detectedCategory
+              )
+          )
+        : products;
+
+      if (
+        requestedCategoryIsEmpty &&
+        detectedCategory
+      ) {
+        diagnostics.push(
+          `This category currently has no products in the catalog.`
+        );
+      } else {
+        if (detectedBrand) {
+          const hasBrand =
+            scopeProducts.some(
+              (product) =>
+                normalizeText(
+                  product.brand?.name
+                ) ===
+                normalizeText(
+                  detectedBrand
+                )
+            );
+          if (!hasBrand) {
+            diagnostics.push(
+              `No ${detectedBrand} products are currently available${categoryClause}.`
+            );
+          }
+        }
+
+        if (detectedColors.length > 0) {
+          const hasPaletteColor =
+            scopeProducts.some(
+              (product) =>
+                product.variants.some(
+                  (variant) =>
+                    variant.color &&
+                    detectedColors.some(
+                      (color) =>
+                        normalizeText(
+                          variant.color!.name
+                        ) ===
+                        normalizeText(color)
+                    )
+                )
+            );
+          if (!hasPaletteColor) {
+            diagnostics.push(
+              `No products in ${detectedColors.join(
+                " or "
+              )} are currently available${categoryClause}.`
+            );
+          }
+        }
+
+        if (detectedSize) {
+          const hasSize = scopeProducts.some(
+            (product) =>
+              product.variants.some(
+                (variant) =>
+                  variant.size &&
+                  normalizeText(
+                    variant.size.value
+                  ) ===
+                  normalizeText(
+                    detectedSize
+                  )
+              )
+          );
+          if (!hasSize) {
+            diagnostics.push(
+              `Size ${detectedSize} is currently unavailable for this combination.`
+            );
+          }
+        }
+
+        if (detectedGender) {
+          const hasGender = scopeProducts.some(
+            (product) =>
+              genderMatches(
+                detectedGender,
+                normalizeGender(
+                  String(
+                    product.gender ?? ""
+                  )
+                )
+              )
+          );
+          if (!hasGender) {
+            diagnostics.push(
+              `No ${detectedGender.toLowerCase()} products are currently available${categoryClause}.`
+            );
+          }
+        }
+
+        if (hasBudget) {
+          const hasInBudget = scopeProducts.some(
+            (product) => {
+              const price = Number(
+                product.price
+              );
+              return (
+                (priceMin === null ||
+                  price >= priceMin) &&
+                (priceMax === null ||
+                  price <= priceMax)
+              );
+            }
+          );
+          if (!hasInBudget) {
+            diagnostics.push(
+              `No products match your budget range (${priceMin ?? "any"} - ${priceMax ?? "any"})${categoryClause}.`
+            );
+          }
+        }
+      }
+    }
+
+    /* =====================================================
        RESPONSE
     ===================================================== */
 
@@ -1581,6 +2032,8 @@ export async function GET(
         similarProducts.length,
 
       similarMessage,
+
+      diagnostics,
 
       exactProducts,
 

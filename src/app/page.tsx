@@ -3,12 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
-import {
-  buildSizeFacets,
-  type SizeFacetGroups,
-  type SizeFacetMap,
-} from "@/lib/facets";
-
 type ProductAttribute = {
   value: string;
   attribute: {
@@ -88,13 +82,19 @@ type StructuredQuery = {
   brand: string | null;
   category: string | null;
   color: string | null;
+  colors: string[] | null;
   size: string | null;
-  gender: "MEN" | "WOMEN" | "UNISEX" | null;
+  gender: "MEN" | "WOMEN" | "KIDS" | "UNISEX" | null;
 
   attributes: {
     attributeName: string;
     value: string;
   }[];
+
+  budget: {
+    min: number | null;
+    max: number | null;
+  } | null;
 };
 
 type CategoryStatus = {
@@ -144,9 +144,23 @@ type SearchResponse = {
 
   similarMessage: string | null;
 
+  diagnostics: string[];
+
   exactProducts: Product[];
   similarProducts: Product[];
 };
+
+type CatalogSizeGroups = {
+  clothing: string[];
+  shoes: string[];
+};
+
+function sizeKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^(eu|us|uk)[\s-]*/, "");
+}
 
 /* ============================================================
    FACET HELPERS (display-level filtering only)
@@ -257,6 +271,46 @@ function productMatchesFilters(
   return true;
 }
 
+type FindIntent = {
+  query: string;
+  params: {
+    priceMin: string | null;
+    priceMax: string | null;
+    soft: string | null;
+    budgetCurrency: "USD" | "EUR" | null;
+    budgetDisplayMin: string | null;
+    budgetDisplayMax: string | null;
+  };
+};
+
+function parseFindIntent(
+  raw: string
+): FindIntent {
+  try {
+    const parsed = JSON.parse(raw) as FindIntent;
+    if (
+      typeof parsed.query === "string" &&
+      parsed.params &&
+      typeof parsed.params === "object"
+    ) {
+      return parsed;
+    }
+  } catch {
+    /* legacy plain-string handoff */
+  }
+  return {
+    query: raw,
+    params: {
+      priceMin: null,
+      priceMax: null,
+      soft: null,
+      budgetCurrency: null,
+      budgetDisplayMin: null,
+      budgetDisplayMax: null,
+    },
+  };
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
 
@@ -266,6 +320,19 @@ export default function Home() {
   const [similarMessage, setSimilarMessage] = useState<
     string | null
   >(null);
+
+  const [diagnostics, setDiagnostics] = useState<
+    string[]
+  >([]);
+
+  const [intentBudget, setIntentBudget] = useState<{
+    min: string | null;
+    max: string | null;
+    currency: "USD" | "EUR" | null;
+  } | null>(null);
+
+  const [catalogSizes, setCatalogSizes] =
+    useState<CatalogSizeGroups | null>(null);
 
   const [structuredQuery, setStructuredQuery] =
     useState<StructuredQuery | null>(null);
@@ -290,6 +357,20 @@ export default function Home() {
      runs the same search path as a direct query. */
   const consumedFindQuery = useRef(false);
 
+  /* Loads the catalog size surfaces once (used by the
+     Size refine panel; spec §13 sizes derive from the
+     catalog, not just the current results). */
+  useEffect(() => {
+    fetch("/api/meta")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success && data.sizeGroups) {
+          setCatalogSizes(data.sizeGroups);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (consumedFindQuery.current) {
       return;
@@ -306,12 +387,20 @@ export default function Home() {
     sessionStorage.removeItem(
       "wearsearch-find-query"
     );
-    setQuery(handedOff);
-    void handleSearch(handedOff);
+    const intent = parseFindIntent(handedOff);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot handoff restore, then a real search
+    setQuery(intent.query);
+    void handleSearch(
+      intent.query,
+      intent.params
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleSearch(overrideQuery?: string) {
+  async function handleSearch(
+    overrideQuery?: string,
+    overrideParams?: FindIntent["params"]
+  ) {
     const trimmedQuery = (
       overrideQuery ?? query
     ).trim();
@@ -332,8 +421,29 @@ export default function Home() {
     });
 
     try {
+      const params = new URLSearchParams({
+        q: trimmedQuery,
+      });
+
+      const priceMin =
+        overrideParams?.priceMin ?? null;
+      const priceMax =
+        overrideParams?.priceMax ?? null;
+      const soft =
+        overrideParams?.soft ?? null;
+
+      if (priceMin) {
+        params.set("priceMin", priceMin);
+      }
+      if (priceMax) {
+        params.set("priceMax", priceMax);
+      }
+      if (soft) {
+        params.set("soft", soft);
+      }
+
       const response = await fetch(
-        `/api/search?q=${encodeURIComponent(trimmedQuery)}`
+        `/api/search?${params.toString()}`
       );
 
       if (!response.ok) {
@@ -348,9 +458,26 @@ export default function Home() {
         throw new Error("Search API returned an error");
       }
 
+      setIntentBudget(
+        overrideParams
+          ? {
+              min:
+                overrideParams.budgetDisplayMin ??
+                (overrideParams.priceMin ?? null),
+              max:
+                overrideParams.budgetDisplayMax ??
+                (overrideParams.priceMax ?? null),
+              currency:
+                overrideParams.budgetCurrency ??
+                null,
+            }
+          : null
+      );
+
       setExactProducts(data.exactProducts ?? []);
       setSimilarProducts(data.similarProducts ?? []);
       setSimilarMessage(data.similarMessage ?? null);
+      setDiagnostics(data.diagnostics ?? []);
       setStructuredQuery(data.structuredQuery ?? null);
       setCategoryStatus(data.categoryStatus ?? null);
 
@@ -364,6 +491,7 @@ export default function Home() {
       setExactProducts([]);
       setSimilarProducts([]);
       setSimilarMessage(null);
+      setDiagnostics([]);
       setStructuredQuery(null);
       setCategoryStatus(null);
       setActiveFilters({
@@ -400,12 +528,26 @@ export default function Home() {
       parts.push(`Category: ${structuredQuery.category}`);
     }
 
-    if (structuredQuery.color) {
-      parts.push(`Color: ${structuredQuery.color}`);
+    const colors =
+      structuredQuery.colors ?? [];
+
+    if (colors.length > 0) {
+      parts.push(`Colors: ${colors.join(" + ")}`);
     }
 
     if (structuredQuery.size) {
       parts.push(`Size: ${structuredQuery.size}`);
+    }
+
+    const budget = structuredQuery.budget;
+
+    if (budget) {
+      const min = intentBudget?.min ?? budget.min;
+      const max = intentBudget?.max ?? budget.max;
+      const unit = intentBudget?.currency ?? "EUR";
+      parts.push(
+        `Budget: ${min ?? "any"} - ${max ?? "any"} ${unit}`
+      );
     }
 
     for (const attribute of structuredQuery.attributes ?? []) {
@@ -464,10 +606,46 @@ export default function Home() {
     return options;
   }, [allProducts]);
 
-  const sizeFacetGroups = useMemo(
-    () => buildSizeFacets(allProducts),
-    [allProducts]
-  );
+  const sizeOptionGroups = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const product of allProducts) {
+      const seen = new Set<string>();
+
+      for (const variant of product.variants) {
+        if (!variant.size) {
+          continue;
+        }
+
+        const key = sizeKey(variant.size.value);
+
+        if (seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+
+    const build = (
+      values: string[]
+    ): {
+      value: string;
+      label: string;
+      count: number;
+    }[] =>
+      values.map((value) => ({
+        value,
+        label: value,
+        count: counts.get(sizeKey(value)) ?? 0,
+      }));
+
+    return {
+      clothing: build(catalogSizes?.clothing ?? []),
+      shoes: build(catalogSizes?.shoes ?? []),
+    };
+  }, [allProducts, catalogSizes]);
 
   const filteredExactProducts = useMemo(
     () =>
@@ -645,28 +823,33 @@ export default function Home() {
                         if (key === "size") {
                           const sections: {
                             label: string;
-                            map: SizeFacetMap;
-                          }[] = (
-                            [
-                              {
-                                label: "Clothing",
-                                map: sizeFacetGroups.clothing,
-                              },
-                              {
-                                label: "Shoes",
-                                map: sizeFacetGroups.shoes,
-                              },
-                            ] as const
-                          ).filter(
-                            (section) =>
-                              section.map.size > 0
-                          );
+                            options: {
+                              value: string;
+                              label: string;
+                              count: number;
+                            }[];
+                          }[] = sizeOptionGroups.clothing.length > 0 ||
+                            sizeOptionGroups.shoes.length > 0
+                            ? [
+                                {
+                                  label: "Clothing Size",
+                                  options:
+                                    sizeOptionGroups.clothing,
+                                },
+                                {
+                                  label: "Shoe Size",
+                                  options:
+                                    sizeOptionGroups.shoes,
+                                },
+                              ].filter(
+                                (section) =>
+                                  section.options.length > 0
+                              )
+                            : [];
 
                           if (sections.length === 0) {
                             return null;
                           }
-
-                          const showCaptions = true;
 
                           return (
                             <div key={key}>
@@ -675,75 +858,58 @@ export default function Home() {
                               </p>
 
                               <div className="mt-2 flex flex-col gap-3">
-                                {sections.map(
-                                  (section) => {
-                                    const options = [
-                                      ...section.map.entries(),
-                                    ].sort((a, b) =>
-                                      a[1].label.localeCompare(
-                                        b[1].label
-                                      )
-                                    );
+                                {sections.map((section) => {
+                                  return (
+                                    <div key={section.label}>
+                                      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                                        {section.label}
+                                      </p>
 
-                                    return (
-                                      <div
-                                        key={section.label}
-                                      >
-                                        {showCaptions && (
-                                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                                            {section.label}
-                                          </p>
-                                        )}
+                                      <div className="mt-1 flex flex-wrap gap-2">
+                                        {section.options.map(
+                                          ({
+                                            value,
+                                            label,
+                                            count,
+                                          }) => {
+                                            const disabled =
+                                              count === 0;
+                                            const selected =
+                                              activeFilters[
+                                                key
+                                              ].has(value);
 
-                                        <div
-                                          className={`flex flex-wrap gap-2 ${
-                                            showCaptions
-                                              ? "mt-1"
-                                              : ""
-                                          }`}
-                                        >
-                                          {options.map(
-                                            ([
-                                              value,
-                                              {
-                                                label,
-                                                count,
-                                              },
-                                            ]) => {
-                                              const selected =
-                                                activeFilters[
-                                                  key
-                                                ].has(
-                                                  value
-                                                );
-
-                                              return (
-                                                <button
-                                                  key={value}
-                                                  type="button"
-                                                  onClick={() =>
-                                                    toggleFilter(
-                                                      key,
-                                                      value
-                                                    )
-                                                  }
-                                                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                                                    selected
-                                                      ? "bg-black text-white"
+                                            return (
+                                              <button
+                                                key={value}
+                                                type="button"
+                                                disabled={disabled}
+                                                onClick={() =>
+                                                  toggleFilter(
+                                                    key,
+                                                    value
+                                                  )
+                                                }
+                                                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                                                  selected
+                                                    ? "bg-black text-white"
+                                                    : disabled
+                                                      ? "cursor-not-allowed bg-gray-50 text-gray-300"
                                                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                                  }`}
-                                                >
-                                                  {label} (
-                                                  {count})
-                                                </button>
-                                              );
-                                            }
-                                          )}
-                                        </div>
+                                                }`}
+                                              >
+                                                {label}{" "}
+                                                {count > 0
+                                                  ? `(${count})`
+                                                  : "(0)"}
+                                              </button>
+                                            );
+                                          }
+                                        )}
                                       </div>
-                                    );
-                                  }
-                                )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
@@ -884,6 +1050,20 @@ export default function Home() {
                       </p>
                     </div>
                   )}
+
+                {diagnostics.length > 0 && (
+                  <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                    <h3 className="text-sm font-semibold text-amber-800">
+                      Why is this empty?
+                    </h3>
+
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-700">
+                      {diagnostics.map((message) => (
+                        <li key={message}>{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* SIMILAR RESULTS */}
 
