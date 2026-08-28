@@ -105,26 +105,52 @@ check(
 
 /* ============ BUDGET (hard Exact + ±35% Similar) ============ */
 
+/* K2: budgets are compared in the EUR reference currency while
+   stored prices keep their original currency (EUR seeds, USD
+   providers). Normalize every stored price with the SAME rate
+   the engine used (meta.fx, the documented env-first →
+   Frankfurter source) before asserting the bounds. */
+const budgetMeta = await fetch(META).then((r) => r.json());
+const fxRate = budgetMeta?.fx?.rate ?? null;
+
+const toEur = (product) => {
+  const raw = Number(product.price);
+  if (
+    fxRate &&
+    typeof product.currency === "string" &&
+    product.currency.trim().toUpperCase() === "USD"
+  ) {
+    return Math.round((raw / fxRate) * 100) / 100;
+  }
+  return raw;
+};
+
 const budget = await search({
   q: "sneakers",
   priceMin: "50",
   priceMax: "80",
 });
 const exactOut = (budget.exactProducts ?? []).filter(
-  (p) => Number(p.price) < 50 || Number(p.price) > 80
+  (p) => {
+    const px = toEur(p);
+    return px < 50 || px > 80;
+  }
 );
 const similarOut = (budget.similarProducts ?? []).filter(
-  (p) => Number(p.price) < 32.5 || Number(p.price) > 108
+  (p) => {
+    const px = toEur(p);
+    return px < 32.5 || px > 108;
+  }
 );
 check(
   "B1 products inside a hard budget pass the Exact gate",
   budget.exactCount > 0 && exactOut.length === 0,
-  `exact=${budget.exactCount} outside=${exactOut.length}`
+  `exact=${budget.exactCount} outside=${exactOut.length} rate=${fxRate ?? "none"}`
 );
 check(
   "B2 similar products stay within the ±35% band",
   budget.similarCount > 0 && similarOut.length === 0,
-  `similar=${budget.similarCount} outside=${similarOut.length}`
+  `similar=${budget.similarCount} outside=${similarOut.length} rate=${fxRate ?? "none"}`
 );
 check(
   "B3 budget echoed in structuredQuery",
@@ -218,14 +244,18 @@ check(
   `exact=${budgetMiss.exactCount} diag=[${(budgetMiss.diagnostics ?? []).join(" | ")}]`
 );
 
-const sizeMiss = await search({ q: "size 44 sneakers" });
+/* Re-based P1/P5: size 44 became available (livostyle EU
+   sizes restored from "NN(USx)" source strings), so the
+   unavailable-size probe now uses 45, which exists in the
+   size taxonomy but fits no sneaker. */
+const sizeMiss = await search({ q: "size 45 sneakers" });
 check(
   "D3 unavailable size names the exact size value in the diagnostic",
-  sizeMiss.structuredQuery?.size === "44" &&
+  sizeMiss.structuredQuery?.size === "45" &&
     sizeMiss.exactCount === 0 &&
     (sizeMiss.diagnostics ?? []).some(
       (m) =>
-        m.includes("Size 44") &&
+        m.includes("Size 45") &&
         m.includes("unavailable")
     ),
   `size=${sizeMiss.structuredQuery?.size} diag=[${(sizeMiss.diagnostics ?? []).join(" | ")}]`

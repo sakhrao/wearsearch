@@ -37,6 +37,14 @@ interface LivostyleProduct {
 const DATA_URL =
   "https://raw.githubusercontent.com/arturayupov/womens-fashion-catalog-open-data/master/data/products.json";
 
+/* Curated corrections for source-level category mislabels.
+   The source feeds may slot a garment under a wrong branch
+   (e.g. a t-shirt listed under Shoes > Athletic Shoes).
+   Entries are authoritative over any heuristic below. */
+const CATEGORY_OVERRIDES: Readonly<Record<string, string>> = {
+  "square-neck-crisscross-active-t-shirt": "t-shirts",
+};
+
 const CATEGORY_MAP: Array<[RegExp, string]> = [
   [/ > Clothing Tops > Blouses$/, "blouses"],
   [/ > Clothing Tops > Tunics$/, "blouses"],
@@ -131,12 +139,21 @@ function normalizeSize(
     };
   }
 
-  if (isShoes && /^\d{1,2}(\.\d)?$/.test(value)) {
-    return {
-      category: "shoes",
-      system: "US",
-      value,
-    };
+  if (isShoes) {
+    /* Numeric shoe sizes arrive either bare ("41") or as
+       combined EU+US strings ("36(US5)", "42(US10)"). Both
+       are real source values; the bare leading number is the
+       EU size users search on. */
+    const match = value.match(
+      /^(\d{1,2}(?:\.\d)?)(?:\(\s*US\s*\d+(?:\.\d+)?\s*\))?$/i
+    );
+    if (match) {
+      return {
+        category: "shoes",
+        system: "US",
+        value: match[1],
+      };
+    }
   }
 
   return null;
@@ -144,8 +161,14 @@ function normalizeSize(
 
 function resolveCategory(
   fullPath: string,
-  title: string
+  title: string,
+  handle: string
 ): { slug: string } | { slug: null; reason: string } {
+  const override = CATEGORY_OVERRIDES[handle];
+  if (override) {
+    return { slug: override };
+  }
+
   if (TITLE_GUARD.test(title)) {
     return {
       slug: null,
@@ -236,7 +259,8 @@ async function fetchUnified(): Promise<ProviderFetchResult> {
 
     const resolved = resolveCategory(
       fullPath,
-      item.title
+      item.title,
+      item.handle
     );
 
     if (resolved.slug === null) {

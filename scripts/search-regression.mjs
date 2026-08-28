@@ -17,10 +17,10 @@ const CASES = [
   },
   {
     q: "white sneaker 41",
-    exact: 2,
+    exact: 4,
     similar: 0,
     struct: { category: "Sneakers", color: "White", size: "41" },
-    note: "EU shoe size",
+    note: "EU shoe size; re-based P1/P5: livostyle shoe sizes restored from 'NN(USx)' source strings",
   },
   {
     q: "women jeans",
@@ -108,10 +108,10 @@ const CASES = [
   },
   {
     q: "women t-shirt",
-    exact: 12,
+    exact: 13,
     similar: 0,
     struct: { gender: "WOMEN", category: "T-Shirts" },
-    note: "unisex included in women scope",
+    note: "unisex included in women scope; re-based P1/P4: Square Neck Crisscross Active T-Shirt moved from Sneakers to T-Shirts",
   },
   {
     q: "men tank top",
@@ -161,17 +161,17 @@ const CASES = [
   },
   {
     q: "tops",
-    exact: 376,
+    exact: 377,
     similar: 0,
     struct: { category: "Tops" },
-    note: "parent category hierarchy",
+    note: "parent category hierarchy; re-based P1/P4: mislabeled T-Shirt (was Sneakers) is now a Top",
   },
   {
     q: "clothing",
-    exact: 511,
+    exact: 512,
     similar: 0,
     struct: { category: "Clothing" },
-    note: "root category hierarchy",
+    note: "root category hierarchy; re-based P1/P4 (list shifted from Sneakers to T-Shirts; net +1 in Clothing)",
   },
   {
     q: "bottoms",
@@ -182,16 +182,16 @@ const CASES = [
   },
   {
     q: "shoes",
-    exact: 72,
+    exact: 71,
     similar: 0,
     struct: { category: "Shoes" },
-    note: "separate root branch",
+    note: "separate root branch; re-based P1/P4: mislabeled T-Shirt removed from the Shoes tree",
   },
   {
     q: "sneaker 42",
-    exact: 2,
+    exact: 9,
     similar: 0,
-    note: "similar item at score 0 boundary (score>=0 inclusion)",
+    note: "similar item at score 0 boundary (score>=0 inclusion); re-based P1/P5: the four Trendsi sneakers now carry real size 42 variants",
   },
   {
     q: "size medium black tank top",
@@ -216,31 +216,31 @@ const CASES = [
   },
   {
     q: "eu 41 sneakers",
-    exact: 3,
+    exact: 10,
     similar: 0,
     struct: { category: "Sneakers", size: "41" },
-    note: "new in 6.5.2: numeric system prefix 'eu' stays inert, numeric size untouched by letter aliases",
+    note: "new in 6.5.2: numeric system prefix 'eu' stays inert, numeric size untouched by letter aliases; re-based P1/P5: real EU 41 sizes restored on Trendsi sneakers",
   },
   {
     q: "tee",
-    exact: 18,
+    exact: 19,
     similar: 0,
     struct: { category: "T-Shirts" },
-    note: "new in 6.5.3: category synonym 'tee' -> T-Shirts structured intent",
+    note: "new in 6.5.3: category synonym 'tee' -> T-Shirts structured intent; re-based P1/P4 (+Square Neck Crisscross Active T-Shirt)",
   },
   {
     q: "tees",
-    exact: 18,
+    exact: 19,
     similar: 0,
     struct: { category: "T-Shirts" },
-    note: "new in 6.5.3: plural synonym 'tees' -> T-Shirts",
+    note: "new in 6.5.3: plural synonym 'tees' -> T-Shirts; re-based P1/P4 (+Square Neck Crisscross Active T-Shirt)",
   },
   {
     q: "black tee",
-        exact: 3,
+        exact: 4,
         similar: 0,
         struct: { category: "T-Shirts", color: "Black" },
-        note: "updated intentionally in 6.8: cross-branch Similar leakage removal — only in-subtree black tees remain",
+        note: "updated intentionally in 6.8: cross-branch Similar leakage removal; re-based P1/P4 (Square Neck Crisscross Active T-Shirt is now correctly a black tee)",
   },
   {
     q: "white tee",
@@ -251,17 +251,17 @@ const CASES = [
   },
   {
     q: "trainer",
-    exact: 20,
+    exact: 19,
     similar: 0,
     struct: { category: "Sneakers" },
-    note: "new in 6.5.3: 'trainer' -> Sneakers structured intent; counts from native-equivalent simulation",
+    note: "new in 6.5.3: 'trainer' -> Sneakers structured intent; re-based P1/P4 (mislabeled T-Shirt left the Sneakers branch)",
   },
   {
     q: "trainers",
-    exact: 20,
+    exact: 19,
     similar: 0,
     struct: { category: "Sneakers" },
-    note: "new in 6.5.3: British synonym 'trainers' -> Sneakers",
+    note: "new in 6.5.3: British synonym 'trainers' -> Sneakers; re-based P1/P4 (mislabeled T-Shirt left the Sneakers branch)",
   },
   {
     q: "white trainers",
@@ -272,24 +272,24 @@ const CASES = [
   },
   {
     q: "tshirt",
-    exact: 18,
+    exact: 19,
     similar: 0,
     struct: { category: "T-Shirts" },
-    note: "new in 6.5.5: compact spelling 'tshirt' -> T-Shirts (G8); mirrors native 't shirt'",
+    note: "new in 6.5.5: compact spelling 'tshirt' -> T-Shirts (G8); re-based P1/P4 (+Square Neck Crisscross Active T-Shirt)",
   },
   {
     q: "tshirts",
-    exact: 18,
+    exact: 19,
     similar: 0,
     struct: { category: "T-Shirts" },
-    note: "new in 6.5.5: compact plural spelling -> T-Shirts",
+    note: "new in 6.5.5: compact plural spelling -> T-Shirts; re-based P1/P4 (+Square Neck Crisscross Active T-Shirt)",
   },
   {
     q: "black tshirt",
-        exact: 3,
+        exact: 4,
         similar: 0,
         struct: { category: "T-Shirts", color: "Black" },
-        note: "updated intentionally in 6.8: cross-branch Similar leakage removal — only in-subtree black tees remain",
+        note: "updated intentionally in 6.8: cross-branch Similar leakage removal; re-based P1/P4 (Square Neck Crisscross Active T-Shirt is now correctly a black tee)",
   },
   {
     q: "tanktop",
@@ -314,10 +314,10 @@ const CASES = [
   },
   {
     q: "women tshirts",
-    exact: 12,
+    exact: 13,
     similar: 0,
     struct: { category: "T-Shirts", gender: "WOMEN" },
-    note: "new in 6.5.5: gender + compact spelling compose like native 'women t-shirt'",
+    note: "new in 6.5.5: gender + compact spelling compose like native 'women t-shirt'; re-based P1/P4",
   },
   {
     q: "tank",
@@ -472,10 +472,10 @@ const CASES = [
   },
   {
     q: "green shoes",
-    exact: 4,
+    exact: 3,
     similar: 0,
     struct: { category: "Shoes", color: "Green" },
-    note: "unavailable color",
+    note: "unavailable color; re-based P1/P4: the Matcha-green T-Shirt (a non-shoe) no longer leaks into green-shoes"
   },
   {
     q: "unisex t-shirt",
@@ -542,10 +542,10 @@ const CASES = [
   },
   {
     q: "women sneakers",
-    exact: 15,
+    exact: 14,
     similar: 0,
     struct: { gender: "WOMEN", category: "Sneakers" },
-    note: "plural category + gender scope",
+    note: "plural category + gender scope; re-based P1/P4 (mislabeled T-Shirt left the Sneakers branch)",
   },
   {
     q: "women's black cotton tank top size S",
@@ -684,15 +684,15 @@ const CASES = [
   },
   {
     q: "t-shirt",
-    exact: 18,
+    exact: 19,
     similar: 0,
     struct: { category: "T-Shirts" },
     status: {
       requested: "T-Shirts",
-      productCount: 18,
+      productCount: 19,
       siblings: ["Blouses", "Button-Ups", "Cardigans", "Hoodies", "Jackets", "Jumpers", "Polos", "Shirts", "Tank Tops"],
     },
-    note: "new in 6.7.1: stocked category reports its own count and taxonomy siblings",
+    note: "new in 6.7.1: stocked category reports its own count and taxonomy siblings; re-based P1/P4 (+Square Neck Crisscross Active T-Shirt)",
   },
   {
     q: "tank top",
@@ -720,15 +720,15 @@ const CASES = [
   },
   {
     q: "shoes",
-    exact: 72,
+    exact: 71,
     similar: 0,
     struct: { category: "Shoes" },
     status: {
       requested: "Shoes",
-      productCount: 72,
+      productCount: 71,
       siblings: [],
     },
-    note: "new in 6.7.1: top-level node has no parent hence no siblings; count = subtree products",
+    note: "new in 6.7.1: top-level node has no parent hence no siblings; count = subtree products; re-based P1/P4 (mislabeled T-Shirt left the Shoes tree)",
   },
   {
     q: "nike",

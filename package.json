@@ -16,6 +16,9 @@
     "test:facet-policy": "tsx scripts/facet-policy.test.mjs",
     "test:e2e": "node scripts/spec-e2e.test.mjs",
     "test:currency": "tsx scripts/currency.test.mts",
+    "test:catalog": "tsx scripts/catalog-integrity.test.mts",
+    "test:facet-counts": "tsx scripts/facet-counts.test.mts",
+    "test:diagnostics": "tsx scripts/diagnostics.test.mts",
     "sync:providers": "tsx src/lib/providers/sync.ts"
   },
   "prisma": {

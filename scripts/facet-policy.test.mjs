@@ -200,9 +200,9 @@ check(
 /* Engine untouched goldens. */
 
 const goldens = [
-  ["sneakers", 20],
+  ["sneakers", 19],
   ["jeans", 6],
-  ["black shoes", 30],
+  ["black shoes", 29],
   ["nike", 10],
   ["size medium black tank top", 21],
 ];

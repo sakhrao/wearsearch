@@ -1,18 +1,28 @@
-/* Currency handling for the USD budget surface.
+/* Currency handling (single conversion layer).
 
-   Cataloge prices are stored in EUR. The questionnaire asks
-   for a budget in USD (as agreed) but we never assume the
-   stored EUR number equals USD. When a reliable rate is
-   available the USD budget is converted to EUR for the
-   engine; otherwise nothing is invented and the UI falls
-   back to the catalog currency.
+   The catalog stores every price in its ORIGINAL product
+   currency (seed products are EUR, provider-feed products are
+   USD). The search engine compares budgets in a single
+   reference currency - EUR - so raw USD prices are normalized
+   to EUR at compare time via ANOTHER_EUR below. The original
+   price and currency are never rewritten; the card still shows
+   the original price in its original currency.
+
+   The engine never assumes a stored EUR number equals USD. The
+   budget surface (questionnaire) collects USD and converts to
+   EUR for the engine via the same layer; direct API callers
+   pass EUR bounds.
 
    Rate sources, in order:
      1. FX_RATE_USD_PER_EUR env override (deterministic,
         e.g. for offline/test environments).
      2. Frankfurter API (free, no key), ECB reference rates,
         refreshed daily. Cached in-process (3h on success,
-        5min on failure). */
+        5min on failure).
+
+   When no rate is available (offline, no override) the engine
+   degrades to comparing stored values as-is - documented
+   behavior, never an invented rate. */
 export type FxRate = {
   rate: number | null;
   asOf: string | null;
@@ -42,6 +52,73 @@ export function usdToEur(usd: number, rate: number): number {
 
 export function eurToUsd(eur: number, rate: number): number {
   return roundMoney(eur * rate);
+}
+
+/* Normalize a stored price to the EUR reference currency.
+   USD is divided by the rate; every other / missing / invalid
+   currency is treated as EUR-stored (the schema default and
+   the sync invariant for every provider row). Invalid prices
+   pass through untouched and are excluded by the budget
+   predicates (they cannot satisfy any bound). */
+export function normalizePriceToEur(
+  price: number,
+  currency: string | null | undefined,
+  rate: number | null
+): number {
+  if (!Number.isFinite(price)) {
+    return price;
+  }
+  const code = (currency ?? "EUR").trim().toUpperCase();
+  return code === "USD" &&
+    rate !== null &&
+    Number.isFinite(rate) &&
+    rate > 0
+    ? usdToEur(price, rate)
+    : price;
+}
+
+export function priceWithinBudget(
+  price: number,
+  currency: string | null | undefined,
+  min: number | null,
+  max: number | null,
+  rate: number | null
+): boolean {
+  if (!Number.isFinite(price)) {
+    return false;
+  }
+  const normalized = normalizePriceToEur(
+    price,
+    currency,
+    rate
+  );
+  return (
+    (min === null || normalized >= min) &&
+    (max === null || normalized <= max)
+  );
+}
+
+/* Budget "compatible" band used by the Similar path: inside
+   ±35% of the requested EUR bounds (mirrors spec §8). */
+export function priceWithinBudgetBand(
+  price: number,
+  currency: string | null | undefined,
+  min: number | null,
+  max: number | null,
+  rate: number | null
+): boolean {
+  if (!Number.isFinite(price)) {
+    return false;
+  }
+  const normalized = normalizePriceToEur(
+    price,
+    currency,
+    rate
+  );
+  return (
+    (min === null || normalized >= min * 0.65) &&
+    (max === null || normalized <= max * 1.35)
+  );
 }
 
 export function parseUsdPerEurEnv(): number | null {

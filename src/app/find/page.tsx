@@ -778,19 +778,24 @@ export default function FindPage() {
             </div>
             {fxRate ? (
               <p className="mt-3 text-xs text-gray-400">
-                Catalog prices are in EUR; your USD budget
-                is converted with the ECB reference rate
-                (1 EUR ≈ {fxRate.toFixed(4)} USD,
-                {meta?.fx?.asOf ?? "latest"}).
-                Products outside your range but within 35%
-                still show under “Similar”.
+                Budgets are compared in a single reference
+                currency: your USD range is converted with the
+                ECB reference rate (1 EUR ≈{" "}
+                {fxRate.toFixed(4)} USD,{" "}
+                {meta?.fx?.asOf ?? "latest"}), and every
+                product&apos;s price is normalized the same way
+                before matching. Each card still shows the
+                original price in its original currency.
+                Products outside your range but within 35% still
+                show under “Similar”.
               </p>
             ) : (
               <p className="mt-3 text-xs text-amber-600">
-                Catalog prices are in EUR. No reliable USD
-                rate is available right now, so the budget
-                uses EUR — nothing is invented. USD will be
-                used automatically once a rate is configured
+                Budgets are compared in EUR (reference
+                currency). No reliable USD rate is available
+                right now, so prices are matched at their stored
+                value — nothing is invented. Conversion is
+                applied automatically once a rate is configured
                 or reachable.
               </p>
             )}

@@ -36,11 +36,13 @@ async function main() {
     where: {
       name: "WearSearch Demo Store",
     },
-    update: {},
+    update: {
+      baseUrl: null,
+    },
     create: {
       name: "WearSearch Demo Store",
       type: SourceType.DEMO,
-      baseUrl: "https://example.com",
+      baseUrl: null,
       status: SourceStatus.ACTIVE,
     },
   });
@@ -82,7 +84,7 @@ async function main() {
       create: {
         name,
         slug: name.toLowerCase().replace(/\s+/g, "-"),
-        websiteUrl: `https://example.com/${name.toLowerCase()}`,
+        websiteUrl: null,
       },
     });
   }
@@ -642,6 +644,7 @@ async function main() {
       update: {
         name: data.name,
         price: data.price,
+        productUrl: "",
       },
       create: {
         sourceId: demoSource.id,
@@ -653,7 +656,7 @@ async function main() {
         description: data.description,
         price: data.price,
         currency: "EUR",
-        productUrl: "https://example.com/product",
+        productUrl: "",
         imageUrl: "https://placehold.co/600x800",
         gender: data.gender,
         availability: Availability.AVAILABLE,

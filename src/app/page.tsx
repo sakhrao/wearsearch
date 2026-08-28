@@ -2,6 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  hasRealProductPage,
+  productStoreLabel,
+} from "@/lib/product-url";
+import {
+  FACET_KEYS,
+  countProductsForFacetValue,
+  getProductFacets,
+  productMatchesFilters,
+  type FacetKey,
+} from "@/lib/search-facets";
+import {
+  EMPTY_ANSWERS,
+  type QuestionnaireAnswers,
+} from "@/lib/questionnaire";
 
 type ProductAttribute = {
   value: string;
@@ -103,13 +119,6 @@ type CategoryStatus = {
   siblings: string[];
 } | null;
 
-type FacetKey =
-  | "gender"
-  | "category"
-  | "color"
-  | "size"
-  | "brand";
-
 type ActiveFilters = Record<
   FacetKey,
   Set<string>
@@ -155,121 +164,7 @@ type CatalogSizeGroups = {
   shoes: string[];
 };
 
-function sizeKey(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^(eu|us|uk)[\s-]*/, "");
-}
-
-/* ============================================================
-   FACET HELPERS (display-level filtering only)
-============================================================ */
-
-const FACET_KEYS: FacetKey[] = [
-  "gender",
-  "category",
-  "color",
-  "size",
-  "brand",
-];
-
-type FacetEntry = {
-  value: string;
-  label: string;
-};
-
-function getProductFacets(
-  product: Product
-): Record<FacetKey, FacetEntry[]> {
-  const entries: Record<FacetKey, FacetEntry[]> = {
-    gender: [],
-    category: [],
-    color: [],
-    size: [],
-    brand: [],
-  };
-
-  if (product.gender) {
-    entries.gender.push({
-      value: product.gender,
-      label: product.gender,
-    });
-  }
-
-  entries.category.push({
-    value: product.category.id,
-    label: product.category.name,
-  });
-
-  for (const variant of product.variants) {
-    if (
-      variant.color &&
-      !entries.color.some(
-        (entry) => entry.value === variant.color!.id
-      )
-    ) {
-      entries.color.push({
-        value: variant.color.id,
-        label: variant.color.name,
-      });
-    }
-
-    if (
-      variant.size &&
-      !entries.size.some(
-        (entry) => entry.value === variant.size!.value
-      )
-    ) {
-      entries.size.push({
-        value: variant.size.value,
-        label: variant.size.value,
-      });
-    }
-  }
-
-  entries.brand.push({
-    value: product.brand.id,
-    label: product.brand.name,
-  });
-
-  return entries;
-}
-
-function productMatchesFilters(
-  product: Product,
-  activeFilters: ActiveFilters
-) {
-  const facets = getProductFacets(product);
-
-  for (const key of FACET_KEYS) {
-    const selected = activeFilters[key];
-
-    if (selected.size === 0) {
-      continue;
-    }
-
-    const values =
-      facets[key].map((entry) => entry.value);
-
-    const matches =
-      key === "gender"
-        ? values.some(
-            (value) =>
-              selected.has(value) ||
-              value === "UNISEX"
-          )
-        : values.some((value) =>
-            selected.has(value)
-          );
-
-    if (!matches) {
-      return false;
-    }
-  }
-
-  return true;
-}
+/* Facet helpers are shared pure logic in @/lib/search-facets. */
 
 type FindIntent = {
   query: string;
@@ -312,6 +207,8 @@ function parseFindIntent(
 }
 
 export default function Home() {
+  const router = useRouter();
+
   const [query, setQuery] = useState("");
 
   const [exactProducts, setExactProducts] = useState<Product[]>([]);
@@ -582,52 +479,38 @@ export default function Home() {
       brand: new Map(),
     };
 
-    for (const product of allProducts) {
-      const facets = getProductFacets(product);
+    for (const key of FACET_KEYS) {
+      if (key === "size") {
+        continue;
+      }
 
-      for (const key of FACET_KEYS) {
-        for (const entry of facets[key]) {
-          if (key === "size") {
-            continue;
+      for (const product of allProducts) {
+        for (const entry of getProductFacets(product)[
+          key
+        ]) {
+          if (!options[key].has(entry.value)) {
+            options[key].set(entry.value, {
+              label: entry.label,
+              count: 0,
+            });
           }
-
-          const existing = options[key].get(
-            entry.value
-          );
-
-          options[key].set(entry.value, {
-            label: entry.label,
-            count: (existing?.count ?? 0) + 1,
-          });
         }
+      }
+
+      for (const [value, meta] of options[key]) {
+        meta.count = countProductsForFacetValue(
+          key,
+          value,
+          activeFilters,
+          allProducts
+        );
       }
     }
 
     return options;
-  }, [allProducts]);
+  }, [allProducts, activeFilters]);
 
   const sizeOptionGroups = useMemo(() => {
-    const counts = new Map<string, number>();
-
-    for (const product of allProducts) {
-      const seen = new Set<string>();
-
-      for (const variant of product.variants) {
-        if (!variant.size) {
-          continue;
-        }
-
-        const key = sizeKey(variant.size.value);
-
-        if (seen.has(key)) {
-          continue;
-        }
-
-        seen.add(key);
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-      }
-    }
-
     const build = (
       values: string[]
     ): {
@@ -638,14 +521,19 @@ export default function Home() {
       values.map((value) => ({
         value,
         label: value,
-        count: counts.get(sizeKey(value)) ?? 0,
+        count: countProductsForFacetValue(
+          "size",
+          value,
+          activeFilters,
+          allProducts
+        ),
       }));
 
     return {
       clothing: build(catalogSizes?.clothing ?? []),
       shoes: build(catalogSizes?.shoes ?? []),
     };
-  }, [allProducts, catalogSizes]);
+  }, [allProducts, activeFilters, catalogSizes]);
 
   const filteredExactProducts = useMemo(
     () =>
@@ -666,6 +554,12 @@ export default function Home() {
   const hasActiveFilters = FACET_KEYS.some(
     (key) => activeFilters[key].size > 0
   );
+
+  const filtersHidEverything =
+    hasActiveFilters &&
+    allProducts.length > 0 &&
+    filteredExactProducts.length === 0 &&
+    filteredSimilarProducts.length === 0;
 
   function toggleFilter(
     key: FacetKey,
@@ -692,6 +586,51 @@ export default function Home() {
       size: new Set(),
       brand: new Set(),
     });
+  }
+
+  /* P6: from a true no-results state, let users refine
+     the same search via the questionnaire. */
+  function questionnaireAnswersFromSearch(): QuestionnaireAnswers {
+    const answers: QuestionnaireAnswers = {
+      ...EMPTY_ANSWERS,
+      searchText: query.trim(),
+      colors: structuredQuery?.colors ?? [],
+      attributes: (structuredQuery?.attributes ?? []).map(
+        ({ value }) => value
+      ),
+    };
+
+    if (
+      structuredQuery?.gender &&
+      structuredQuery.gender !== "UNISEX"
+    ) {
+      answers.gender = structuredQuery.gender.toLowerCase();
+    }
+
+    if (structuredQuery?.category) {
+      answers.category = structuredQuery.category;
+    }
+
+    if (structuredQuery?.size) {
+      answers.size = structuredQuery.size;
+    }
+
+    return answers;
+  }
+
+  function handleEditSearch() {
+    sessionStorage.setItem(
+      "wearsearch-find-answers",
+      JSON.stringify(questionnaireAnswersFromSearch())
+    );
+    sessionStorage.removeItem("wearsearch-find-query");
+    void router.push("/find");
+  }
+
+  function handleBackToQuestionnaire() {
+    sessionStorage.removeItem("wearsearch-find-answers");
+    sessionStorage.removeItem("wearsearch-find-query");
+    void router.push("/find");
   }
 
   return (
@@ -1051,8 +990,9 @@ export default function Home() {
                     </div>
                   )}
 
-                {diagnostics.length > 0 && (
-                  <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                {diagnostics.length > 0 &&
+                  !filtersHidEverything && (
+                    <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
                     <h3 className="text-sm font-semibold text-amber-800">
                       Why is this empty?
                     </h3>
@@ -1132,12 +1072,7 @@ export default function Home() {
 
                 {/* FILTERS HIDE EVERYTHING */}
 
-                {hasActiveFilters &&
-                  allProducts.length > 0 &&
-                  filteredExactProducts.length ===
-                    0 &&
-                  filteredSimilarProducts.length ===
-                    0 && (
+                {filtersHidEverything && (
                     <div className="rounded-2xl border border-gray-200 p-10 text-center">
                       <EmptyStateIcon />
 
@@ -1187,6 +1122,24 @@ export default function Home() {
                         Try searching for another color, brand,
                         category, size, or clothing type.
                       </p>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleEditSearch}
+                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+                        >
+                          Edit search
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleBackToQuestionnaire}
+                          className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Back to questionnaire
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1227,17 +1180,6 @@ function EmptyStateIcon() {
    STORE NAME DERIVATION
 ============================================================ */
 
-function getStoreName(productUrl: string) {
-  try {
-    return new URL(productUrl).hostname.replace(
-      /^www\./,
-      ""
-    );
-  } catch {
-    return "";
-  }
-}
-
 /* ============================================================
    PRODUCT CARD
 ============================================================ */
@@ -1247,9 +1189,20 @@ function ProductCard({
 }: {
   product: Product;
 }) {
-  const storeName = getStoreName(
+  const storeName = productStoreLabel(
     product.productUrl
   );
+
+  const hasProductPage = hasRealProductPage(
+    product.productUrl
+  );
+
+  const hasVariantPriceRange =
+    product.variants.some(
+      (variant) =>
+        Number(variant.price) !==
+        Number(product.price)
+    );
 
   const variantColors: {
     id: string;
@@ -1431,17 +1384,26 @@ function ProductCard({
 
         <div className="mt-5 flex items-center justify-between">
           <span className="text-lg font-bold">
+            {hasVariantPriceRange
+              ? "From "
+              : ""}
             {product.price} {product.currency}
           </span>
 
-          <a
-            href={product.productUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
-          >
-            View product
-          </a>
+          {hasProductPage ? (
+            <a
+              href={product.productUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+            >
+              View product
+            </a>
+          ) : (
+            <span className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400">
+              Product page unavailable
+            </span>
+          )}
         </div>
       </div>
     </article>

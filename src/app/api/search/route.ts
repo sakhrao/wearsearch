@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  getFxRate,
+  priceWithinBudget,
+  priceWithinBudgetBand,
+} from "@/lib/currency";
+import {
+  buildSearchDiagnostics,
+  type DiagStrictVector,
+} from "@/lib/search-diagnostics";
 
 /* =========================================================
    TEXT HELPERS
@@ -383,6 +392,15 @@ export async function GET(
     const hasBudget =
       priceMin !== null ||
       priceMax !== null;
+
+    /* K2: budgets are compared in a single EUR reference
+       currency. Fetch the documented rate once per request
+       (env override first, then Frankfurter/ECB; may be
+       null, in which case stored values are compared as-is
+       - a documented degraded mode, never an invented
+       rate). Original stored prices and currencies are
+       never rewritten. */
+    const priceRate = (await getFxRate()).rate;
 
     const softAttributes =
       (searchParams.get("soft") ?? "")
@@ -1133,6 +1151,8 @@ export async function GET(
        SCORE PRODUCTS
     ===================================================== */
 
+    const diagVectors: DiagStrictVector[] = [];
+
     const scoredProducts =
       products.map((product) => {
         const productGender =
@@ -1225,23 +1245,31 @@ export async function GET(
 
         /* Budget (spec §8): Exact requires the price inside
            the requested bounds; a product within ±35% of the
-           bounds is "close" and eligible for Similar only. */
-        const productPrice =
-          Number(product.price);
-
+           bounds is "close" and eligible for Similar only.
+           The stored price (in its original currency, EUR for
+           seeds and USD for provider rows) is normalized to
+           the EUR reference via the single currency layer;
+           product.price is the product's starting price (the
+           lowest variant price, P3 / catalog integrity). */
         const budgetMatches =
           !hasBudget ||
-          ((priceMin === null ||
-            productPrice >= priceMin) &&
-            (priceMax === null ||
-              productPrice <= priceMax));
+          priceWithinBudget(
+            Number(product.price),
+            product.currency,
+            priceMin,
+            priceMax,
+            priceRate
+          );
 
         const budgetCompatible =
           !hasBudget ||
-          ((priceMin === null ||
-            productPrice >= priceMin * 0.65) &&
-            (priceMax === null ||
-              productPrice <= priceMax * 1.35));
+          priceWithinBudgetBand(
+            Number(product.price),
+            product.currency,
+            priceMin,
+            priceMax,
+            priceRate
+          );
 
         const productCategoryChainNames =
           product.category
@@ -1653,6 +1681,24 @@ export async function GET(
            RESULT
         =============================================== */
 
+        diagVectors.push({
+          brand: detectedBrand ? brandMatches : null,
+          category: detectedCategory
+            ? categoryMatches
+            : null,
+          color: detectedColor ? colorMatches : null,
+          size: detectedSize ? sizeMatches : null,
+          gender: detectedGender
+            ? productGenderMatches
+            : null,
+          budget: hasBudget ? budgetMatches : null,
+          attributes:
+            detectedAttributes.length > 0
+              ? allAttributesMatched
+              : null,
+          hasAnySize: productSizes.length > 0,
+        });
+
         return {
           ...product,
 
@@ -1856,77 +1902,58 @@ export async function GET(
 
     /* =====================================================
        EMPTY-RESULT DIAGNOSTICS (spec §11)
-       Evidence-based only: each message names a detected
-       hard constraint that has zero matching products in
-       the catalog. Never guesses.
+       Evidence-based only. Distinguishes:
+       A - a size constraint that has no results in scope;
+       B - every constraint exists individually but no
+           single product satisfies the combination;
+       C - matching products carry no size data, so the
+           requested size cannot be confirmed.
+       Diagnostics only - never touches membership or
+       ranking (all per-product evidence mirrors the exact
+       gate predicates via diagVectors, built above).
     ===================================================== */
 
-    const diagnostics: string[] = [];
+    const categoryClause = detectedCategory
+      ? ` in ${detectedCategory.toLowerCase()}`
+      : "";
 
-    if (
-      exactProducts.length === 0 &&
-      scoredProducts.length > 0
-    ) {
-      diagnostics.push(
-        "No products match all your preferences."
-      );
+    const scopeProducts = detectedCategory
+      ? products.filter(
+          (product) =>
+            product.category &&
+            getCategoryChainNames(
+              product.category.id
+            ).includes(
+              detectedCategory
+            )
+        )
+      : products;
 
-      if (
-        unsupportedIntentWords.size > 0
-      ) {
-        const word = [
-          ...unsupportedIntentWords,
-        ][0];
-        diagnostics.push(
-          `No products in the catalog for "${word}".`
-        );
-      }
+    const scopeProductIds = new Set(
+      scopeProducts.map((product) => product.id)
+    );
 
-      const categoryClause = detectedCategory
-        ? ` in ${detectedCategory.toLowerCase()}`
-        : "";
+    const scopedVectors = diagVectors.filter(
+      (_, index) =>
+        scopeProductIds.has(products[index].id)
+    );
 
-      const scopeProducts = detectedCategory
-        ? products.filter(
+    const presence = {
+      category: scopeProducts.length > 0,
+
+      brand: detectedBrand
+        ? scopeProducts.some(
             (product) =>
-              product.category &&
-              getCategoryChainNames(
-                product.category.id
-              ).includes(
-                detectedCategory
-              )
+              normalizeText(
+                product.brand?.name
+              ) ===
+              normalizeText(detectedBrand)
           )
-        : products;
+        : true,
 
-      if (
-        requestedCategoryIsEmpty &&
-        detectedCategory
-      ) {
-        diagnostics.push(
-          `This category currently has no products in the catalog.`
-        );
-      } else {
-        if (detectedBrand) {
-          const hasBrand =
-            scopeProducts.some(
-              (product) =>
-                normalizeText(
-                  product.brand?.name
-                ) ===
-                normalizeText(
-                  detectedBrand
-                )
-            );
-          if (!hasBrand) {
-            diagnostics.push(
-              `No ${detectedBrand} products are currently available${categoryClause}.`
-            );
-          }
-        }
-
-        if (detectedColors.length > 0) {
-          const hasPaletteColor =
-            scopeProducts.some(
+      color:
+        detectedColors.length > 0
+          ? scopeProducts.some(
               (product) =>
                 product.variants.some(
                   (variant) =>
@@ -1939,18 +1966,11 @@ export async function GET(
                         normalizeText(color)
                     )
                 )
-            );
-          if (!hasPaletteColor) {
-            diagnostics.push(
-              `No products in ${detectedColors.join(
-                " or "
-              )} are currently available${categoryClause}.`
-            );
-          }
-        }
+            )
+          : true,
 
-        if (detectedSize) {
-          const hasSize = scopeProducts.some(
+      size: detectedSize
+        ? scopeProducts.some(
             (product) =>
               product.variants.some(
                 (variant) =>
@@ -1958,59 +1978,74 @@ export async function GET(
                   normalizeText(
                     variant.size.value
                   ) ===
-                  normalizeText(
-                    detectedSize
-                  )
+                    normalizeText(detectedSize)
               )
-          );
-          if (!hasSize) {
-            diagnostics.push(
-              `Size ${detectedSize} is currently unavailable for this combination.`
-            );
-          }
-        }
+          )
+        : true,
 
-        if (detectedGender) {
-          const hasGender = scopeProducts.some(
+      gender: detectedGender
+        ? scopeProducts.some(
             (product) =>
               genderMatches(
                 detectedGender,
                 normalizeGender(
-                  String(
-                    product.gender ?? ""
-                  )
+                  String(product.gender ?? "")
                 )
               )
-          );
-          if (!hasGender) {
-            diagnostics.push(
-              `No ${detectedGender.toLowerCase()} products are currently available${categoryClause}.`
-            );
-          }
-        }
+          )
+        : true,
 
-        if (hasBudget) {
-          const hasInBudget = scopeProducts.some(
-            (product) => {
-              const price = Number(
-                product.price
-              );
-              return (
-                (priceMin === null ||
-                  price >= priceMin) &&
-                (priceMax === null ||
-                  price <= priceMax)
-              );
-            }
-          );
-          if (!hasInBudget) {
-            diagnostics.push(
-              `No products match your budget range (${priceMin ?? "any"} - ${priceMax ?? "any"})${categoryClause}.`
-            );
-          }
-        }
-      }
-    }
+      budget: hasBudget
+        ? scopeProducts.some(
+            (product) =>
+              priceWithinBudget(
+                Number(product.price),
+                product.currency,
+                priceMin,
+                priceMax,
+                priceRate
+              )
+          )
+        : true,
+
+      attributes: scopedVectors.some(
+        (vector) =>
+          vector.attributes === true
+      ),
+    };
+
+    const diagnostics =
+      exactProducts.length === 0 &&
+      scoredProducts.length > 0
+        ? buildSearchDiagnostics({
+            categoryClause,
+
+            requestedCategoryIsEmpty,
+
+            detected: {
+              brand: detectedBrand,
+              category: detectedCategory,
+              colors: detectedColors,
+              size: detectedSize,
+              gender: detectedGender,
+              hasBudget,
+              budgetMin: priceMin,
+              budgetMax: priceMax,
+              attributes:
+                detectedAttributes,
+            },
+
+            unsupportedIntentWords: [
+              ...unsupportedIntentWords,
+            ],
+
+            presence,
+
+            scopedVectors,
+
+            allVectors: diagVectors,
+          })
+        : [];
 
     /* =====================================================
        RESPONSE

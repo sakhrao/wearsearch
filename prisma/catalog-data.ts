@@ -20,23 +20,11 @@ export type ExpansionProductSpec = {
   attributes: Record<string, string>;
 };
 
-const BRAND_DOMAINS: Record<string, string> = {
-  Nike: "nike.com",
-  Adidas: "adidas.com",
-  Puma: "puma.com",
-  Zara: "zara.com",
-  "H&M": "hm.com",
-  "New Balance": "newbalance.com",
-};
-
-export function buildProductUrl(
-  brand: string,
-  externalId: string
-): string {
-  const domain =
-    BRAND_DOMAINS[brand] ?? "example.com";
-  return `https://www.${domain}/p/${externalId}`;
-}
+/* These expansion products are fictional (demo) items. They
+   have no real, verifiable product page, so we must never
+   fabricate a brand URL for them. An empty productUrl keeps
+   the catalog honest and lets the UI guard mark the product
+   as having no purchasable page. */
 
 type SpecInput = {
   ext: string;
@@ -65,10 +53,7 @@ function spec(input: SpecInput): ExpansionProductSpec {
     description: input.desc,
     price: input.price,
     gender: input.gender,
-    productUrl: buildProductUrl(
-      input.brand,
-      input.ext
-    ),
+    productUrl: "",
     variants: input.colors.flatMap((color) =>
       input.sizes.map((size) => ({
         color,

@@ -124,8 +124,8 @@ check(
 console.log("\n== Case 4: Exact is unchanged by the gate ==");
 const blackShoes = await search("black shoes");
 check(
-  blackShoes.exactCount === 30,
-  `"black shoes" exactCount == 30 (golden)`
+  blackShoes.exactCount === 29,
+  `"black shoes" exactCount == 29 (golden; re-based P1/P4: the Black Square Neck T-Shirt is no longer a Black shoe)`
 );
 const nike = await search("nike");
 check(
