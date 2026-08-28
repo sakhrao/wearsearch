@@ -9,6 +9,20 @@ import {
   buildSearchDiagnostics,
   type DiagStrictVector,
 } from "@/lib/search-diagnostics";
+import { hasRealProductPage } from "@/lib/product-url";
+
+/* F1 (Post-Audit Product Readiness): demo/playground items have
+   no real product page, so they must never surface in
+   production-facing results as if they were real products
+   (placeholder images, dead-end "View product", fake brands).
+   The catalog keeps them (tests + data integrity), the engine
+   still scores/ranks every product exactly as before, and only
+   the final serialized result lists (plus inventory counts and
+   the diagnostics empty gate) exclude them. Search/Ranking
+   logic itself is untouched. */
+const hasRealPage = (product: {
+  productUrl: string;
+}): boolean => hasRealProductPage(product.productUrl);
 
 /* =========================================================
    TEXT HELPERS
@@ -211,6 +225,8 @@ const CATEGORY_ALIAS_WORDS: Record<
   tanktops: "Tank Tops",
   hoodie: "Hoodies",
   hoodies: "Hoodies",
+  sweatshirt: "Sweatshirts",
+  sweatshirts: "Sweatshirts",
   jumper: "Jumpers",
   jumpers: "Jumpers",
   jacket: "Jackets",
@@ -233,6 +249,7 @@ const CATEGORY_ALIAS_WORDS: Record<
   hats: "Hats",
   cap: "Caps",
   caps: "Caps",
+  sweatpants: "Joggers",
 };
 
 type Gender =
@@ -891,6 +908,7 @@ export async function GET(
         "dress",
         "skirt",
         "sweater",
+        "hooded",
         "blazer",
         "suit",
         "suits",
@@ -1104,12 +1122,13 @@ export async function GET(
           }
         }
 
-        const productCount =
-          products.filter(
+        const productCount = products
+          .filter(
             (product) =>
               product.category &&
               subtreeIds.has(product.category.id)
-          ).length;
+          )
+          .filter(hasRealPage).length;
 
         const siblings = categories
           .filter(
@@ -1900,6 +1919,15 @@ export async function GET(
         ? "No similar products match at least 80% of your preferences. Try fewer or less specific preferences."
         : null;
 
+    /* F1: strip demo/placeholder products from the serialized
+       result lists only (the engine's exact/similar sets and
+       ranking stay untouched). */
+    const returnedExactProducts =
+      exactProducts.filter(hasRealPage);
+
+    const returnedSimilarProducts =
+      similarProducts.filter(hasRealPage);
+
     /* =====================================================
        EMPTY-RESULT DIAGNOSTICS (spec §11)
        Evidence-based only. Distinguishes:
@@ -2015,7 +2043,7 @@ export async function GET(
     };
 
     const diagnostics =
-      exactProducts.length === 0 &&
+      returnedExactProducts.length === 0 &&
       scoredProducts.length > 0
         ? buildSearchDiagnostics({
             categoryClause,
@@ -2061,18 +2089,20 @@ export async function GET(
       categoryStatus,
 
       exactCount:
-        exactProducts.length,
+        returnedExactProducts.length,
 
       similarCount:
-        similarProducts.length,
+        returnedSimilarProducts.length,
 
       similarMessage,
 
       diagnostics,
 
-      exactProducts,
+      exactProducts:
+        returnedExactProducts,
 
-      similarProducts,
+      similarProducts:
+        returnedSimilarProducts,
     });
   } catch (error) {
     console.error(

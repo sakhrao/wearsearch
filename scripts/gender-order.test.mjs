@@ -25,21 +25,27 @@ async function search(q) {
     - all same-gender products come BEFORE every UNISEX product
     - this holds even when a UNISEX product's score is higher
     - within each gender bucket, score stays descending
+
+  PR2-F1 re-baseline (2026-08-28): the real catalog is MEN 11 /
+  WOMEN 493 / UNISEX 0, so the same-gender-before-UNISEX invariant is
+  VACUOUS wherever no real UNISEX product matches. Detection, hard
+  isolation (no opposite gender), per-bucket score ordering, and the
+  honest-empty diagnostic are asserted unconditionally instead.
 */
 
 const MIXED_QUERIES = [
-  ["men jeans", "MEN"],
-  ["women jeans", "WOMEN"],
-  ["ladies jeans", "WOMEN"],
-  ["womens jeans", "WOMEN"],
-  ["mens jeans", "MEN"],
-  ["men sneakers", "MEN"],
-  ["women sneakers", "WOMEN"],
-  ["men tshirt", "MEN"],
-  ["women tshirt", "WOMEN"],
+  ["men jeans", "MEN", "WOMEN"],
+  ["women jeans", "WOMEN", "MEN"],
+  ["ladies jeans", "WOMEN", "MEN"],
+  ["womens jeans", "WOMEN", "MEN"],
+  ["mens jeans", "MEN", "WOMEN"],
+  ["men sneakers", "MEN", "WOMEN"],
+  ["women sneakers", "WOMEN", "MEN"],
+  ["men tshirt", "MEN", "WOMEN"],
+  ["women tshirt", "WOMEN", "MEN"],
 ];
 
-for (const [q, expectedGender] of MIXED_QUERIES) {
+for (const [q, expectedGender, opposite] of MIXED_QUERIES) {
   const d = await search(q);
   const req = d.structuredQuery.gender;
 
@@ -52,6 +58,28 @@ for (const [q, expectedGender] of MIXED_QUERIES) {
   if (req !== expectedGender) continue;
 
   const exact = d.exactProducts;
+  const all = [...exact, ...d.similarProducts];
+
+  check(
+    `"${q}" -> no ${opposite} leak in Exact or Similar`,
+    all.every((p) => p.gender === req || p.gender === "UNISEX"),
+    `genders=[${[...new Set(all.map((p) => p.gender))].join(",")}]`
+  );
+
+  if (exact.length > 0) {
+    check(
+      `"${q}" Exact contains ${req}`,
+      exact.some((p) => p.gender === req),
+      `genders=[${[...new Set(exact.map((p) => p.gender))].join(",")}]`
+    );
+  } else {
+    check(
+      `"${q}" -> honest empty with diagnostic (no real ${req} products)`,
+      (d.diagnostics ?? []).length > 0,
+      `exact=0 diag=[${(d.diagnostics ?? []).join(" | ")}]`
+    );
+  }
+
   const sameIndexes = [];
   const unisexIndexes = [];
   exact.forEach((p, i) => {
@@ -62,12 +90,8 @@ for (const [q, expectedGender] of MIXED_QUERIES) {
   const hasSame = sameIndexes.length > 0;
   const hasUnisex = unisexIndexes.length > 0;
 
-  check(
-    `"${q}" Exact contains ${req} and UNISEX`,
-    hasSame && hasUnisex,
-    `genders=[${[...new Set(exact.map((p) => p.gender))].join(",")}]`
-  );
-
+  /* Vacuous today (no real UNISEX products); kept as the spec
+     invariant so an attribute/gender back-fill re-enables it. */
   if (hasSame && hasUnisex) {
     const lastSame = sameIndexes[sameIndexes.length - 1];
     const firstUnisex = unisexIndexes[0];
@@ -115,8 +139,8 @@ for (const [q, expectedGender] of MIXED_QUERIES) {
   }
 }
 
-/* KIDS: catalog has no KIDS-gendered products; the invariant holds
-   vacuously (Exact is UNISEX-only, no same-gender bucketing). */
+/* KIDS: no real KIDS- or UNISEX-compatible jeans remain after the
+   PR2-F1 demo exclusion -> honest empty, no MEN/WOMEN leak. */
 {
   const d = await search("kids jeans");
   check(
@@ -124,11 +148,16 @@ for (const [q, expectedGender] of MIXED_QUERIES) {
     d.structuredQuery.gender === "KIDS",
     `gender=${d.structuredQuery.gender}`
   );
-  const exactGenders = [...new Set(d.exactProducts.map((p) => p.gender))];
+  const all = [...d.exactProducts, ...d.similarProducts];
   check(
-    "kids jeans -> Exact UNISEX-only (invariant vacuous, no KIDS products)",
-    exactGenders.length === 1 && exactGenders[0] === "UNISEX",
-    `genders=${exactGenders.join(",")}`
+    "kids jeans -> no MEN/WOMEN leak",
+    all.every((p) => p.gender === "KIDS" || p.gender === "UNISEX"),
+    `genders=${[...new Set(all.map((p) => p.gender))].join(",")}`
+  );
+  check(
+    "kids jeans -> honest empty with diagnostic (no real KIDS/UNISEX jeans)",
+    d.exactCount > 0 || (d.diagnostics ?? []).length > 0,
+    `exact=${d.exactCount} diag=[${(d.diagnostics ?? []).join(" | ")}]`
   );
 }
 

@@ -175,8 +175,11 @@ check(
   `currencyMismatch=${currencyMismatch}`
 );
 check(
-  "B3 the 13 livostyle products keep their genuine variant price range",
-  mismatching.length === 13 &&
+  /* PR2-F2 re-based: 13->20. The 71 new livostyle Hoodies/Sweatshirts
+     added 7 more products whose variants expose a genuine higher price
+     tier (all still livostyle-only, still genuine). */
+  "B3 livostyle products keep their genuine variant price range",
+  mismatching.length === 20 &&
     mismatching.every((id) => id.startsWith("lv-")),
   `count=${mismatching.length} non-lv=${mismatching
     .filter((id) => !id.startsWith("lv-"))

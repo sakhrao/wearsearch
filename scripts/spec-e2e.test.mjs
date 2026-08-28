@@ -162,6 +162,11 @@ check(
 
 /* ============ SOFT DETAILS (ranking-only) ============ */
 
+/* PR2-F1 re-baseline (2026-08-28): attribute data exists ONLY on the
+   79 excluded demo/placeholder products, so soft="Cotton" cannot match
+   any real product today. Soft semantics stay ranking-only (never a
+   gate, proven by S1/S3), and S2 pins the vacuous state so a future
+   attribute back-fill (F6) is forced to re-enable the positive path. */
 const soft = await search({ q: "tank top", soft: "Cotton" });
 const softProducts = soft.exactProducts ?? [];
 const withSoft = softProducts.filter((p) => p.softMatched);
@@ -171,13 +176,14 @@ const maxPlainScore = Math.max(...withoutSoft.map((p) => p.score));
 check(
   "S1 soft preferences rank matching products first (never gate)",
   softProducts.length > 0 &&
-    withSoft.length > 0 &&
-    minSoftScore > maxPlainScore,
+    (withSoft.length > 0
+      ? minSoftScore > maxPlainScore
+      : withSoft.length === 0),
   `soft=${withSoft.length} hard=${withoutSoft.length} minSoft=${minSoftScore} maxPlain=${maxPlainScore}`
 );
 check(
-  "S2 soft-matched flag is exposed per product",
-  withSoft.length > 0 && withoutSoft.length > 0,
+  "S2 softMatched flag exposed; pin: vacuous (real catalog carries no attributes)",
+  withSoft.length === 0 && withoutSoft.length === softProducts.length,
   `soft=${withSoft.length} hard=${withoutSoft.length}`
 );
 
@@ -197,12 +203,23 @@ check(
   hoodie.structuredQuery?.category === "Hoodies",
   `category=${hoodie.structuredQuery?.category}`
 );
+
+const plainHoodie = await search({ q: "hoodie" });
+const pluralHoodie = await search({ q: "hoodies" });
 check(
-  "T2 empty category returns honest empty result + category diagnostic",
+  "T1b PR2-F2: 'hoodie'/'hoodies' return the real stocked Hoodies (37 from sync), never an empty stub",
+  plainHoodie.exactCount > 0 &&
+    plainHoodie.structuredQuery?.category === "Hoodies" &&
+    plainHoodie.exactCount === pluralHoodie.exactCount,
+  `hoodie=${plainHoodie.exactCount} hoodies=${pluralHoodie.exactCount} cat=${plainHoodie.structuredQuery?.category}`
+);
+
+check(
+  "T2 PR2-F2: Hoodies is stocked, so a MEN-scoped query is an honest empty with the gender-scoped diagnostic",
   hoodie.exactCount === 0 &&
     hoodie.similarCount === 0 &&
     (hoodie.diagnostics ?? []).some((m) =>
-      m.includes("currently has no products")
+      m.includes("No men products are currently available in hoodies")
     ),
   `exact=${hoodie.exactCount} diag=[${(hoodie.diagnostics ?? []).join(" | ")}]`
 );
@@ -216,6 +233,40 @@ check(
       m.includes('No products in the catalog for "suit"')
     ),
   `category=${suit.structuredQuery?.category} diag=[${(suit.diagnostics ?? []).join(" | ")}]`
+);
+
+/* ============ PR2 F2-A: UNSUPPORTED-VOCAB + SWEATPANTS ALIAS ============ */
+
+const hooded = await search({ q: "hooded" });
+check(
+  "T4 F2-A 'hooded' is unsupported intent (was free-text match-all), never a flood",
+  hooded.exactCount === 0 &&
+    hooded.similarCount === 0 &&
+    hooded.structuredQuery?.category === null &&
+    (hooded.diagnostics ?? []).some((m) =>
+      m.includes('No products in the catalog for "hooded"')
+    ),
+  `exact=${hooded.exactCount} cat=${hooded.structuredQuery?.category} diag=[${(hooded.diagnostics ?? []).join(" | ")}]`
+);
+
+const sweatshirt = await search({ q: "sweatshirt" });
+const pluralSweatshirt = await search({ q: "sweatshirts" });
+check(
+  "T5 PR2-F2: 'sweatshirt'/'sweatshirts' are a stocked category (34 real from sync), never a free-text flood",
+  sweatshirt.exactCount > 0 &&
+    sweatshirt.structuredQuery?.category === "Sweatshirts" &&
+    sweatshirt.exactCount === pluralSweatshirt.exactCount,
+  `sweatshirt=${sweatshirt.exactCount} sweatshirts=${pluralSweatshirt.exactCount} cat=${sweatshirt.structuredQuery?.category}`
+);
+
+const sweatpants = await search({ q: "sweatpants" });
+const joggers = await search({ q: "joggers" });
+check(
+  "T6 F2-A 'sweatpants' aliases to the Joggers category (exact parity with 'joggers')",
+  sweatpants.exactCount === joggers.exactCount &&
+    joggers.exactCount > 0 &&
+    sweatpants.structuredQuery?.category === "Joggers",
+  `sweatpants=${sweatpants.exactCount} joggers=${joggers.exactCount} cat=${sweatpants.structuredQuery?.category}`
 );
 
 /* ============ DIAGNOSTICS ============ */
@@ -263,14 +314,22 @@ check(
 
 /* ============ KIDS GENDER INTEGRATION ============ */
 
+/* PR2-F1 re-baseline: all KIDS/UNISEX-compatible jeans were demo
+   products (real catalog: MEN 11 / WOMEN 493 / UNISEX 0) -> the query
+   is now an honest empty with a diagnostic instead of demo jeans. */
 const kids = await search({ q: "kids jeans" });
 check(
-  "G1 'kids' detects the KIDS gender with UNISEX admitted to Exact",
+  "G1 'kids' detects the KIDS gender on the Jeans category",
   kids.structuredQuery?.gender === "KIDS" &&
-    kids.structuredQuery?.category === "Jeans" &&
-    kids.exactCount > 0 &&
-    kids.similarCount === 0,
-  `gender=${kids.structuredQuery?.gender} cat=${kids.structuredQuery?.category} exact=${kids.exactCount} similar=${kids.similarCount}`
+    kids.structuredQuery?.category === "Jeans",
+  `gender=${kids.structuredQuery?.gender} cat=${kids.structuredQuery?.category}`
+);
+check(
+  "G2 no KIDS/UNISEX jeans remain -> honest empty with diagnostic",
+  kids.exactCount === 0 &&
+    kids.similarCount === 0 &&
+    (kids.diagnostics ?? []).length > 0,
+  `exact=${kids.exactCount} similar=${kids.similarCount} diag=[${(kids.diagnostics ?? []).join(" | ")}]`
 );
 
 /* ============ CATALOG SIZE GROUPS (spec §6/§13) ============ */
@@ -299,10 +358,13 @@ check(
   `shoes=[${numeric.join(",")}]`
 );
 check(
-  "Z4 categories include empty ones flagged via hasProducts",
+  "Z4 empty categories are flagged via hasProducts, stocked ones report true (PR2-F2: Hoodies now stocked)",
   meta.categories.some(
-    (c) => c.name === "Hoodies" && !c.hasProducts
+    (c) => c.name === "Jumpers" && !c.hasProducts
   ) &&
+    meta.categories.some(
+      (c) => c.name === "Hoodies" && c.hasProducts
+    ) &&
     meta.categories.some(
       (c) => c.name === "Jeans" && c.hasProducts
     ),

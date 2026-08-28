@@ -71,6 +71,17 @@ const SHOE_TITLE_RULES: Array<[RegExp, string]> = [
   [/sandal|slide|espadrille/i, "sandals"],
 ];
 
+/* Source paths whose garment class the engine supports natively.
+   These win over the TITLE_GUARD: a real `> Hoodies` / `> Sweatshirts`
+   product must not be dropped merely because its title contains the
+   garment word itself ("hoodie", "sweatshirt"). The guard still applies
+   to every other path, so Sweaters / Coats & Jackets / Dresses etc.
+   stay outside the supported taxonomy. */
+const GARMENT_CLASS_PATHS: Array<[RegExp, string]> = [
+  [/ > Clothing Tops > Hoodies$/, "hoodies"],
+  [/ > Clothing Tops > Sweatshirts$/, "sweatshirts"],
+];
+
 const TITLE_GUARD =
   /jacket|hoodie|coat|dress|skirt|short\b|shorts|sweater|blazer|bikini|swim|lingerie|bodysuit|jumpsuit|romper/i;
 
@@ -167,6 +178,12 @@ function resolveCategory(
   const override = CATEGORY_OVERRIDES[handle];
   if (override) {
     return { slug: override };
+  }
+
+  for (const [pattern, slug] of GARMENT_CLASS_PATHS) {
+    if (fullPath.match(pattern)) {
+      return { slug };
+    }
   }
 
   if (TITLE_GUARD.test(title)) {

@@ -150,11 +150,8 @@ check(
 
 const nike = await ranks("nike");
 check(
-  "I3 nike (mixed) -> both Clothing and Shoes groups, values never cross",
-  nike.groups.clothing.size > 0 &&
-    nike.groups.shoes.size > 0 &&
-    ALPHA_ONLY([...nike.groups.clothing.keys()]) &&
-    NUMERIC_ONLY([...nike.groups.shoes.keys()]),
+  "I3 nike -> sole real Nike (Air Jordan 1) is a sneaker WITHOUT size metadata -> both groups empty (data-reflecting; PR2-F1 re-based)",
+  nike.groups.clothing.size === 0 && nike.groups.shoes.size === 0,
   `clothing=[${[...nike.groups.clothing.keys()].join(",")}] shoes=[${[...nike.groups.shoes.keys()].join(",")}]`
 );
 
@@ -179,11 +176,13 @@ check(
 /* Brand behavior unchanged: options derive from the current search context. */
 
 check(
-  "I6a jeans brands derive from context products (no Nike, no Adidas)",
+  "I6a jeans brands derive from context products (Trendsi real jean only; PR2-F1 re-based: demo Zara/H&M jeans excluded)",
   !jeans.brands.has("Nike") &&
     !jeans.brands.has("Adidas") &&
     !jeans.brands.has("Puma") &&
-    (jeans.brands.has("Zara") || jeans.brands.has("H&M")),
+    !jeans.brands.has("Zara") &&
+    !jeans.brands.has("H&M") &&
+    jeans.brands.has("Trendsi"),
   `brands=${[...jeans.brands].sort().join(", ")}`
 );
 check(
@@ -197,14 +196,14 @@ check(
   `brands=${[...sneakers.brands].sort().join(", ")}`
 );
 
-/* Engine untouched goldens. */
+/* Engine untouched goldens (PR2-F1 re-based: demo items excluded). */
 
 const goldens = [
-  ["sneakers", 19],
-  ["jeans", 6],
-  ["black shoes", 29],
-  ["nike", 10],
-  ["size medium black tank top", 21],
+  ["sneakers", 14],
+  ["jeans", 1],
+  ["black shoes", 24],
+  ["nike", 1],
+  ["size medium black tank top", 18],
 ];
 for (const [q, expected] of goldens) {
   const { d } = await ranks(q);

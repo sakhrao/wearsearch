@@ -282,13 +282,12 @@ const bQuery = "men Nike Black 41 Sneakers";
   const ids1 = (r1.similarProducts ?? []).map((p: { id: string }) => p.id);
   const ids2 = (r2.similarProducts ?? []).map((p: { id: string }) => p.id);
   check(
-    "I1 B combination query: exact=0, similar=2, deterministic membership+order",
+    "I1 B combination query: exact=0, similar=1 (PR2-F1 demo-free), deterministic membership+order",
     r1.exactCount === 0 &&
-      r1.similarCount === 2 &&
+      r1.similarCount === 1 &&
       ids1.length === ids2.length &&
       ids1.every((id: string, i: number) => id === ids2[i]) &&
-      ids1.join(",") ===
-        "cmt7vgkxw009rus7k2yi5ec9q,cmt7zyvxd000alc7k93ozhd5f",
+      ids1.join(",") === "cmt7zyvxd000alc7k93ozhd5f",
     `ids=${ids1.join(",")}`
   );
   const diag = r1.diagnostics ?? [];
@@ -365,7 +364,10 @@ const bQuery = "men Nike Black 41 Sneakers";
 }
 
 {
-  const r = await search("hoodie");
+  /* PR2-F2 re-based: 'hoodie' no longer probes an empty category (Hoodies
+     is now stocked with 37 real products). Jumpers remains a genuinely
+     empty category and keeps the empty-category diagnostic behaviour. */
+  const r = await search("jumpers");
   const diag = r.diagnostics ?? [];
   check(
     "I8 empty-category diagnostic unchanged",

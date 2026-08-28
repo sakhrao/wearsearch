@@ -331,6 +331,16 @@ async function main() {
     },
   });
 
+  const sweatshirts = await prisma.category.upsert({
+    where: { slug: "sweatshirts" },
+    update: {},
+    create: {
+      name: "Sweatshirts",
+      slug: "sweatshirts",
+      parentId: tops.id,
+    },
+  });
+
   const jackets = await prisma.category.upsert({
     where: { slug: "jackets" },
     update: {},

@@ -93,18 +93,21 @@ check(
   `<80% (2/5): "Puma Red Court Sneaker" is EXCLUDED`
 );
 
-console.log("\n== Case 2: 100% constraint match moves to Exact now that 'hoodie' is a real category ==");
+console.log("\n== Case 2: 100% constraint match (PR2-F1: demo product excluded, honest empty exact) ==");
 const case2 = await search("men black sneaker nike 42 hoodie");
 check(
-  isExact(case2, "Black Runner Sneaker"),
-  `100% product "Nike Black Runner Sneaker" is Exact (formerly Similar under unsupported-hoodie intent; got ${isExact(case2, "Black Runner Sneaker") ? "exact" : "not exact"})`
-);
-const runner2 = case2.similarProducts.filter((p) =>
-  p.name.includes("Black Runner Sneaker")
+  case2.exactCount === 0,
+  `PR2-F1 re-based: the only 100%-match candidate was the demo "Nike Black Runner Sneaker" (no real product page) -> honest empty exact; got ${case2.exactCount}`
 );
 check(
-  runner2.length === 0,
-  `"Nike Black Runner Sneaker" no longer appears in Similar (deduped into Exact; got ${runner2.length})`
+  !isExact(case2, "Black Runner Sneaker"),
+  `demo/placeholder "Nike Black Runner Sneaker" is not Exact (F1 hasRealPage filter); got ${isExact(case2, "Black Runner Sneaker") ? "exact" : "absent"}`
+);
+check(
+  case2.similarProducts.filter((p) =>
+    p.name.includes("Black Runner Sneaker")
+  ).length === 0,
+  `demo "Nike Black Runner Sneaker" absent from Similar as well (filtered out of the serialized set)`
 );
 await assertAllSimilarRatiosAtLeast80("men black sneaker nike 42 hoodie");
 
@@ -121,16 +124,16 @@ check(
   `similarMessage is user-friendly and mentions 80% (got "${case3.similarMessage}")`
 );
 
-console.log("\n== Case 4: Exact is unchanged by the gate ==");
+console.log("\n== Case 4: Exact is unchanged by the gate (PR2-F1 demo-free counts) ==");
 const blackShoes = await search("black shoes");
 check(
-  blackShoes.exactCount === 29,
-  `"black shoes" exactCount == 29 (golden; re-based P1/P4: the Black Square Neck T-Shirt is no longer a Black shoe)`
+  blackShoes.exactCount === 24,
+  `"black shoes" exactCount == 24 (PR2-F1 re-based: 5 demo shoes excluded from the golden 29)`
 );
 const nike = await search("nike");
 check(
-  nike.exactCount === 10,
-  `"nike" exactCount == 10 (golden)`
+  nike.exactCount === 1,
+  `"nike" exactCount == 1 (PR2-F1 re-based: 9 of 10 Nike items were demo/placeholder; sole real = Nike Air Jordan 1 Red And Black)`
 );
 const case1Repeat = await search("men Nike Black 41 Sneakers");
 check(
