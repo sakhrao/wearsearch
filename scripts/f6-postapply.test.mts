@@ -255,13 +255,13 @@ const leatherIds = new Set(
 );
 const cottonLeak = [...cottonIds].filter((id) => leatherIds.has(id));
 check(
-  "S4 leather exact does not leak Material:Cotton products",
-  c4 >= 9 && cottonLeak.length === 0,
+  "S4 leather >= 7 exact, no Material:Cotton leak (F7-S2: 2 OOS faux-leather trousers excluded)",
+  c4 >= 7 && cottonLeak.length === 0,
   `leather exact=${c4} leaked=${cottonLeak.length}`
 );
 
 const c5 = await validateExact("casual", "Style", "Casual");
-check("S5 casual >= 464 exact, all real pages", c5 >= 464, `casual exact=${c5}`);
+check("S5 casual >= 457 exact, all real pages (F7-S2: 7 OOS Style:Casual excluded)", c5 >= 457, `casual exact=${c5}`);
 
 /* ---- negative controls (live): F6 criterion = zero fabricated Material ---- */
 
@@ -284,9 +284,9 @@ for (const q of MATERIAL_WORDS) {
   console.log(
     `INFO ${q}: search exact=${res.exactCount ?? 0} ${
       (res.exactCount ?? 0) >= 500
-        ? "-> full-catalog fallback for unrecognized free-text (PRE-EXISTING /api/search behavior, documented as follow-up OUTSIDE F6 scope)"
+        ? "-> full-catalog fallback for unrecognized free-text (PRE-EXISTING /api/search behavior)"
         : res.exactCount === 0
-          ? "-> 0 results via pre-existing engine paths (unsupported-intent / demo-dictionary detection), not an F6 failure"
+          ? "-> 0 results (pre-existing unsupported-intent / no-real-page attribute detection, or F7-S1 pure-free-text gate), not an F6 failure"
           : "-> see count"
     }`
   );

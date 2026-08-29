@@ -689,8 +689,16 @@ export async function GET(
        LOAD PRODUCTS
     ===================================================== */
 
+    /* F7-S2: the results contract covers purchasable inventory
+       only. OUT_OF_STOCK products are excluded at the candidate
+       level (before scoring), so Exact, Similar, ranking, category
+       presence and diagnostics are all consistent and a result can
+       never surface as purchasable. */
     const products =
       await prisma.product.findMany({
+        where: {
+          availability: { not: "OUT_OF_STOCK" },
+        },
         select: {
           id: true,
           name: true,
@@ -700,6 +708,7 @@ export async function GET(
           productUrl: true,
           imageUrl: true,
           gender: true,
+          availability: true,
 
           brand: {
             select: {
@@ -1612,22 +1621,30 @@ export async function GET(
           budgetMatches &&
           allAttributesMatched;
 
-        /* Free-text words are relevance signals,
-           never hard Exact gates. A word that
-           happens to exist in catalog vocabulary
-           adds tiered points when found, but its
-           absence cannot veto a candidate whose
-           structured intent is complete. Only the
-           unknown-noise guard (no recognizable
-           free words AND no strong structural
-           filter) still blocks Exact. */
+        /* Free-text words are relevance signals, never hard
+           Exact gates, WHEN a strong structured filter exists
+           (brand/category/color/size/attribute): a word that
+           exists in catalog vocabulary but is absent from a
+           candidate cannot veto a candidate whose structured
+           intent is complete. But when the query's ONLY signal
+           is free text (no strong structured filter), Exact has
+           nothing else to carry, so a candidate must actually
+           match at least one free-text word - otherwise every
+           corpus-known word would admit the whole catalog
+           (F7-S1: 'silk' -> 575). The unknown-noise guard still
+           blocks pure gibberish. */
         const unknownOnlyNoise =
           requiredFreeWords.length === 0 &&
           freeTextWords.length > 0 &&
           !hasStrongStructuredFilter;
 
+        const freeTextGate =
+          freeTextWords.length > 0 &&
+          !hasStrongStructuredFilter &&
+          matchedFreeTextWords === 0;
+
         const allFreeTextMatched =
-          !unknownOnlyNoise;
+          !unknownOnlyNoise && !freeTextGate;
 
         const exactMatch =
           hasSearchSignal &&
