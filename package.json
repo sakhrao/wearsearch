@@ -19,6 +19,8 @@
     "test:catalog": "tsx scripts/catalog-integrity.test.mts",
     "test:facet-counts": "tsx scripts/facet-counts.test.mts",
     "test:diagnostics": "tsx scripts/diagnostics.test.mts",
+    "test:url-state": "tsx scripts/url-state.test.mjs",
+    "test:edit-restore": "tsx scripts/f4-edit-restore.test.mjs",
     "sync:providers": "tsx src/lib/providers/sync.ts"
   },
   "prisma": {

@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  type SearchIntent,
+  buildSearchQueryString,
+  decodeSearchUrl,
+  parseSearchUrl,
+  searchIntentKey,
+} from "@/lib/search-url";
 import {
   hasRealProductPage,
   productStoreLabel,
@@ -15,9 +28,9 @@ import {
   type FacetKey,
 } from "@/lib/search-facets";
 import {
-  EMPTY_ANSWERS,
   type QuestionnaireAnswers,
 } from "@/lib/questionnaire";
+import { buildEditAnswers } from "@/lib/questionnaire-restore";
 
 type ProductAttribute = {
   value: string;
@@ -166,48 +179,30 @@ type CatalogSizeGroups = {
 
 /* Facet helpers are shared pure logic in @/lib/search-facets. */
 
-type FindIntent = {
-  query: string;
-  params: {
-    priceMin: string | null;
-    priceMax: string | null;
-    soft: string | null;
-    budgetCurrency: "USD" | "EUR" | null;
-    budgetDisplayMin: string | null;
-    budgetDisplayMax: string | null;
-  };
+const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
+  priceMin: null,
+  priceMax: null,
+  soft: null,
+  budgetCurrency: null,
+  budgetDisplayMin: null,
+  budgetDisplayMax: null,
 };
 
-function parseFindIntent(
-  raw: string
-): FindIntent {
-  try {
-    const parsed = JSON.parse(raw) as FindIntent;
-    if (
-      typeof parsed.query === "string" &&
-      parsed.params &&
-      typeof parsed.params === "object"
-    ) {
-      return parsed;
-    }
-  } catch {
-    /* legacy plain-string handoff */
-  }
-  return {
-    query: raw,
-    params: {
-      priceMin: null,
-      priceMax: null,
-      soft: null,
-      budgetCurrency: null,
-      budgetDisplayMin: null,
-      budgetDisplayMax: null,
-    },
-  };
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomeFallback />}>
+      <Home />
+    </Suspense>
+  );
 }
 
-export default function Home() {
+function HomeFallback() {
+  return <main className="min-h-screen bg-white text-black" />;
+}
+
+function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [query, setQuery] = useState("");
 
@@ -249,14 +244,21 @@ export default function Home() {
   const resultsRef =
     useRef<HTMLElement | null>(null);
 
-  /* Consumes the /find questionnaire handoff once:
-     restores the built query into the search box and
-     runs the same search path as a direct query. */
-  const consumedFindQuery = useRef(false);
+  /* Keeps the last executed search so a URL change that
+     resolves to the same /api/search call is not re-run. */
+  const lastUrlSearchKeyRef = useRef<string | null>(null);
 
-  /* Loads the catalog size surfaces once (used by the
-     Size refine panel; spec §13 sizes derive from the
-     catalog, not just the current results). */
+  /* Keeps the last executed intent so the error-state
+     "Try again" re-runs the same search. */
+  const lastSearchIntentRef =
+    useRef<SearchIntent | null>(null);
+
+  const [fxRate, setFxRate] = useState<number | null>(null);
+
+  /* Loads the catalog size surfaces and the fx rate once
+     (the Size refine panel needs catalog-wide sizes; a USD
+     budget in the URL needs the rate to derive the EUR
+     engine bounds). */
   useEffect(() => {
     fetch("/api/meta")
       .then((response) => response.json())
@@ -264,46 +266,91 @@ export default function Home() {
         if (data.success && data.sizeGroups) {
           setCatalogSizes(data.sizeGroups);
         }
+        const rate = data?.fx?.rate;
+        if (
+          typeof rate === "number" &&
+          Number.isFinite(rate) &&
+          rate > 0
+        ) {
+          setFxRate(rate);
+        }
       })
       .catch(() => {});
   }, []);
 
+  /* The URL is the single source of truth for the basic
+     search state. Runs on mount (refresh / direct link),
+     on query-string-only navigation (back / forward) and
+     after the fx rate arrives for a USD budget. Exactly
+     one search per resolved URL search. */
+  const urlSearchKey = searchParams.toString();
+
   useEffect(() => {
-    if (consumedFindQuery.current) {
-      return;
-    }
-    consumedFindQuery.current = true;
+    const search = new URLSearchParams(urlSearchKey);
+    const parsed = parseSearchUrl(search, fxRate);
 
-    const handedOff = sessionStorage.getItem(
-      "wearsearch-find-query"
-    );
-    if (!handedOff) {
+    if (parsed.kind === "wait-fx") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- URL-driven restore while engine bounds wait for the fx rate
+      setQuery(decodeSearchUrl(search).query);
       return;
     }
 
-    sessionStorage.removeItem(
-      "wearsearch-find-query"
-    );
-    const intent = parseFindIntent(handedOff);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot handoff restore, then a real search
-    setQuery(intent.query);
-    void handleSearch(
-      intent.query,
-      intent.params
-    );
+    if (parsed.kind === "empty") {
+      resetResults();
+      return;
+    }
+
+    if (lastUrlSearchKeyRef.current ===
+      searchIntentKey(parsed.intent)) {
+      return;
+    }
+    lastUrlSearchKeyRef.current =
+      searchIntentKey(parsed.intent);
+
+    setQuery(parsed.intent.query);
+    void handleSearch(parsed.intent, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [urlSearchKey, fxRate]);
+
+  function resetResults() {
+    setSearched(false);
+    setLoading(false);
+    setErrorMessage(null);
+    setIntentBudget(null);
+    setExactProducts([]);
+    setSimilarProducts([]);
+    setSimilarMessage(null);
+    setDiagnostics([]);
+    setStructuredQuery(null);
+    setCategoryStatus(null);
+    setActiveFilters({
+      gender: new Set(),
+      category: new Set(),
+      color: new Set(),
+      size: new Set(),
+      brand: new Set(),
+    });
+    lastUrlSearchKeyRef.current = null;
+  }
 
   async function handleSearch(
-    overrideQuery?: string,
-    overrideParams?: FindIntent["params"]
+    intent: SearchIntent,
+    syncUrl = false
   ) {
-    const trimmedQuery = (
-      overrideQuery ?? query
-    ).trim();
+    const trimmedQuery = intent.query.trim();
 
     if (!trimmedQuery || loading) {
       return;
+    }
+
+    lastUrlSearchKeyRef.current =
+      searchIntentKey(intent);
+    lastSearchIntentRef.current = intent;
+
+    if (syncUrl) {
+      void router.push(
+        `/?${buildSearchQueryString(intent)}`
+      );
     }
 
     setLoading(true);
@@ -323,11 +370,11 @@ export default function Home() {
       });
 
       const priceMin =
-        overrideParams?.priceMin ?? null;
+        intent.params.priceMin ?? null;
       const priceMax =
-        overrideParams?.priceMax ?? null;
+        intent.params.priceMax ?? null;
       const soft =
-        overrideParams?.soft ?? null;
+        intent.params.soft ?? null;
 
       if (priceMin) {
         params.set("priceMin", priceMin);
@@ -356,17 +403,12 @@ export default function Home() {
       }
 
       setIntentBudget(
-        overrideParams
+        intent.params.budgetDisplayMin != null ||
+          intent.params.budgetDisplayMax != null
           ? {
-              min:
-                overrideParams.budgetDisplayMin ??
-                (overrideParams.priceMin ?? null),
-              max:
-                overrideParams.budgetDisplayMax ??
-                (overrideParams.priceMax ?? null),
-              currency:
-                overrideParams.budgetCurrency ??
-                null,
+              min: intent.params.budgetDisplayMin,
+              max: intent.params.budgetDisplayMax,
+              currency: intent.params.budgetCurrency,
             }
           : null
       );
@@ -589,33 +631,10 @@ export default function Home() {
   }
 
   /* P6: from a true no-results state, let users refine
-     the same search via the questionnaire. */
+     the same search via the questionnaire. F4: restoration
+     is the pure buildEditAnswers helper (dedup + budget). */
   function questionnaireAnswersFromSearch(): QuestionnaireAnswers {
-    const answers: QuestionnaireAnswers = {
-      ...EMPTY_ANSWERS,
-      searchText: query.trim(),
-      colors: structuredQuery?.colors ?? [],
-      attributes: (structuredQuery?.attributes ?? []).map(
-        ({ value }) => value
-      ),
-    };
-
-    if (
-      structuredQuery?.gender &&
-      structuredQuery.gender !== "UNISEX"
-    ) {
-      answers.gender = structuredQuery.gender.toLowerCase();
-    }
-
-    if (structuredQuery?.category) {
-      answers.category = structuredQuery.category;
-    }
-
-    if (structuredQuery?.size) {
-      answers.size = structuredQuery.size;
-    }
-
-    return answers;
+    return buildEditAnswers(query, structuredQuery, intentBudget);
   }
 
   function handleEditSearch() {
@@ -623,13 +642,11 @@ export default function Home() {
       "wearsearch-find-answers",
       JSON.stringify(questionnaireAnswersFromSearch())
     );
-    sessionStorage.removeItem("wearsearch-find-query");
     void router.push("/find");
   }
 
   function handleBackToQuestionnaire() {
     sessionStorage.removeItem("wearsearch-find-answers");
-    sessionStorage.removeItem("wearsearch-find-query");
     void router.push("/find");
   }
 
@@ -660,7 +677,10 @@ export default function Home() {
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                handleSearch();
+                handleSearch(
+                  { query, params: EMPTY_SEARCH_PARAMS },
+                  true
+                );
               }
             }}
             placeholder="Search for clothes..."
@@ -670,7 +690,12 @@ export default function Home() {
 
           <button
             type="button"
-            onClick={() => handleSearch()}
+            onClick={() =>
+              handleSearch(
+                { query, params: EMPTY_SEARCH_PARAMS },
+                true
+              )
+            }
             disabled={loading || !query.trim()}
             aria-label="Run search"
             className="w-full rounded-xl bg-black px-7 py-4 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[150px]"
@@ -712,9 +737,17 @@ export default function Home() {
                   {errorMessage}
                 </p>
 
-                <button
+<button
                   type="button"
-                  onClick={() => handleSearch()}
+                  onClick={() =>
+                    handleSearch(
+                      lastSearchIntentRef.current ?? {
+                        query,
+                        params: EMPTY_SEARCH_PARAMS,
+                      },
+                      false
+                    )
+                  }
                   className="mt-6 rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
                 >
                   Try again
@@ -967,6 +1000,24 @@ export default function Home() {
                         s right now. Here are similar
                         options from related categories.
                       </p>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleEditSearch}
+                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+                        >
+                          Edit search
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleBackToQuestionnaire}
+                          className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Back to questionnaire
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -987,6 +1038,24 @@ export default function Home() {
                         that exactly match your search,
                         but these are close.
                       </p>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleEditSearch}
+                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+                        >
+                          Edit search
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleBackToQuestionnaire}
+                          className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Back to questionnaire
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1051,15 +1120,9 @@ export default function Home() {
                 {/* SIMILAR GATED EMPTY (80%) */}
 
                 {similarMessage &&
-                  filteredSimilarProducts.length ===
-                    0 && (
-                    <div
-                      className={
-                        filteredExactProducts.length > 0
-                          ? "mt-12 rounded-2xl border border-dashed border-gray-300 p-10 text-center"
-                          : "mt-6 rounded-2xl border border-dashed border-gray-300 p-10 text-center"
-                      }
-                    >
+                  exactProducts.length === 0 &&
+                  similarProducts.length === 0 && (
+                    <div className="mt-6 rounded-2xl border border-dashed border-gray-300 p-10 text-center">
                       <h2 className="text-2xl font-semibold">
                         Similar options
                       </h2>
@@ -1067,6 +1130,24 @@ export default function Home() {
                       <p className="mt-3 text-gray-500">
                         {similarMessage}
                       </p>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleEditSearch}
+                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+                        >
+                          Edit search
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleBackToQuestionnaire}
+                          className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Back to questionnaire
+                        </button>
+                      </div>
                     </div>
                   )}
 

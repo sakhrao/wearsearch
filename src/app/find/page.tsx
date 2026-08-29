@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { usdToEur } from "@/lib/currency";
+import { buildSearchQueryString } from "@/lib/search-url";
 import {
   EMPTY_ANSWERS,
   GENDER_OPTIONS,
@@ -51,7 +52,6 @@ type FindIntent = {
 type Answers = QuestionnaireAnswers;
 
 const STORAGE_KEY = "wearsearch-find-answers";
-const QUERY_KEY = "wearsearch-find-query";
 
 const GROUP_ORDER = [
   "Tops",
@@ -126,6 +126,8 @@ export default function FindPage() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] =
     useState<Answers>(EMPTY_ANSWERS);
+  const [sessionReady, setSessionReady] =
+    useState(false);
   const [colorFilter, setColorFilter] =
     useState("");
 
@@ -138,20 +140,31 @@ export default function FindPage() {
         const parsed = JSON.parse(
           saved
         ) as Partial<Answers>;
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- restores draft once on mount
-        setAnswers({
+        const restored: Answers = {
           ...EMPTY_ANSWERS,
           ...parsed,
           colors: parsed.colors ?? [],
           attributes:
             parsed.attributes ?? [],
-        });
+        };
+        // F4: rewrite the restored draft immediately so the
+        // answers-persistence effect (which runs on the first
+        // committed render with the untouched default) can
+        // never clobber it with EMPTY_ANSWERS.
+        sessionStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(restored)
+        );
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- restore draft/flags once on mount
+        setAnswers(restored);
       } catch {
         sessionStorage.removeItem(
           STORAGE_KEY
         );
       }
     }
+
+    setSessionReady(true);
 
     fetch("/api/meta")
       .then((response) => {
@@ -171,11 +184,12 @@ export default function FindPage() {
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     sessionStorage.setItem(
       STORAGE_KEY,
       JSON.stringify(answers)
     );
-  }, [answers]);
+  }, [answers, sessionReady]);
 
   const groupedCategories = useMemo(() => {
     if (!meta) return [];
@@ -224,9 +238,11 @@ export default function FindPage() {
   }, [meta, selectedCategoryGroup]);
 
   const fxRate = meta?.fx?.rate ?? null;
-  const budgetCurrencyLabel = fxRate
-    ? "USD"
-    : "EUR";
+  /* A restored Edit-search draft pins the budget display
+     currency (USD or EUR); a fresh flow keeps the F3
+     default: USD when a rate is available, else EUR. */
+  const budgetCurrencyLabel =
+    answers.budgetCurrency ?? (fxRate ? "USD" : "EUR");
 
   const sizeStepLabel = useMemo(() => {
     const isShoesGroup =
@@ -337,25 +353,29 @@ export default function FindPage() {
        (EUR). A USD budget is converted to EUR via the real
        rate; never assumed to equal EUR 1:1. Without a
        reliable rate nothing is invented: the budget stays
-       in the catalog currency. */
+       in the catalog currency. A restored Edit-search
+       draft pins budgetCurrency, so a USD-entered budget
+       stays USD and a EUR budget stays EUR. */
     const budgetCurrency: "USD" | "EUR" | null =
       min !== null || max !== null
-        ? fxRate
-          ? "USD"
-          : "EUR"
+        ? answers.budgetCurrency ??
+          (fxRate ? "USD" : "EUR")
         : null;
+
+    const rate =
+      budgetCurrency === "USD" ? fxRate : null;
 
     const priceMin =
       min === null
         ? null
-        : fxRate
-          ? usdToEur(min, fxRate)
+        : rate !== null
+          ? usdToEur(min, rate)
           : min;
     const priceMax =
       max === null
         ? null
-        : fxRate
-          ? usdToEur(max, fxRate)
+        : rate !== null
+          ? usdToEur(max, rate)
           : max;
 
     return {
@@ -388,12 +408,9 @@ export default function FindPage() {
       return;
     }
 
-    sessionStorage.setItem(
-      QUERY_KEY,
-      JSON.stringify(intent)
-    );
-
-    void router.push("/?from=find");
+    /* The built search becomes a plain URL on the results
+       page; the URL is the single source of truth. */
+    void router.push(`/?${buildSearchQueryString(intent)}`);
   }
 
   if (metaError) {

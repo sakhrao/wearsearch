@@ -46,6 +46,7 @@ export type QuestionnaireAnswers = {
   size: string | null;
   budgetMin: string;
   budgetMax: string;
+  budgetCurrency: "USD" | "EUR" | null;
   attributes: string[];
 };
 
@@ -57,6 +58,7 @@ export const EMPTY_ANSWERS: QuestionnaireAnswers = {
   size: null,
   budgetMin: "",
   budgetMax: "",
+  budgetCurrency: null,
   attributes: [],
 };
 
