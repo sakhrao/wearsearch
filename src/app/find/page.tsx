@@ -429,16 +429,10 @@ export default function FindPage() {
     );
   }
 
-  if (!meta) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <p className="animate-pulse text-gray-500">
-          Loading…
-        </p>
-      </main>
-    );
-  }
-
+  /* F5: the page shell (header, progress, title) is always
+     rendered so SSR produces a meaningful first paint. Only
+     the data-dependent option area waits, showing a localized
+     loader while /api/meta is in flight. */
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -479,8 +473,11 @@ export default function FindPage() {
         />
       </div>
 
-      <section className="mt-8 min-h-[16rem]">
-        {step === 0 && (
+      <section
+        className="mt-8 min-h-[16rem]"
+        aria-busy={!meta}
+      >
+        {meta && step === 0 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               What are you looking for?
@@ -529,7 +526,7 @@ export default function FindPage() {
           </div>
         )}
 
-        {step === 1 && (
+        {meta && step === 1 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               Who is it for?
@@ -561,7 +558,7 @@ export default function FindPage() {
           </div>
         )}
 
-        {step === 2 && (
+        {meta && step === 2 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               Colors &amp; words
@@ -651,7 +648,7 @@ export default function FindPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {meta && step === 3 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               Size?
@@ -686,7 +683,7 @@ export default function FindPage() {
           </div>
         )}
 
-        {step === 4 && (
+        {meta && step === 4 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               Budget?
@@ -819,7 +816,7 @@ export default function FindPage() {
           </div>
         )}
 
-        {step === 5 && (
+        {meta && step === 5 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               Any details that matter?
@@ -863,13 +860,28 @@ export default function FindPage() {
             </div>
           </div>
         )}
+
+        {!meta && (
+          <div
+            className="flex min-h-[16rem] flex-col items-center justify-center gap-3"
+            role="status"
+          >
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-black"
+              aria-hidden="true"
+            />
+            <p className="text-sm text-gray-500">
+              Loading options…
+            </p>
+          </div>
+        )}
       </section>
 
       <div className="mt-8 flex items-center justify-between gap-3 border-t border-gray-100 pt-6">
         <button
           type="button"
           onClick={back}
-          disabled={step === 0}
+          disabled={!meta || step === 0}
           className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:invisible"
         >
           Back
@@ -879,14 +891,14 @@ export default function FindPage() {
           <button
             type="button"
             onClick={submit}
-            disabled={!buildIntent()}
+            disabled={!meta || !buildIntent()}
             className="rounded-lg bg-black px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Search
           </button>
         ) : (
           <div className="flex items-center justify-end gap-2">
-            {stepState.canSkip && (
+            {meta && stepState.canSkip && (
               <button
                 type="button"
                 onClick={() =>
@@ -900,7 +912,7 @@ export default function FindPage() {
             <button
               type="button"
               onClick={next}
-              disabled={!canProceed}
+              disabled={!meta || !canProceed}
               className="rounded-lg bg-black px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next

@@ -638,6 +638,10 @@ function Home() {
   }
 
   function handleEditSearch() {
+    if (!structuredQuery || loading) {
+      return;
+    }
+
     sessionStorage.setItem(
       "wearsearch-find-answers",
       JSON.stringify(questionnaireAnswersFromSearch())
