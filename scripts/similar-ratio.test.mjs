@@ -36,7 +36,7 @@ function ratioOf(product) {
 
 async function search(query) {
   const response = await fetch(
-    `${API}?q=${encodeURIComponent(query)}`
+    `${API}?q=${encodeURIComponent(query)}&debug=1`
   );
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} for "${query}"`);

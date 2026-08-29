@@ -898,7 +898,7 @@ function attrsSignature(structuredQuery) {
 async function runCase(client, testCase) {
   const problems = [];
   const res = await client.fetch(
-    `${BASE_URL}/api/search?q=${encodeURIComponent(testCase.q)}`
+    `${BASE_URL}/api/search?q=${encodeURIComponent(testCase.q)}&debug=1`
   );
 
   if (res.status !== 200) {

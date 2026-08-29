@@ -40,6 +40,175 @@ const availVariants = <
       "AVAILABLE"
   );
 
+/* F9 (response projection): the production payload is an explicit
+   whitelist of the fields page.tsx actually renders (verified by a
+   full consumption audit - the client never reads description,
+   ids/slugs/sku/system/normalizedValue or any scoring internal).
+   The scoring internals are re-attached ONLY under ?debug=1 so the
+   ranking contract stays directly verifiable by the test suites;
+   debug is a narrow channel, never a dump of the full scored object.
+   Projection happens at serialization only: matching, scoring,
+   ranking, diagnostics and counts are untouched. */
+const PROJECTED_INTERNAL_KEYS = [
+  "score",
+  "exactMatch",
+  "similarMatch",
+  "matchedWords",
+  "totalQueryWords",
+  "matchedColors",
+  "matchedCategories",
+  "matchedAttributes",
+  "softMatched",
+  "structuredMatches",
+] as const;
+
+type ProjectedProduct = {
+  id: string;
+  name: string;
+  price: string | null;
+  currency: string | null;
+  productUrl: string | null;
+  imageUrl: string | null;
+  availability: string | null;
+  gender: string | null;
+  brand: { name: string | null } | null;
+  category: { name: string | null } | null;
+  variants: {
+    price: string | null;
+    currency: string | null;
+    availability: string | null;
+    color: { id: string; name: string; hex: string | null } | null;
+    size: { value: string | null } | null;
+  }[];
+  attributes: {
+    value: string;
+    attribute: { name: string };
+  }[];
+
+  score?: number;
+  exactMatch?: boolean;
+  similarMatch?: boolean;
+  matchedWords?: number;
+  totalQueryWords?: number;
+  matchedColors?: number;
+  matchedCategories?: number;
+  matchedAttributes?: number;
+  softMatched?: number;
+  structuredMatches?: Record<string, boolean | null>;
+};
+
+const pickProjectedInternals = <T>(
+  product: T
+): Partial<ProjectedProduct> => {
+  const internals: Partial<
+    ProjectedProduct
+  > = {};
+
+  const source =
+    product as unknown as Record<
+      string,
+      unknown
+    >;
+
+  for (const key of PROJECTED_INTERNAL_KEYS) {
+    if (source[key] !== undefined) {
+      (
+        internals as Record<
+          string,
+          unknown
+        >
+      )[key] = source[key];
+    }
+  }
+
+  return internals;
+};
+
+const projectProduct = (
+  product: {
+    id: string;
+    name: string;
+    price: { toString(): string };
+    currency: string | null;
+    productUrl: string | null;
+    imageUrl: string | null;
+    availability: string | null;
+    gender: string | null;
+    brand: { name: string | null } | null;
+    category: { name: string | null } | null;
+    variants: {
+      price: { toString(): string };
+      currency: string | null;
+      availability: string | null;
+      color: { id: string; name: string; hex: string | null } | null;
+      size: { value: string | null } | null;
+    }[];
+    attributes: {
+      value: string;
+      attribute: { name: string };
+    }[];
+  },
+  includeInternals: boolean
+): ProjectedProduct => {
+  const projected: ProjectedProduct = {
+    id: product.id,
+    name: product.name,
+    price: String(product.price),
+    currency: product.currency,
+    productUrl: product.productUrl,
+    imageUrl: product.imageUrl,
+    availability: product.availability,
+    gender: product.gender,
+    brand: product.brand
+      ? { name: product.brand.name }
+      : null,
+    category: product.category
+      ? { name: product.category.name }
+      : null,
+    variants: availVariants(
+      product
+    ).map((variant) => ({
+      price: String(variant.price),
+      currency: variant.currency,
+      availability:
+        variant.availability,
+      color: variant.color
+        ? {
+            id: variant.color.id,
+            name: variant.color.name,
+            hex: variant.color.hex,
+          }
+        : null,
+      size: variant.size
+        ? {
+            value: variant.size.value,
+          }
+        : null,
+    })),
+    attributes:
+      product.attributes.map(
+        (attribute) => ({
+          value: attribute.value,
+          attribute: {
+            name: attribute.attribute
+              .name,
+          },
+        })
+      ),
+  };
+
+  if (includeInternals) {
+    return {
+      ...projected,
+      ...pickProjectedInternals(
+        product
+      ),
+    };
+  }
+
+  return projected;
+};
+
 /* =========================================================
    TEXT HELPERS
 ========================================================= */
@@ -401,6 +570,13 @@ export async function GET(
 
     const query =
       searchParams.get("q")?.trim() ?? "";
+
+    /* F9: debug is the only channel that restores the scoring
+       internals onto the serialized products. Production requests
+       (including every URL-state / find flow) never set it, so the
+       default payload stays a strict whitelist. */
+    const debug =
+      searchParams.get("debug") === "1";
 
     const parsePriceParam = (
       raw: string | null
@@ -1974,22 +2150,24 @@ export async function GET(
        F8-A: the serialized payload carries purchasable variants
        only, so the UI can build size/color options directly from
        what it receives - the page never shows an OUT_OF_STOCK
-       size or color as available. */
+       size or color as available.
+
+       F9: every serialized product passes through the strict
+       whitelist projection; the scoring internals are restored
+       exclusively under ?debug=1 (projectProduct). */
     const returnedExactProducts =
       exactProducts
         .filter(hasRealPage)
-        .map((product) => ({
-          ...product,
-          variants: availVariants(product),
-        }));
+        .map((product) =>
+          projectProduct(product, debug)
+        );
 
     const returnedSimilarProducts =
       similarProducts
         .filter(hasRealPage)
-        .map((product) => ({
-          ...product,
-          variants: availVariants(product),
-        }));
+        .map((product) =>
+          projectProduct(product, debug)
+        );
 
     /* =====================================================
        EMPTY-RESULT DIAGNOSTICS (spec §11)

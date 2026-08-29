@@ -21,6 +21,7 @@ function check(name, cond, detail) {
 
 async function search(params) {
   const qs = new URLSearchParams();
+  qs.set("debug", "1");
   for (const [key, value] of Object.entries(params)) {
     if (value !== null && value !== undefined) {
       qs.set(key, value);

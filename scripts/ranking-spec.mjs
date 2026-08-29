@@ -2,7 +2,7 @@ const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
 
 async function search(q) {
   const res = await fetch(
-    `${BASE_URL}/api/search?q=${encodeURIComponent(q)}`
+    `${BASE_URL}/api/search?q=${encodeURIComponent(q)}&debug=1`
   );
 
   if (!res.ok) {
