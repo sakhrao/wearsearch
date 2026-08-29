@@ -172,10 +172,10 @@ const CASES = [
   },
   {
     q: "blue tank tops",
-        exact: 15,
+        exact: 14,
         similar: 0,
         struct: { category: "Tank Tops", color: "Blue" },
-        note: "updated intentionally in 6.8: cross-branch Similar leakage removal — blue Jeans no longer enter via color alone",
+        note: "updated intentionally in 6.8: cross-branch Similar leakage removal — blue Jeans no longer enter via color alone; F8-A re-based: Blue matches via AVAILABLE variants only -> 15->14",
   },
   {
     q: "h&m jeans",
@@ -220,24 +220,24 @@ const CASES = [
   },
   {
     q: "size medium black tank top",
-    exact: 18,
-    similar: 0,
-    struct: { color: "Black", size: "M" },
-    note: "new in 6.5.2: 'medium' -> M intent; 3 black tanks stock M, Women Black Basic Tank is S-only so it lands in Similar",
+exact: 14,
+        similar: 0,
+        struct: { color: "Black", size: "M" },
+        note: "new in 6.5.2: 'medium' -> M intent; 3 black tanks stock M, Women Black Basic Tank is S-only so it lands in Similar; F8-A re-based: M matches via AVAILABLE variants only -> 18->14",
   },
   {
     q: "extra small tank top",
-    exact: 2,
+    exact: 1,
     similar: 0,
     struct: { category: "Tank Tops", size: "XS" },
-    note: "new in 6.5.2: 'extra small' -> XS; no tank stocks XS so honest Similar-only (mirrors XXL behavior)",
+    note: "new in 6.5.2: 'extra small' -> XS; no tank stocks XS so honest Similar-only (mirrors XXL behavior); F8-A re-based: XS matches via AVAILABLE variants only -> 2->1",
   },
   {
     q: "double extra large tank top",
-    exact: 6,
+    exact: 5,
     similar: 0,
     struct: { category: "Tank Tops", size: "XXL" },
-    note: "new in 6.5.2: longest-phrase 'double extra large' -> XXL; no tank stocks it so honest Similar-only",
+    note: "new in 6.5.2: longest-phrase 'double extra large' -> XXL; no tank stocks it so honest Similar-only; F8-A re-based: XXL matches via AVAILABLE variants only -> 6->5",
   },
   {
     q: "eu 41 sneakers",
@@ -388,9 +388,9 @@ const CASES = [
   {
     q: "black pants",
     exact: 0,
-    similar: 168,
+    similar: 162,
     struct: { color: "Black" },
-    note: "new in 6.5.3: unsupported intent gates Exact off (kills pre-spec misleading Exact x4); Similar keeps color-relevant candidates; counts match simulation proxy; PR2-F2 re-based: +17 Black Hoodies/Sweatshirts entered the real catalog -> similar 153->170; F7-S2 re-based: 2 OOS black faux-leather trousers excluded -> similar 170->168",
+    note: "new in 6.5.3: unsupported intent gates Exact off (kills pre-spec misleading Exact x4); Similar keeps color-relevant candidates; counts match simulation proxy; PR2-F2 re-based: +17 Black Hoodies/Sweatshirts entered the real catalog -> similar 153->170; F7-S2 re-based: 2 OOS black faux-leather trousers excluded -> similar 170->168; F8-A re-based: Black matches via AVAILABLE variants only -> similar 168->162",
   },
   {
     q: "cargo pants",
@@ -407,10 +407,10 @@ const CASES = [
   },
   {
     q: "tank top xl",
-    exact: 36,
+    exact: 25,
     similar: 0,
     struct: { category: "Tank Tops", size: "XL" },
-    note: "size with no variants",
+    note: "size with no variants; F8-A re-based: XL matches via AVAILABLE variants only -> 36->25",
   },
   {
     q: "cotton tank top",
@@ -502,6 +502,82 @@ const CASES = [
     struct: { category: "Shoes", color: "Green" },
     note: "unavailable color; re-based P1/P4: the Matcha-green T-Shirt (a non-shoe) no longer leaks into green-shoes"
   },
+
+  /* ================= F8-A coverage (PR4 F8 baseline) ================
+     Purchasable-only matching: sizes and colors resolve through
+     AVAILABLE variants only (the single availVariants rule). These
+     rows lock the post-F8 values so any future availability shift
+     surfaces as a regression instead of a silent drift. */
+  {
+    q: "size small tank top",
+    exact: 35,
+    similar: 0,
+    struct: { category: "Tank Tops", size: "S" },
+    note: "new in F8-A: S matches via AVAILABLE variants only -> 43->35 (purchasable-size lock)",
+  },
+  {
+    q: "size medium tank top",
+    exact: 32,
+    similar: 0,
+    struct: { category: "Tank Tops", size: "M" },
+    note: "new in F8-A: M matches via AVAILABLE variants only -> 43->32",
+  },
+  {
+    q: "size large tank top",
+    exact: 32,
+    similar: 0,
+    struct: { category: "Tank Tops", size: "L" },
+    note: "new in F8-A: L matches via AVAILABLE variants only -> 43->32",
+  },
+  {
+    q: "shoes size 42",
+    exact: 21,
+    similar: 0,
+    struct: { category: "Shoes", size: "42" },
+    note: "new in F8-A: size 42 matches via AVAILABLE variants only -> 22->21",
+  },
+  {
+    q: "white tank top",
+    exact: 13,
+    similar: 0,
+    struct: { category: "Tank Tops", color: "White" },
+    note: "new in F8-A: White matches via AVAILABLE variants only -> 15->13",
+  },
+  {
+    q: "size small blouse",
+    exact: 164,
+    similar: 0,
+    struct: { category: "Blouses", size: "S" },
+    note: "new in F8-A: S blouse matches via AVAILABLE variants only -> 217->164",
+  },
+  {
+    q: "blue pants",
+    exact: 0,
+    similar: 75,
+    struct: { color: "Blue" },
+    note: "new in F8-A: unsupported-category intent keeps blue Similar via AVAILABLE variants only -> similar 83->75",
+  },
+  {
+    q: "blue tank top",
+    exact: 14,
+    similar: 0,
+    struct: { category: "Tank Tops", color: "Blue" },
+    note: "new in F8-A: singular Blue tank matches via AVAILABLE variants only (mirror of 'blue tank tops')",
+  },
+  {
+    q: "green tank top",
+    exact: 10,
+    similar: 0,
+    struct: { category: "Tank Tops", color: "Green" },
+    note: "new in F8-A: Green tank matches via AVAILABLE variants only -> 11->10",
+  },
+  {
+    q: "pink tank top",
+    exact: 9,
+    similar: 0,
+    struct: { category: "Tank Tops", color: "Pink" },
+    note: "new in F8-A: Pink tank matches via AVAILABLE variants only -> 10->9",
+  },
   {
     q: "unisex t-shirt",
     exact: 0,
@@ -560,10 +636,10 @@ const CASES = [
   },
   {
     q: "brown shoe",
-    exact: 4,
+    exact: 3,
     similar: 0,
     struct: { category: "Shoes", color: "Brown" },
-    note: "singular form matches plural dictionary entry",
+    note: "singular form matches plural dictionary entry; F8-A re-based: Brown matches via AVAILABLE variants only -> 4->3",
   },
   {
     q: "women sneakers",
@@ -575,7 +651,7 @@ const CASES = [
   {
     q: "women's black cotton tank top size S",
     exact: 0,
-    similar: 18,
+    similar: 15,
     struct: {
       gender: "WOMEN",
       category: "Tank Tops",
@@ -583,12 +659,12 @@ const CASES = [
       size: "S",
       attributes: ["Material:Cotton"],
     },
-    note: "new in 6.2: possessive + 'size' keyword + full structured parse",
+    note: "new in 6.2: possessive + 'size' keyword + full structured parse; F8-A re-based: gender+color+size match via AVAILABLE variants only -> similar 18->15",
   },
   {
     q: "WOMEN'S  Black COTTON Tank-Top  SIZE s",
     exact: 0,
-    similar: 18,
+    similar: 15,
     struct: {
       gender: "WOMEN",
       category: "Tank Tops",
@@ -596,7 +672,7 @@ const CASES = [
       size: "S",
       attributes: ["Material:Cotton"],
     },
-    note: "new in 6.2: chaotic casing/spacing/hyphen normalizes to same result",
+    note: "new in 6.2: chaotic casing/spacing/hyphen normalizes to same result; F8-A re-based: gender+color+size match via AVAILABLE variants only -> similar 18->15",
   },
   {
     q: "black nike hoodie for men",

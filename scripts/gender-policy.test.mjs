@@ -173,9 +173,9 @@ function everyGenderIn(products, allowed) {
   const goldens = [
     ["sneakers", 14],
     ["jeans", 1],
-    ["black shoes", 24],
+    ["black shoes", 23],
     ["nike", 1],
-    ["size medium black tank top", 18],
+    ["size medium black tank top", 14],
   ];
   for (const [q, expected] of goldens) {
     const d = await search(q);

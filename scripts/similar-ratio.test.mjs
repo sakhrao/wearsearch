@@ -127,8 +127,8 @@ check(
 console.log("\n== Case 4: Exact is unchanged by the gate (PR2-F1 demo-free counts) ==");
 const blackShoes = await search("black shoes");
 check(
-  blackShoes.exactCount === 24,
-  `"black shoes" exactCount == 24 (PR2-F1 re-based: 5 demo shoes excluded from the golden 29)`
+  blackShoes.exactCount === 23,
+  `"black shoes" exactCount == 23 (PR2-F1: 5 demo shoes excluded; F8-A: Black matches via AVAILABLE variants only -> 24->23)`
 );
 const nike = await search("nike");
 check(

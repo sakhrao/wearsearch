@@ -24,6 +24,22 @@ const hasRealPage = (product: {
   productUrl: string;
 }): boolean => hasRealProductPage(product.productUrl);
 
+/* F8-A (variant availability contract): the single source of
+   truth for "purchasable" invariance. Used everywhere the engine
+   reasons about what is buyable - the candidate pool, matching/
+   scoring, diagnostics presence and response serialization - so an
+   OUT_OF_STOCK size or color can never surface as a match. */
+const availVariants = <
+  T extends { availability: string | null }
+>(
+  product: { variants: T[] }
+): T[] =>
+  product.variants.filter(
+    (variant) =>
+      variant.availability ===
+      "AVAILABLE"
+  );
+
 /* =========================================================
    TEXT HELPERS
 ========================================================= */
@@ -693,11 +709,21 @@ export async function GET(
        only. OUT_OF_STOCK products are excluded at the candidate
        level (before scoring), so Exact, Similar, ranking, category
        presence and diagnostics are all consistent and a result can
-       never surface as purchasable. */
+       never surface as purchasable.
+
+       F8-A: the pool additionally requires at least one AVAILABLE
+       variant, so a product whose stock is entirely depleted cannot
+       be advertised through any size/color/category path. */
     const products =
       await prisma.product.findMany({
         where: {
           availability: { not: "OUT_OF_STOCK" },
+
+          variants: {
+            some: {
+              availability: "AVAILABLE",
+            },
+          },
         },
         select: {
           id: true,
@@ -1206,8 +1232,13 @@ export async function GET(
             product.description
           );
 
+        /* F8-A: size/color/searchable evidence comes from the
+           purchasable (AVAILABLE) variants only. */
+        const purchasableVariants =
+          availVariants(product);
+
         const productColors =
-          product.variants
+          purchasableVariants
             .map((variant) =>
               normalizeText(
                 variant.color?.name
@@ -1216,7 +1247,7 @@ export async function GET(
             .filter(Boolean);
 
         const productSizes =
-          product.variants
+          purchasableVariants
             .map((variant) =>
               normalizeText(
                 variant.size?.value
@@ -1235,13 +1266,13 @@ export async function GET(
                 product.gender ?? ""
               ),
 
-              ...product.variants.map(
+              ...purchasableVariants.map(
                 (variant) =>
                   variant.color?.name ??
                   ""
               ),
 
-              ...product.variants.map(
+              ...purchasableVariants.map(
                 (variant) =>
                   variant.size?.value ??
                   ""
@@ -1938,12 +1969,27 @@ export async function GET(
 
     /* F1: strip demo/placeholder products from the serialized
        result lists only (the engine's exact/similar sets and
-       ranking stay untouched). */
+       ranking stay untouched).
+
+       F8-A: the serialized payload carries purchasable variants
+       only, so the UI can build size/color options directly from
+       what it receives - the page never shows an OUT_OF_STOCK
+       size or color as available. */
     const returnedExactProducts =
-      exactProducts.filter(hasRealPage);
+      exactProducts
+        .filter(hasRealPage)
+        .map((product) => ({
+          ...product,
+          variants: availVariants(product),
+        }));
 
     const returnedSimilarProducts =
-      similarProducts.filter(hasRealPage);
+      similarProducts
+        .filter(hasRealPage)
+        .map((product) => ({
+          ...product,
+          variants: availVariants(product),
+        }));
 
     /* =====================================================
        EMPTY-RESULT DIAGNOSTICS (spec §11)
@@ -2000,7 +2046,9 @@ export async function GET(
         detectedColors.length > 0
           ? scopeProducts.some(
               (product) =>
-                product.variants.some(
+                availVariants(
+                  product
+                ).some(
                   (variant) =>
                     variant.color &&
                     detectedColors.some(
@@ -2017,7 +2065,9 @@ export async function GET(
       size: detectedSize
         ? scopeProducts.some(
             (product) =>
-              product.variants.some(
+              availVariants(
+                product
+              ).some(
                 (variant) =>
                   variant.size &&
                   normalizeText(

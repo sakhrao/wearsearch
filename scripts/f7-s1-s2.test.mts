@@ -182,7 +182,7 @@ const blueXyzzyRes = await search("blue xyzzy");
 const silkXyzzyRes = await search("silk xyzzy");
 const cottonRes = await search("cotton");
 
-check("T blue xyzzy == blue exact (noise tolerated under structured intent) = 83 (F7-S2: 2 OOS blue products excluded from the pre-F7 85)", blueXyzzyRes.exactCount === blueRes.exactCount && blueXyzzyRes.exactCount === 83, `blue=${blueRes.exactCount} blue xyzzy=${blueXyzzyRes.exactCount}`);
+check("T blue xyzzy == blue exact (noise tolerated under structured intent) = 75 (F7-S2: 2 OOS blue products excluded from the pre-F7 85; F8-A: Blue matches via AVAILABLE variants only -> 83->75)", blueXyzzyRes.exactCount === blueRes.exactCount && blueXyzzyRes.exactCount === 75, `blue=${blueRes.exactCount} blue xyzzy=${blueXyzzyRes.exactCount}`);
 check("T silk xyzzy == silk exact (0, unified)", silkXyzzyRes.exactCount === (silkRes.exactCount ?? 0), `silk xyzzy=${silkXyzzyRes.exactCount}`);
 check("T cotton exact unchanged (= 2, attribute-structured)", cottonRes.exactCount === 2, `cotton exact=${cottonRes.exactCount}`);
 
