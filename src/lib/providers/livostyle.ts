@@ -5,6 +5,7 @@ import type {
   UnifiedProduct,
   UnifiedVariant,
 } from "./types";
+import { attributesFromTags } from "./attribute-enrichment";
 
 interface LivostyleVariant {
   sku: string;
@@ -336,6 +337,7 @@ async function fetchUnified(): Promise<ProviderFetchResult> {
       variants: variants.slice(0, 40),
       sizeCategory: isShoes ? "shoes" : "clothing",
       sizeSystem: isShoes ? "US" : "INTERNATIONAL",
+      attributes: attributesFromTags(item.tags ?? []),
     });
   }
 

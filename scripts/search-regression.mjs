@@ -56,10 +56,10 @@ const CASES = [
   },
   {
     q: "leather shoes",
-    exact: 0,
+    exact: 5,
     similar: 0,
     struct: { category: "Shoes", attributes: ["Material:Leather"] },
-    note: "material attribute; PR2-F1 re-based: real shoes carry no attributes (only demo items had them) -> honest empty, diagnostic explains (F6 data gap)",
+    note: "F6 close: leather shoes now carry Material:Leather (9 in catalog, 5 are Shoes)",
   },
   {
     q: "slim fit black",
@@ -428,10 +428,10 @@ const CASES = [
   },
   {
     q: "classic shoes",
-    exact: 0,
+    exact: 1,
     similar: 0,
     struct: { category: "Shoes", attributes: ["Style:Classic"] },
-    note: "style attribute",
+    note: "F6 close: Style:Classic on real catalog (2 total, 1 is Shoes)",
   },
   {
     q: "",
@@ -511,17 +511,17 @@ const CASES = [
   },
   {
     q: "sleeveless top",
-    exact: 0,
+    exact: 106,
     similar: 0,
     struct: { category: "Tops", attributes: ["Sleeve:Sleeveless"] },
-    note: "sleeve attribute + parent category",
+    note: "F6 close: Sleeve:Sleeveless on real catalog (112 total, 106 in Tops)",
   },
   {
     q: "round neck",
-    exact: 0,
+    exact: 46,
     similar: 0,
     struct: { attributes: ["Collar:Round Neck"] },
-    note: "multi-word attribute value",
+    note: "F6 close: Collar:Round Neck on real catalog (46 = target)",
   },
   {
     q: "skinny jeans",
@@ -539,10 +539,10 @@ const CASES = [
   },
   {
     q: "sport top",
-    exact: 0,
+    exact: 42,
     similar: 0,
     struct: { category: "Tops", attributes: ["Style:Sport"] },
-    note: "style attribute broad similar set",
+    note: "F6 close: Style:Sport on real catalog (88 total, 42 in Tops)",
   },
   {
     q: "new balance sneaker",

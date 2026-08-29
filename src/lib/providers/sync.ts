@@ -12,6 +12,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { dummyJsonProvider } from "./dummyjson";
 import { fakeStoreProvider } from "./fakestore";
 import { livostyleProvider } from "./livostyle";
+import { writeProductAttributes } from "./attribute-enrichment";
 import type {
   ProductProvider,
   ProviderFetchResult,
@@ -284,6 +285,11 @@ async function syncProvider(
     }
 
     await syncVariants(dbProduct.id, product);
+    await writeProductAttributes(
+      prisma,
+      dbProduct.id,
+      product.attributes ?? []
+    );
   }
 
   await prisma.source.update({

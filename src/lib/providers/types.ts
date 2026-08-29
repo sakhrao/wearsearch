@@ -25,6 +25,7 @@ export interface UnifiedProduct {
   variants?: UnifiedVariant[];
   sizeCategory?: "clothing" | "shoes";
   sizeSystem?: "INTERNATIONAL" | "US" | "EU";
+  attributes?: Array<{ name: string; value: string }>;
 }
 
 export interface DroppedItem {
