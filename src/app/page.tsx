@@ -303,6 +303,10 @@ function Home() {
   const lastSearchIntentRef =
     useRef<SearchIntent | null>(null);
 
+  /* F11: monotonically increasing epoch so a stale search /
+     load-more response can never mutate newer results. */
+  const searchSeqRef = useRef<number>(0);
+
   const [fxRate, setFxRate] = useState<number | null>(null);
 
   /* Loads the catalog size surfaces and the fx rate once
@@ -363,6 +367,7 @@ function Home() {
   }, [urlSearchKey, fxRate]);
 
   function resetResults() {
+    searchSeqRef.current += 1;
     setSearched(false);
     setLoading(false);
     setErrorMessage(null);
@@ -406,6 +411,9 @@ function Home() {
     if (!trimmedQuery || loading) {
       return;
     }
+
+    searchSeqRef.current += 1;
+    const mySeq = searchSeqRef.current;
 
     lastUrlSearchKeyRef.current =
       searchIntentKey(intent);
@@ -466,6 +474,10 @@ function Home() {
         throw new Error("Search API returned an error");
       }
 
+      if (mySeq !== searchSeqRef.current) {
+        return;
+      }
+
       setIntentBudget(
         intent.params.budgetDisplayMin != null ||
           intent.params.budgetDisplayMax != null
@@ -514,6 +526,10 @@ function Home() {
     } catch (error) {
       console.error("Search failed:", error);
 
+      if (mySeq !== searchSeqRef.current) {
+        return;
+      }
+
       setExactProducts([]);
       setSimilarProducts([]);
       setSimilarMessage(null);
@@ -561,6 +577,8 @@ function Home() {
       return;
     }
 
+    const mySeq = searchSeqRef.current;
+
     setLoadingMore(true);
 
     try {
@@ -600,6 +618,10 @@ function Home() {
 
       if (!data.success) {
         throw new Error("Search API returned an error");
+      }
+
+      if (mySeq !== searchSeqRef.current) {
+        return;
       }
 
       if (list === "exact") {
