@@ -753,8 +753,16 @@ export async function GET(
        null, in which case stored values are compared as-is
        - a documented degraded mode, never an invented
        rate). Original stored prices and currencies are
-       never rewritten. */
-    const priceRate = (await getFxRate()).rate;
+       never rewritten.
+
+       F12 (lazy fx): the rate is only needed inside the
+       hasBudget-gated predicates (budgetMatches, budgetCompatible,
+       presence.budget), so a search without a budget must not
+       trigger the optional Frankfurter fetch. No budget = no
+       rate lookup; the client still gets the rate via /api/meta. */
+    const priceRate = hasBudget
+      ? (await getFxRate()).rate
+      : null;
 
     const softAttributes =
       (searchParams.get("soft") ?? "")
