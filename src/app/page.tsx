@@ -2,6 +2,7 @@
 
 import {
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -151,6 +152,9 @@ const FACET_LABELS: Record<FacetKey, string> = {
   size: "Size",
   brand: "Brand",
 };
+
+const FX_MAX_ATTEMPTS = 3;
+const FX_BACKOFF_MS = [500, 1500];
 
 type SearchResponse = {
   success: boolean;
@@ -309,29 +313,101 @@ function Home() {
   const searchSeqRef = useRef<number>(0);
 
   const [fxRate, setFxRate] = useState<number | null>(null);
+  const [fxError, setFxError] = useState(false);
+  const [fxLoading, setFxLoading] = useState(false);
+  const fxChainRef = useRef<Promise<boolean> | null>(null);
+  const fxMountedRef = useRef(true);
 
-  /* Loads the catalog size surfaces and the fx rate once
-     (the Size refine panel needs catalog-wide sizes; a USD
-     budget in the URL needs the rate to derive the EUR
-     engine bounds). */
-  useEffect(() => {
-    fetch("/api/meta")
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success && data.sizeGroups) {
-          setCatalogSizes(data.sizeGroups);
+  /* F14-C1: a USD budget URL cannot resolve until the fx rate
+     arrives (parseSearchUrl -> "wait-fx"), and the rate only
+     comes from the single /api/meta fetch on mount. A transient
+     meta failure used to be swallowed, leaving the page silently
+     frozen with no results, no error and no retry. This fetch is
+     retried FX_MAX_ATTEMPTS times with a short backoff, one
+     chain shared across StrictMode's double mount, and on final
+     failure raises fxError so the wait-fx branch renders an
+     explicit error + Retry. The API contract is untouched and
+     /api/search is never called while the rate is unknown. */
+  const loadFxRate = useCallback((): Promise<boolean> => {
+    const existing = fxChainRef.current;
+    if (existing) {
+      return existing;
+    }
+
+    const run = async (): Promise<boolean> => {
+      for (
+        let attempt = 0;
+        attempt < FX_MAX_ATTEMPTS;
+        attempt += 1
+      ) {
+        if (attempt > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, FX_BACKOFF_MS[attempt - 1] ?? 1500)
+          );
         }
-        const rate = data?.fx?.rate;
-        if (
-          typeof rate === "number" &&
-          Number.isFinite(rate) &&
-          rate > 0
-        ) {
-          setFxRate(rate);
+        if (!fxMountedRef.current) {
+          return false;
         }
-      })
-      .catch(() => {});
+        setFxLoading(true);
+        try {
+          const response = await fetch("/api/meta");
+          if (!response.ok) {
+            throw new Error(`Meta failed: ${response.status}`);
+          }
+          const data = await response.json();
+          if (!fxMountedRef.current) {
+            return false;
+          }
+          const rate = data?.fx?.rate;
+          if (
+            typeof rate === "number" &&
+            Number.isFinite(rate) &&
+            rate > 0
+          ) {
+            if (data.success && data.sizeGroups) {
+              setCatalogSizes(data.sizeGroups);
+            }
+            setFxRate(rate);
+            setFxError(false);
+            return true;
+          }
+        } catch {
+          /* fall through to the next attempt */
+        }
+      }
+      if (fxMountedRef.current) {
+        setFxError(true);
+      }
+      return false;
+    };
+
+    const chain = run().finally(() => {
+      if (fxMountedRef.current) {
+        setFxLoading(false);
+      }
+      fxChainRef.current = null;
+    });
+    fxChainRef.current = chain;
+    return chain;
   }, []);
+
+  const retryFx = () => {
+    if (fxLoading) {
+      return;
+    }
+    setFxError(false);
+    fxChainRef.current = null;
+    void loadFxRate();
+  };
+
+  /* Loads the catalog size surfaces and the fx rate once. */
+  useEffect(() => {
+    fxMountedRef.current = true;
+    void loadFxRate();
+    return () => {
+      fxMountedRef.current = false;
+    };
+  }, [loadFxRate]);
 
   /* The URL is the single source of truth for the basic
      search state. Runs on mount (refresh / direct link),
@@ -339,6 +415,12 @@ function Home() {
      after the fx rate arrives for a USD budget. Exactly
      one search per resolved URL search. */
   const urlSearchKey = searchParams.toString();
+
+  /* F14-C1: is the current URL stuck waiting for the fx rate?
+     Drives the wait/error/retry surface only; parsing is
+     unchanged and the URL effect still owns wait-fx. */
+  const waitFxActive =
+    parseSearchUrl(searchParams, fxRate).kind === "wait-fx";
 
   useEffect(() => {
     const search = new URLSearchParams(urlSearchKey);
@@ -929,6 +1011,40 @@ function Home() {
             Not sure what to search? Find your perfect clothing →
           </Link>
         </div>
+
+        {/* F14-C1: a USD budget URL waits for the fx rate before
+            the URL effect can search. While the rate fetch is
+            retrying, show progress; once the retries are
+            exhausted, surface an explicit error + Retry instead
+            of a silent, stuck page. */}
+        {waitFxActive && !fxError && (
+          <div className="mx-auto mt-4 max-w-3xl text-center text-sm text-gray-400">
+            Looking up the exchange rate…
+          </div>
+        )}
+
+        {waitFxActive && fxError && (
+          <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+            <h2 className="text-xl font-semibold text-red-700">
+              Couldn&apos;t load the exchange rate
+            </h2>
+
+            <p className="mt-2 text-sm text-red-600">
+              Your budget is set in USD, so we need today&apos;s
+              exchange rate to search within it. The rate service
+              is unavailable right now — please try again.
+            </p>
+
+            <button
+              type="button"
+              onClick={retryFx}
+              disabled={fxLoading}
+              className="mt-6 rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* RESULTS */}
 
