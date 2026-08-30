@@ -110,18 +110,35 @@ const FX = 1.08;
   }
 }
 
-/* 4. Budget URL without cur -> defaults to USD when fx exists */
+/* 4. Budget URL without cur -> deterministic EUR meaning (C3):
+   the display values are the engine bounds, regardless of the
+   fx availability. The old fx-dependent default made the same
+   URL search once as EUR and again as USD when the rate arrived. */
 {
   const parsed = parseSearchUrl(
     new URLSearchParams("q=jeans&min=50&max=100"),
     FX
   );
   check(
-    "no-cur budget defaults to USD with fx",
+    "no-cur budget is EUR with fx available",
     parsed.kind === "ready" &&
-      parsed.intent.params.budgetCurrency === "USD" &&
-      parsed.intent.params.priceMin === String(usdToEur(50, FX)),
+      parsed.intent.params.budgetCurrency === "EUR" &&
+      parsed.intent.params.priceMin === "50" &&
+      parsed.intent.params.priceMax === "100",
     JSON.stringify(parsed)
+  );
+  const noFx = parseSearchUrl(
+    new URLSearchParams("q=jeans&min=50&max=100"),
+    null
+  );
+  check(
+    "no-cur budget is EUR without fx as well",
+    noFx.kind === "ready" &&
+      !noFx.needsFx &&
+      noFx.intent.params.budgetCurrency === "EUR" &&
+      noFx.intent.params.priceMin === "50" &&
+      noFx.intent.params.priceMax === "100",
+    JSON.stringify(noFx)
   );
 }
 

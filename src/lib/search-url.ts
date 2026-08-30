@@ -104,8 +104,12 @@ export function parseSearchUrl(
 
   let budgetCurrency: BudgetCurrency | null = null;
   if (hasBudget) {
-    budgetCurrency =
-      cur ?? (fxRate !== null ? "USD" : "EUR");
+    /* C3: a budget without cur has a deterministic meaning (EUR,
+       the engine reference currency). It must not default from the
+       fx availability - that made the same URL search once as EUR
+       and again as USD the moment the rate arrived (double search
+       and a silent currency flip). */
+    budgetCurrency = cur ?? "EUR";
   }
 
   let priceMin: string | null = null;
