@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  computeCatalogFingerprint,
+  createCatalogStore,
+  getCatalogMemo,
+} from "@/lib/catalog-memo";
+import {
   getFxRate,
   priceWithinBudget,
   priceWithinBudgetBand,
@@ -692,6 +697,142 @@ function genderMatches(
    sorting key below). Hard isolation is preserved: no WOMEN
    product ever enters a MEN search and vice versa. */
 
+/* RC-2/O1 (load-more pipeline cache): one in-process store
+   per server process. Each entry is keyed by the full search
+   intent the pipeline consumed (query, price bounds, effective
+   conversion rate, soft attributes) PLUS the catalog fingerprint.
+   An entry is only served while its stored fingerprint matches the
+   current catalog, so a product/dictionary mutation invalidates
+   the cache on the very next request - cached results can never go
+   stale against a newer catalog. Serialization (projection, page
+   slice, hasMore, totals) runs per request, so ?debug=1 and
+   pagination behavior are unchanged. */
+type SearchEnvelope = {
+  structuredQuery: {
+    brand: string | null;
+    category: string | null;
+    color: string | null;
+    colors: string[];
+    size: string | null;
+    gender: string | null;
+    attributes: Array<{
+      attributeName: string;
+      value: string;
+    }>;
+    budget: {
+      min: number | null;
+      max: number | null;
+    } | null;
+  };
+  categoryStatus: {
+    requested: string;
+    productCount: number;
+    siblings: string[];
+  } | null;
+  similarMessage: string | null;
+  facets: FacetsBlock;
+  diagnostics: unknown[];
+  serializableExactProducts: Array<
+    Parameters<typeof projectProduct>[0]
+  >;
+  serializableSimilarProducts: Array<
+    Parameters<typeof projectProduct>[0]
+  >;
+  exactTotal: number;
+  similarTotal: number;
+};
+
+const searchPipelineStore =
+  createCatalogStore<SearchEnvelope>({
+    cap: 80,
+    slot: "wearsearchSearchPipeline",
+  });
+
+const respondFromEnvelope = (
+  envelope: SearchEnvelope,
+  options: {
+    query: string;
+    debug: boolean;
+    limit: number;
+    offset: number;
+  }
+): NextResponse => {
+  const { query, debug, limit, offset } =
+    options;
+
+  /* F10: the serialized lists are bounded to one ranked page
+     (limit/offset) except under ?debug=1, which returns the
+     full envelope. exactCount/similarCount stay TOTAL matches;
+     exactHasMore/similarHasMore drive Load-more. The facet
+     truth block (computed during the pipeline, cached) comes
+     from the full ranked set before slicing, so truncating the
+     payload can never truncate facet options or their counts. */
+  const fullExactProducts =
+    envelope.serializableExactProducts.map(
+      (product) =>
+        projectProduct(product, debug)
+    );
+
+  const fullSimilarProducts =
+    envelope.serializableSimilarProducts.map(
+      (product) =>
+        projectProduct(product, debug)
+    );
+
+  const returnedExactProducts = debug
+    ? fullExactProducts
+    : fullExactProducts.slice(
+        offset,
+        offset + limit
+      );
+
+  const returnedSimilarProducts = debug
+    ? fullSimilarProducts
+    : fullSimilarProducts.slice(
+        offset,
+        offset + limit
+      );
+
+  const exactHasMore =
+    !debug &&
+    offset + returnedExactProducts.length <
+      envelope.exactTotal;
+
+  const similarHasMore =
+    !debug &&
+    offset + returnedSimilarProducts.length <
+      envelope.similarTotal;
+
+  return NextResponse.json({
+    success: true,
+
+    query,
+
+    structuredQuery:
+      envelope.structuredQuery,
+
+    categoryStatus: envelope.categoryStatus,
+
+    exactCount: envelope.exactTotal,
+
+    similarCount: envelope.similarTotal,
+
+    exactHasMore,
+
+    similarHasMore,
+
+    facets: envelope.facets,
+
+    similarMessage: envelope.similarMessage,
+
+    diagnostics: envelope.diagnostics,
+
+    exactProducts: returnedExactProducts,
+
+    similarProducts: returnedSimilarProducts,
+  });
+};
+
 /* =========================================================
    GET
 ========================================================= */
@@ -797,6 +938,30 @@ export async function GET(
       });
     }
 
+    /* RC-2/O1: cache key covers everything the pipeline consumed
+       (query, price bounds, effective rate, soft hints). The
+       fingerprint is recomputed on every request from cheap DB
+       aggregates; a hit is only served while the catalog is
+       bit-identical, so page/offset requests that re-run the full
+       catalog pipeline on their own share one computed envelope. */
+    const intentFingerprint =
+      await computeCatalogFingerprint(prisma);
+
+    const intentKey = JSON.stringify({
+      q: query,
+      priceMin,
+      priceMax,
+      rate: hasBudget ? priceRate : null,
+      soft: softAttributes,
+    });
+
+    let envelope: SearchEnvelope | null =
+      searchPipelineStore.get(
+        intentKey,
+        intentFingerprint
+      );
+
+    if (!envelope) {
     /* =====================================================
        LOAD SEARCH DICTIONARIES
     ===================================================== */
@@ -806,33 +971,39 @@ export async function GET(
       categories,
       colors,
       sizes,
-    ] = await Promise.all([
-      prisma.brand.findMany({
-        select: {
-          name: true,
-        },
-      }),
+    ] = await getCatalogMemo(
+      prisma,
+      intentFingerprint,
+      "search-dicts",
+      () =>
+        Promise.all([
+          prisma.brand.findMany({
+            select: {
+              name: true,
+            },
+          }),
 
-      prisma.category.findMany({
-        select: {
-          id: true,
-          name: true,
-          parentId: true,
-        },
-      }),
+          prisma.category.findMany({
+            select: {
+              id: true,
+              name: true,
+              parentId: true,
+            },
+          }),
 
-      prisma.color.findMany({
-        select: {
-          name: true,
-        },
-      }),
+          prisma.color.findMany({
+            select: {
+              name: true,
+            },
+          }),
 
-      prisma.size.findMany({
-        select: {
-          value: true,
-        },
-      }),
-    ]);
+          prisma.size.findMany({
+            select: {
+              value: true,
+            },
+          }),
+        ])
+    );
 
     const brandNames = brands.map(
       (item) => item.name
@@ -2330,42 +2501,11 @@ export async function GET(
       ...serializableSimilarProducts,
     ]);
 
-    const fullExactProducts =
-      serializableExactProducts.map((product) =>
-        projectProduct(product, debug)
-      );
+    const exactTotal =
+      serializableExactProducts.length;
 
-    const fullSimilarProducts =
-      serializableSimilarProducts.map((product) =>
-        projectProduct(product, debug)
-      );
-
-    const exactTotal = fullExactProducts.length;
-    const similarTotal = fullSimilarProducts.length;
-
-    const returnedExactProducts = debug
-      ? fullExactProducts
-      : fullExactProducts.slice(
-          offset,
-          offset + limit
-        );
-
-    const returnedSimilarProducts = debug
-      ? fullSimilarProducts
-      : fullSimilarProducts.slice(
-          offset,
-          offset + limit
-        );
-
-    const exactHasMore =
-      !debug &&
-      offset + returnedExactProducts.length <
-        exactTotal;
-
-    const similarHasMore =
-      !debug &&
-      offset + returnedSimilarProducts.length <
-        similarTotal;
+    const similarTotal =
+      serializableSimilarProducts.length;
 
     /* =====================================================
        EMPTY-RESULT DIAGNOSTICS (spec §11)
@@ -2522,34 +2662,30 @@ export async function GET(
        RESPONSE
     ===================================================== */
 
-    return NextResponse.json({
-      success: true,
+      envelope = {
+        structuredQuery,
+        categoryStatus,
+        similarMessage,
+        facets,
+        diagnostics,
+        serializableExactProducts,
+        serializableSimilarProducts,
+        exactTotal,
+        similarTotal,
+      };
 
+      searchPipelineStore.set(
+        intentKey,
+        intentFingerprint,
+        envelope
+      );
+    }
+
+    return respondFromEnvelope(envelope, {
       query,
-
-      structuredQuery,
-
-      categoryStatus,
-
-      exactCount: exactTotal,
-
-      similarCount: similarTotal,
-
-      exactHasMore,
-
-      similarHasMore,
-
-      facets,
-
-      similarMessage,
-
-      diagnostics,
-
-      exactProducts:
-        returnedExactProducts,
-
-      similarProducts:
-        returnedSimilarProducts,
+      debug,
+      limit,
+      offset,
     });
   } catch (error) {
     console.error(
