@@ -986,10 +986,19 @@ function Home() {
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                handleSearch(
-                  { query, params: EMPTY_SEARCH_PARAMS },
-                  true
-                );
+                if (query.trim()) {
+                  handleSearch(
+                    { query, params: EMPTY_SEARCH_PARAMS },
+                    true
+                  );
+                } else if (searchParams.size > 0) {
+                  /* C4: an empty query + Enter must not leave the
+                     input blank while the old URL and results stay.
+                     Route to the empty landing state through the URL
+                     effect (its "empty" branch resets results); this
+                     matches the Search button for a blank query. */
+                  void router.push("/");
+                }
               }
             }}
             placeholder="Search for clothes..."
