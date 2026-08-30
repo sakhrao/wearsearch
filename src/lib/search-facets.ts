@@ -176,3 +176,40 @@ export function countProductsForFacetValue(
 
   return count;
 }
+
+/* F13-1: window-scoped facet counts. The caller supplies the
+   option VALUE sets (server facet block values + catalog sizes);
+   each count is re-derived over the currently LOADED window
+   through the exact same predicate the card filtering uses
+   (countProductsForFacetValue + productMatchesFilters). A value
+   absent from the window gets 0, which the UI renders disabled,
+   so no clickable option can ever empty the page. */
+export function buildWindowFacetCounts(
+  products: FacetProduct[],
+  activeFilters: ActiveFacetFilters,
+  optionValues: Record<FacetKey, readonly string[]>
+): Record<FacetKey, ReadonlyMap<string, number>> {
+  const counts: Record<FacetKey, Map<string, number>> = {
+    gender: new Map(),
+    category: new Map(),
+    color: new Map(),
+    size: new Map(),
+    brand: new Map(),
+  };
+
+  for (const key of FACET_KEYS) {
+    for (const value of optionValues[key]) {
+      counts[key].set(
+        value,
+        countProductsForFacetValue(
+          key,
+          value,
+          activeFilters,
+          products
+        )
+      );
+    }
+  }
+
+  return counts;
+}

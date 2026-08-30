@@ -206,8 +206,8 @@ type ProjectedProduct = {
   imageUrl: string | null;
   availability: string | null;
   gender: string | null;
-  brand: { name: string | null } | null;
-  category: { name: string | null } | null;
+  brand: { id: string | null; name: string | null } | null;
+  category: { id: string | null; name: string | null } | null;
   variants: {
     price: string | null;
     currency: string | null;
@@ -269,8 +269,8 @@ const projectProduct = (
     imageUrl: string | null;
     availability: string | null;
     gender: string | null;
-    brand: { name: string | null } | null;
-    category: { name: string | null } | null;
+    brand: { id: string | null; name: string | null } | null;
+    category: { id: string | null; name: string | null } | null;
     variants: {
       price: { toString(): string };
       currency: string | null;
@@ -295,10 +295,10 @@ const projectProduct = (
     availability: product.availability,
     gender: product.gender,
     brand: product.brand
-      ? { name: product.brand.name }
+      ? { id: product.brand.id, name: product.brand.name }
       : null,
     category: product.category
-      ? { name: product.category.name }
+      ? { id: product.category.id, name: product.category.name }
       : null,
     variants: availVariants(
       product

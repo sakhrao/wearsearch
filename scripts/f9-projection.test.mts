@@ -2,7 +2,9 @@ import "dotenv/config";
 
 /* PR4 F9 - Response Projection contract.
    The production payload is a strict whitelist of what page.tsx
-   renders; the scoring internals exist ONLY under ?debug=1.
+   consumes (including the brand.id/category.id keepers that the
+   client-side facet filter predicate matches on); the scoring
+   internals exist ONLY under ?debug=1.
    The two modes must be semantically identical (same counts, ids,
    order, diagnostics, structuredQuery, categoryStatus) - projection
    is serialization-only, never a behavior change. */
@@ -36,8 +38,8 @@ const INTERNALS = [
 ];
 
 const BLOAT_PROD = ["description", "exactMatch"];
-const BLOAT_BRAND = ["id", "slug"];
-const BLOAT_CATEGORY = ["id", "slug"];
+const BLOAT_BRAND = ["slug"];
+const BLOAT_CATEGORY = ["slug"];
 const BLOAT_VARIANT = ["id", "sku"];
 const BLOAT_COLOR = ["slug"];
 const BLOAT_SIZE = ["id", "normalizedValue", "system"];
@@ -172,8 +174,10 @@ const scalarCompare = (a: unknown, b: unknown) => {
       if (
         needed > 0 ||
         !brand ||
+        !("id" in brand) ||
         !("name" in brand) ||
         !category ||
+        !("id" in category) ||
         !("name" in category)
       ) {
         missingClient += 1;
@@ -214,7 +218,7 @@ const scalarCompare = (a: unknown, b: unknown) => {
     `bloat=${bloatProd}`
   );
   check(
-    "A1 no bloat brand/category fields (id/slug)",
+    "A1 no bloat brand/category fields (slug only)",
     bloatBrand === 0 && bloatCategory === 0,
     `brand=${bloatBrand} category=${bloatCategory}`
   );

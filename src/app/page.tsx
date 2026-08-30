@@ -22,6 +22,7 @@ import {
 } from "@/lib/product-url";
 import {
   FACET_KEYS,
+  buildWindowFacetCounts,
   productMatchesFilters,
   type FacetKey,
 } from "@/lib/search-facets";
@@ -715,14 +716,13 @@ function Home() {
     [exactProducts, similarProducts]
   );
 
-  /* F10: facet options + counts come from the server block
-     (computed over the FULL ranked result set), so paging the
-     payload never truncates or rescopes the facet truth. The
-     Map shape and the render that consumes it are unchanged. */
+  /* F13-1: the option set (values + labels) stays exactly the
+     server block's; only the COUNTS are re-derived per render
+     from the currently loaded window via buildWindowFacetCounts. */
   const facetOptions = useMemo(() => {
     const options: Record<
       FacetKey,
-      Map<string, { label: string; count: number }>
+      Map<string, { label: string }>
     > = {
       gender: new Map(),
       category: new Map(),
@@ -735,7 +735,6 @@ function Home() {
       for (const entry of facets[key]) {
         options[key].set(entry.value, {
           label: entry.label,
-          count: entry.count,
         });
       }
     }
@@ -743,14 +742,35 @@ function Home() {
     return options;
   }, [facets]);
 
-  const sizeOptionGroups = useMemo(() => {
-    const sizeCounts = new Map<string, number>(
-      facets.size.map((entry) => [
-        entry.value,
-        entry.count,
-      ])
-    );
+  /* F13-1: counts are scoped to the loaded window and recomputed
+     whenever more results are appended (Load more) or the active
+     filters change. A value with no match in the window renders
+     as (0) + disabled, so choosing it can never empty the page. */
+  const windowCounts = useMemo(() => {
+    const optionValues: Record<FacetKey, string[]> = {
+      gender: [...facetOptions.gender.keys()],
+      category: [...facetOptions.category.keys()],
+      color: [...facetOptions.color.keys()],
+      size: [
+        ...(catalogSizes?.clothing ?? []),
+        ...(catalogSizes?.shoes ?? []),
+      ],
+      brand: [...facetOptions.brand.keys()],
+    };
 
+    return buildWindowFacetCounts(
+      allProducts,
+      activeFilters,
+      optionValues
+    );
+  }, [
+    allProducts,
+    activeFilters,
+    facetOptions,
+    catalogSizes,
+  ]);
+
+  const sizeOptionGroups = useMemo(() => {
     const build = (
       values: string[]
     ): {
@@ -761,14 +781,14 @@ function Home() {
       values.map((value) => ({
         value,
         label: value,
-        count: sizeCounts.get(value) ?? 0,
+        count: windowCounts.size.get(value) ?? 0,
       }));
 
     return {
       clothing: build(catalogSizes?.clothing ?? []),
       shoes: build(catalogSizes?.shoes ?? []),
     };
-  }, [facets, catalogSizes]);
+  }, [catalogSizes, windowCounts]);
 
   const filteredExactProducts = useMemo(
     () =>
@@ -1107,8 +1127,15 @@ function Home() {
                               {options.map(
                                 ([
                                   value,
-                                  { label, count },
+                                  { label },
                                 ]) => {
+                                  const count =
+                                    windowCounts[
+                                      key
+                                    ].get(value) ??
+                                    0;
+                                  const disabled =
+                                    count === 0;
                                   const selected =
                                     activeFilters[
                                       key
@@ -1118,6 +1145,7 @@ function Home() {
                                     <button
                                       key={value}
                                       type="button"
+                                      disabled={disabled}
                                       onClick={() =>
                                         toggleFilter(
                                           key,
@@ -1127,10 +1155,15 @@ function Home() {
                                       className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                                         selected
                                           ? "bg-black text-white"
-                                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                          : disabled
+                                            ? "cursor-not-allowed bg-gray-50 text-gray-300"
+                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                                       }`}
                                     >
-                                      {label} ({count})
+                                      {label}{" "}
+                                      {count > 0
+                                        ? `(${count})`
+                                        : "(0)"}
                                     </button>
                                   );
                                 }
