@@ -16,11 +16,8 @@ import {
 } from "@/lib/search-diagnostics";
 import { hasRealProductPage } from "@/lib/product-url";
 import {
-  FACET_KEYS,
-  countProductsForFacetValue,
-  getProductFacets,
-  type ActiveFacetFilters,
-  type FacetProduct,
+  buildServerFacetBlock,
+  type FacetsBlock,
 } from "@/lib/search-facets";
 
 /* F1 (Post-Audit Product Readiness): demo/playground items have
@@ -66,25 +63,6 @@ const availVariants = <
 const RESULT_PAGE_SIZE = 30;
 const RESULT_PAGE_CAP = 100;
 
-const EMPTY_ACTIVE_FILTERS: ActiveFacetFilters = {
-  gender: new Set<string>(),
-  category: new Set<string>(),
-  color: new Set<string>(),
-  size: new Set<string>(),
-  brand: new Set<string>(),
-};
-
-type FacetEntry = {
-  value: string;
-  label: string;
-  count: number;
-};
-
-type FacetsBlock = Record<
-  keyof ActiveFacetFilters,
-  FacetEntry[]
->;
-
 const EMPTY_FACETS: FacetsBlock = {
   gender: [],
   category: [],
@@ -125,58 +103,6 @@ const parsePageParams = (
   return {
     limit: cappedLimit,
     offset: Math.max(offset, 0),
-  };
-};
-
-const computeFacetBlock = (
-  products: FacetProduct[]
-): FacetsBlock => {
-  const options: Record<
-    keyof ActiveFacetFilters,
-    Map<string, FacetEntry>
-  > = {
-    gender: new Map(),
-    category: new Map(),
-    color: new Map(),
-    size: new Map(),
-    brand: new Map(),
-  };
-
-  for (const key of FACET_KEYS) {
-    for (const product of products) {
-      for (const entry of getProductFacets(product)[
-        key
-      ]) {
-        if (!options[key].has(entry.value)) {
-          options[key].set(entry.value, {
-            value: entry.value,
-            label: entry.label,
-            count: 0,
-          });
-        }
-      }
-    }
-
-    for (const entry of options[key].values()) {
-      entry.count = countProductsForFacetValue(
-        key,
-        entry.value,
-        EMPTY_ACTIVE_FILTERS,
-        products
-      );
-    }
-  }
-
-  return {
-    gender: [
-      ...options.gender.values(),
-    ],
-    category: [
-      ...options.category.values(),
-    ],
-    color: [...options.color.values()],
-    size: [...options.size.values()],
-    brand: [...options.brand.values()],
   };
 };
 
@@ -2488,7 +2414,7 @@ export async function GET(
     const serializableSimilarProducts =
       similarProducts.filter(hasRealPage);
 
-    const facets = computeFacetBlock([
+    const facets = buildServerFacetBlock([
       ...serializableExactProducts,
       ...serializableSimilarProducts,
     ]);

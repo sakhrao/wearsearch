@@ -10,6 +10,14 @@ export type FacetEntry = {
   label: string;
 };
 
+export type FacetCountEntry = {
+  value: string;
+  label: string;
+  count: number;
+};
+
+export type FacetsBlock = Record<FacetKey, FacetCountEntry[]>;
+
 export type ActiveFacetFilters = Record<
   FacetKey,
   ReadonlySet<string>
@@ -212,4 +220,93 @@ export function buildWindowFacetCounts(
   }
 
   return counts;
+}
+
+/* Server facet block (FACET_TRUTH). The option set and every
+   count are derived in a single pass (O(P x V)) with semantics
+   byte-identical to countProductsForFacetValue over EMPTY filters:
+   - gender: a product counts for its own gender, and a UNISEX
+     product matches ANY selected gender, so every non-UNISEX
+     option also includes the UNISEX products (the UNISEX option
+     itself counts UNISEX products once);
+   - category/brand/color/size: a product contributes at most +1
+     per value it carries, regardless of how many variants carry
+     that value.
+   Product order (per key, first-encounter) drives option order,
+   matching the previous per-option simulation exactly. */
+export function buildServerFacetBlock(
+  products: FacetProduct[]
+): FacetsBlock {
+  const options: Record<FacetKey, Map<string, FacetCountEntry>> = {
+    gender: new Map(),
+    category: new Map(),
+    color: new Map(),
+    size: new Map(),
+    brand: new Map(),
+  };
+
+  const genderOwn = new Map<string, number>();
+  let unisexCount = 0;
+  const containing: Record<
+    Exclude<FacetKey, "gender">,
+    Map<string, Set<number>>
+  > = {
+    category: new Map(),
+    color: new Map(),
+    size: new Map(),
+    brand: new Map(),
+  };
+
+  for (let i = 0; i < products.length; i++) {
+    const facets = getProductFacets(products[i]);
+
+    for (const key of FACET_KEYS) {
+      for (const entry of facets[key]) {
+        if (!options[key].has(entry.value)) {
+          options[key].set(entry.value, {
+            value: entry.value,
+            label: entry.label,
+            count: 0,
+          });
+        }
+
+        if (key === "gender") {
+          if (entry.value === "UNISEX") {
+            unisexCount += 1;
+          }
+          genderOwn.set(
+            entry.value,
+            (genderOwn.get(entry.value) ?? 0) + 1
+          );
+        } else {
+          let indexes = containing[key].get(entry.value);
+          if (!indexes) {
+            indexes = new Set();
+            containing[key].set(entry.value, indexes);
+          }
+          indexes.add(i);
+        }
+      }
+    }
+  }
+
+  for (const entry of options.gender.values()) {
+    entry.count =
+      (genderOwn.get(entry.value) ?? 0) +
+      (entry.value === "UNISEX" ? 0 : unisexCount);
+  }
+
+  for (const key of ["category", "color", "size", "brand"] as const) {
+    for (const entry of options[key].values()) {
+      entry.count = containing[key].get(entry.value)?.size ?? 0;
+    }
+  }
+
+  return {
+    gender: [...options.gender.values()],
+    category: [...options.category.values()],
+    color: [...options.color.values()],
+    size: [...options.size.values()],
+    brand: [...options.brand.values()],
+  };
 }
