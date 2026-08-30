@@ -441,13 +441,23 @@ function Home() {
       searchIntentKey(parsed.intent)) {
       return;
     }
-    lastUrlSearchKeyRef.current =
-      searchIntentKey(parsed.intent);
+
+    /* F15-C2: a URL change while a search is in flight must not
+       be recorded as resolved — handleSearch would bail on
+       `loading` and the old response would then paint under the
+       new URL. Defer instead: mark the in-flight response stale
+       through the F11 epoch and let this effect re-run once the
+       search settles (loading flips), so the latest URL intent
+       executes exactly once. */
+    if (loading) {
+      searchSeqRef.current += 1;
+      return;
+    }
 
     setQuery(parsed.intent.query);
     void handleSearch(parsed.intent, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlSearchKey, fxRate]);
+  }, [urlSearchKey, fxRate, loading]);
 
   function resetResults() {
     searchSeqRef.current += 1;
