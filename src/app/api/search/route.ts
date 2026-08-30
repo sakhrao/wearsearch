@@ -1243,7 +1243,6 @@ export async function GET(
             select: {
               id: true,
               name: true,
-              slug: true,
             },
           },
 
@@ -1251,14 +1250,11 @@ export async function GET(
             select: {
               id: true,
               name: true,
-              slug: true,
             },
           },
 
           variants: {
             select: {
-              id: true,
-              sku: true,
               price: true,
               currency: true,
               availability: true,
@@ -1267,17 +1263,13 @@ export async function GET(
                 select: {
                   id: true,
                   name: true,
-                  slug: true,
                   hex: true,
                 },
               },
 
               size: {
                 select: {
-                  id: true,
                   value: true,
-                  normalizedValue: true,
-                  system: true,
                 },
               },
             },
