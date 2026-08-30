@@ -22,8 +22,6 @@ import {
 } from "@/lib/product-url";
 import {
   FACET_KEYS,
-  countProductsForFacetValue,
-  getProductFacets,
   productMatchesFilters,
   type FacetKey,
 } from "@/lib/search-facets";
@@ -164,12 +162,39 @@ type SearchResponse = {
   exactCount: number;
   similarCount: number;
 
+  /* F10: totals stay totals; the UI loads one ranked page at a
+     time and appends (Load more) while hasMore is true. */
+  exactHasMore: boolean;
+  similarHasMore: boolean;
+
+  /* F10: server-side facet truth over the full ranked result set
+     (exact + similar), so a bounded payload never truncates the
+     facet options or their counts. */
+  facets: FacetsBlock;
+
   similarMessage: string | null;
 
   diagnostics: string[];
 
   exactProducts: Product[];
   similarProducts: Product[];
+};
+
+/* F10: page-level values come straight from the API. Value
+   identity is unchanged vs the lib (category.id, brand.id,
+   color.id, size.value, gender). */
+type FacetOption = {
+  value: string;
+  label: string;
+  count: number;
+};
+
+type FacetsBlock = {
+  gender: FacetOption[];
+  category: FacetOption[];
+  color: FacetOption[];
+  size: FacetOption[];
+  brand: FacetOption[];
 };
 
 type CatalogSizeGroups = {
@@ -240,6 +265,31 @@ function Home() {
 
   const [activeFilters, setActiveFilters] =
     useState<ActiveFilters>(EMPTY_FILTERS);
+
+  /* F10: server-side facet truth + page state. */
+  const [facets, setFacets] =
+    useState<FacetsBlock>({
+      gender: [],
+      category: [],
+      color: [],
+      size: [],
+      brand: [],
+    });
+
+  const [exactTotal, setExactTotal] =
+    useState<number>(0);
+  const [similarTotal, setSimilarTotal] =
+    useState<number>(0);
+  const [exactHasMore, setExactHasMore] =
+    useState<boolean>(false);
+  const [similarHasMore, setSimilarHasMore] =
+    useState<boolean>(false);
+  const [loadingMore, setLoadingMore] =
+    useState<boolean>(false);
+
+  /* Loaded offsets drive the next Load-more fetch. */
+  const exactOffsetRef = useRef<number>(0);
+  const similarOffsetRef = useRef<number>(0);
 
   const resultsRef =
     useRef<HTMLElement | null>(null);
@@ -323,6 +373,20 @@ function Home() {
     setDiagnostics([]);
     setStructuredQuery(null);
     setCategoryStatus(null);
+    setFacets({
+      gender: [],
+      category: [],
+      color: [],
+      size: [],
+      brand: [],
+    });
+    setExactTotal(0);
+    setSimilarTotal(0);
+    setExactHasMore(false);
+    setSimilarHasMore(false);
+    setLoadingMore(false);
+    exactOffsetRef.current = 0;
+    similarOffsetRef.current = 0;
     setActiveFilters({
       gender: new Set(),
       category: new Set(),
@@ -387,7 +451,7 @@ function Home() {
       }
 
       const response = await fetch(
-        `/api/search?${params.toString()}`
+        `/api/search?${params.toString()}&limit=30&offset=0`
       );
 
       if (!response.ok) {
@@ -420,6 +484,29 @@ function Home() {
       setStructuredQuery(data.structuredQuery ?? null);
       setCategoryStatus(data.categoryStatus ?? null);
 
+      /* F10: page-1 fetch resets the Load-more state. */
+      setExactTotal(data.exactCount ?? 0);
+      setSimilarTotal(data.similarCount ?? 0);
+      setExactHasMore(
+        data.exactHasMore ?? false
+      );
+      setSimilarHasMore(
+        data.similarHasMore ?? false
+      );
+      setFacets(
+        data.facets ?? {
+          gender: [],
+          category: [],
+          color: [],
+          size: [],
+          brand: [],
+        }
+      );
+      exactOffsetRef.current =
+        data.exactProducts?.length ?? 0;
+      similarOffsetRef.current =
+        data.similarProducts?.length ?? 0;
+
       resultsRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
@@ -445,6 +532,103 @@ function Home() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  /* F10: Load more fetches the next ranked page for one list
+     (exact or similar) and appends in rank order. The URL stays
+     the intent only - paging lives at the fetch layer. */
+  async function loadMore(
+    list: "exact" | "similar"
+  ) {
+    if (
+      loading ||
+      loadingMore ||
+      !lastSearchIntentRef.current
+    ) {
+      return;
+    }
+
+    const intent = lastSearchIntentRef.current;
+    const offset =
+      list === "exact"
+        ? exactOffsetRef.current
+        : similarOffsetRef.current;
+    const hasMore =
+      list === "exact" ? exactHasMore : similarHasMore;
+
+    if (!hasMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: intent.query.trim(),
+        limit: "30",
+        offset: String(offset),
+      });
+
+      const priceMin =
+        intent.params.priceMin ?? null;
+      const priceMax =
+        intent.params.priceMax ?? null;
+      const soft = intent.params.soft ?? null;
+
+      if (priceMin) {
+        params.set("priceMin", priceMin);
+      }
+      if (priceMax) {
+        params.set("priceMax", priceMax);
+      }
+      if (soft) {
+        params.set("soft", soft);
+      }
+
+      const response = await fetch(
+        `/api/search?${params.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Search request failed: ${response.status}`
+        );
+      }
+
+      const data: SearchResponse = await response.json();
+
+      if (!data.success) {
+        throw new Error("Search API returned an error");
+      }
+
+      if (list === "exact") {
+        setExactProducts((current) => [
+          ...current,
+          ...(data.exactProducts ?? []),
+        ]);
+        setExactHasMore(
+          data.exactHasMore ?? false
+        );
+        exactOffsetRef.current =
+          exactOffsetRef.current +
+          (data.exactProducts?.length ?? 0);
+      } else {
+        setSimilarProducts((current) => [
+          ...current,
+          ...(data.similarProducts ?? []),
+        ]);
+        setSimilarHasMore(
+          data.similarHasMore ?? false
+        );
+        similarOffsetRef.current =
+          similarOffsetRef.current +
+          (data.similarProducts?.length ?? 0);
+      }
+    } catch (error) {
+      console.error("Load more failed:", error);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -509,6 +693,10 @@ function Home() {
     [exactProducts, similarProducts]
   );
 
+  /* F10: facet options + counts come from the server block
+     (computed over the FULL ranked result set), so paging the
+     payload never truncates or rescopes the facet truth. The
+     Map shape and the render that consumes it are unchanged. */
   const facetOptions = useMemo(() => {
     const options: Record<
       FacetKey,
@@ -522,37 +710,25 @@ function Home() {
     };
 
     for (const key of FACET_KEYS) {
-      if (key === "size") {
-        continue;
-      }
-
-      for (const product of allProducts) {
-        for (const entry of getProductFacets(product)[
-          key
-        ]) {
-          if (!options[key].has(entry.value)) {
-            options[key].set(entry.value, {
-              label: entry.label,
-              count: 0,
-            });
-          }
-        }
-      }
-
-      for (const [value, meta] of options[key]) {
-        meta.count = countProductsForFacetValue(
-          key,
-          value,
-          activeFilters,
-          allProducts
-        );
+      for (const entry of facets[key]) {
+        options[key].set(entry.value, {
+          label: entry.label,
+          count: entry.count,
+        });
       }
     }
 
     return options;
-  }, [allProducts, activeFilters]);
+  }, [facets]);
 
   const sizeOptionGroups = useMemo(() => {
+    const sizeCounts = new Map<string, number>(
+      facets.size.map((entry) => [
+        entry.value,
+        entry.count,
+      ])
+    );
+
     const build = (
       values: string[]
     ): {
@@ -563,19 +739,14 @@ function Home() {
       values.map((value) => ({
         value,
         label: value,
-        count: countProductsForFacetValue(
-          "size",
-          value,
-          activeFilters,
-          allProducts
-        ),
+        count: sizeCounts.get(value) ?? 0,
       }));
 
     return {
       clothing: build(catalogSizes?.clothing ?? []),
       shoes: build(catalogSizes?.shoes ?? []),
     };
-  }, [allProducts, activeFilters, catalogSizes]);
+  }, [facets, catalogSizes]);
 
   const filteredExactProducts = useMemo(
     () =>
@@ -968,6 +1139,14 @@ function Home() {
                           : "matches"}{" "}
                         found
                       </p>
+
+                      {exactHasMore && (
+                        <p className="mt-1 text-xs text-gray-400">
+                          Showing {exactProducts.length}{" "}
+                          of {exactTotal} exact
+                          matches
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -980,6 +1159,23 @@ function Home() {
                         )
                       )}
                     </div>
+
+                    {exactHasMore && (
+                      <div className="mt-8 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void loadMore("exact")
+                          }
+                          disabled={loadingMore}
+                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {loadingMore
+                            ? "Loading more…"
+                            : "Load more exact matches"}
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1106,6 +1302,15 @@ function Home() {
                           : "products"}{" "}
                         from related matches
                       </p>
+
+                      {similarHasMore && (
+                        <p className="mt-1 text-xs text-gray-400">
+                          Showing{" "}
+                          {similarProducts.length} of{" "}
+                          {similarTotal} similar
+                          products
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1118,6 +1323,23 @@ function Home() {
                         )
                       )}
                     </div>
+
+                    {similarHasMore && (
+                      <div className="mt-8 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void loadMore("similar")
+                          }
+                          disabled={loadingMore}
+                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {loadingMore
+                            ? "Loading more…"
+                            : "Load more similar products"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -20,7 +20,7 @@ function check(name: string, cond: boolean, detail: string) {
 const SEARCH = "http://localhost:3000/api/search";
 
 async function search(q: string) {
-  const res = await fetch(`${SEARCH}?q=${encodeURIComponent(q)}`);
+  const res = await fetch(`${SEARCH}?q=${encodeURIComponent(q)}&debug=1`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -388,7 +388,7 @@ const bQuery = "men Nike Black 41 Sneakers";
 }
 
 {
-  const res = await fetch(`${SEARCH}?q=sneakers&priceMin=5&priceMax=10`);
+  const res = await fetch(`${SEARCH}?q=sneakers&priceMin=5&priceMax=10&debug=1`);
   const budget = await res.json();
   const diag = budget.diagnostics ?? [];
   check(

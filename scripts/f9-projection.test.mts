@@ -76,6 +76,21 @@ async function go(
   return [d, dbg];
 }
 
+/* F10: default is now a bounded window of the ranked envelope, so
+   A4's set-identity lives on the full debug channel (two full calls
+   must be identical); window-vs-full identity is covered by the f10
+   pagination suite (concat(pages) === debug). */
+async function goDebug(
+  q: string
+): Promise<[WireResponse, WireResponse]> {
+  const base = `${SEARCH}?q=${encodeURIComponent(q)}&debug=1`;
+  const [a, b] = await Promise.all([
+    fetch(base).then((r) => r.json()),
+    fetch(base).then((r) => r.json()),
+  ]);
+  return [a, b];
+}
+
 const QUERIES = [
   "tank top",
   "black tank top",
@@ -245,31 +260,32 @@ const scalarCompare = (a: unknown, b: unknown) => {
   );
 }
 
-/* A4: default and debug are semantically identical. */
+/* A4: the full debug envelope is semantically identical across
+   calls (same ranking/counts on the same data). */
 {
   let mismatches = 0;
   let checkedProducts = 0;
   for (const q of QUERIES) {
-    const [d, dbg] = await go(q);
+    const [a, b] = await goDebug(q);
     if (
-      d.exactCount !== dbg.exactCount ||
-      d.similarCount !== dbg.similarCount ||
-      !scalarCompare(d.diagnostics ?? [], dbg.diagnostics ?? []) ||
-      !scalarCompare(d.structuredQuery ?? null, dbg.structuredQuery ?? null) ||
-      !scalarCompare(d.categoryStatus ?? null, dbg.categoryStatus ?? null) ||
-      !scalarCompare(d.similarMessage ?? null, dbg.similarMessage ?? null)
+      a.exactCount !== b.exactCount ||
+      a.similarCount !== b.similarCount ||
+      !scalarCompare(a.diagnostics ?? [], b.diagnostics ?? []) ||
+      !scalarCompare(a.structuredQuery ?? null, b.structuredQuery ?? null) ||
+      !scalarCompare(a.categoryStatus ?? null, b.categoryStatus ?? null) ||
+      !scalarCompare(a.similarMessage ?? null, b.similarMessage ?? null)
     ) {
       mismatches += 1;
     }
     const idsOf = (arr: WireProduct[] | undefined) =>
       (arr ?? []).map((p) => String(p.id)).join(",");
-    if (idsOf(d.exactProducts) !== idsOf(dbg.exactProducts)) mismatches += 1;
-    if (idsOf(d.similarProducts) !== idsOf(dbg.similarProducts)) mismatches += 1;
+    if (idsOf(a.exactProducts) !== idsOf(b.exactProducts)) mismatches += 1;
+    if (idsOf(a.similarProducts) !== idsOf(b.similarProducts)) mismatches += 1;
     checkedProducts +=
-      (d.exactProducts?.length ?? 0) + (d.similarProducts?.length ?? 0);
+      (a.exactProducts?.length ?? 0) + (a.similarProducts?.length ?? 0);
   }
   check(
-    "A4 default == debug for counts, ids, diagnostics, structuredQuery, categoryStatus",
+    "A4 debug == debug for counts, ids, diagnostics, structuredQuery, categoryStatus",
     mismatches === 0,
     `mismatches=${mismatches} over ${checkedProducts} products`
   );

@@ -24,7 +24,7 @@ function check(name, cond, detail) {
 }
 
 async function search(q) {
-  const res = await fetch(`${BASE_URL}/api/search?q=${encodeURIComponent(q)}`);
+  const res = await fetch(`${BASE_URL}/api/search?q=${encodeURIComponent(q)}&debug=1`);
   if (!res.ok) throw new Error(`HTTP ${res.status} for "${q}"`);
   return res.json();
 }

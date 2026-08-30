@@ -117,7 +117,7 @@ check(
 /* ============ INTEGRATION TESTS (live API) ============ */
 
 async function search(q) {
-  const res = await fetch(`${BASE}?q=${encodeURIComponent(q)}`);
+  const res = await fetch(`${BASE}?q=${encodeURIComponent(q)}&debug=1`);
   if (!res.ok) throw new Error(`HTTP ${res.status} for "${q}"`);
   return res.json();
 }

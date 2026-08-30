@@ -44,7 +44,7 @@ interface SearchResponse {
 }
 
 async function search(q: string): Promise<SearchResponse> {
-  const res = await fetch(`${SEARCH}?q=${encodeURIComponent(q)}`);
+  const res = await fetch(`${SEARCH}?q=${encodeURIComponent(q)}&debug=1`);
   if (!res.ok) throw new Error(`HTTP ${res.status} for "${q}"`);
   return res.json() as SearchResponse;
 }

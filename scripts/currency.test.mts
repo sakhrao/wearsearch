@@ -240,6 +240,7 @@ async function liveSearch(
   params: Record<string, string>
 ): Promise<LiveSearchResponse> {
   const qs = new URLSearchParams(params);
+  qs.set("debug", "1");
   const res = await fetch(
     `http://localhost:3000/api/search?${qs.toString()}`
   );

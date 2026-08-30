@@ -10,7 +10,7 @@ const src = readFileSync(FILE, "utf8");
 
 async function search(q) {
   const r = await fetch(
-    `${BASE_URL}/api/search?q=${encodeURIComponent(q)}`,
+    `${BASE_URL}/api/search?q=${encodeURIComponent(q)}&debug=1`,
     { signal: AbortSignal.timeout(30000) }
   );
   return await r.json();

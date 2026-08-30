@@ -10,6 +10,13 @@ import {
   type DiagStrictVector,
 } from "@/lib/search-diagnostics";
 import { hasRealProductPage } from "@/lib/product-url";
+import {
+  FACET_KEYS,
+  countProductsForFacetValue,
+  getProductFacets,
+  type ActiveFacetFilters,
+  type FacetProduct,
+} from "@/lib/search-facets";
 
 /* F1 (Post-Audit Product Readiness): demo/playground items have
    no real product page, so they must never surface in
@@ -39,6 +46,134 @@ const availVariants = <
       variant.availability ===
       "AVAILABLE"
   );
+
+/* F10 (result pagination): the production payload is bounded to
+   one ranked page. Ranking is computed in full on every request,
+   and slicing happens at serialization only. exactCount/similarCount
+   keep their meaning of TOTAL matches; exactHasMore/similarHasMore
+   drive the Load-more UI. ?debug=1 bypasses pagination entirely so
+   the ordering/count contract suites keep reading the full envelope.
+
+   FACET_TRUTH (F10): the page's facet options + counts are computed
+   server-side over the FULL ranked result set (exact + similar, F1-
+   filtered) using the same lib the client uses, so truncating the
+   payload can never truncate the facet options or their counts. */
+const RESULT_PAGE_SIZE = 30;
+const RESULT_PAGE_CAP = 100;
+
+const EMPTY_ACTIVE_FILTERS: ActiveFacetFilters = {
+  gender: new Set<string>(),
+  category: new Set<string>(),
+  color: new Set<string>(),
+  size: new Set<string>(),
+  brand: new Set<string>(),
+};
+
+type FacetEntry = {
+  value: string;
+  label: string;
+  count: number;
+};
+
+type FacetsBlock = Record<
+  keyof ActiveFacetFilters,
+  FacetEntry[]
+>;
+
+const EMPTY_FACETS: FacetsBlock = {
+  gender: [],
+  category: [],
+  color: [],
+  size: [],
+  brand: [],
+};
+
+const toFacetCount = (
+  value: number,
+  fallback: number
+): number =>
+  Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : fallback;
+
+const parsePageParams = (
+  searchParams: URLSearchParams
+): { limit: number; offset: number } => {
+  const rawLimit = searchParams.get("limit");
+  const rawOffset = searchParams.get("offset");
+
+  const limit =
+    rawLimit === null
+      ? RESULT_PAGE_SIZE
+      : toFacetCount(Number(rawLimit), RESULT_PAGE_SIZE);
+
+  const cappedLimit = Math.min(
+    Math.max(limit, 1),
+    RESULT_PAGE_CAP
+  );
+
+  const offset =
+    rawOffset === null
+      ? 0
+      : toFacetCount(Number(rawOffset), 0);
+
+  return {
+    limit: cappedLimit,
+    offset: Math.max(offset, 0),
+  };
+};
+
+const computeFacetBlock = (
+  products: FacetProduct[]
+): FacetsBlock => {
+  const options: Record<
+    keyof ActiveFacetFilters,
+    Map<string, FacetEntry>
+  > = {
+    gender: new Map(),
+    category: new Map(),
+    color: new Map(),
+    size: new Map(),
+    brand: new Map(),
+  };
+
+  for (const key of FACET_KEYS) {
+    for (const product of products) {
+      for (const entry of getProductFacets(product)[
+        key
+      ]) {
+        if (!options[key].has(entry.value)) {
+          options[key].set(entry.value, {
+            value: entry.value,
+            label: entry.label,
+            count: 0,
+          });
+        }
+      }
+    }
+
+    for (const entry of options[key].values()) {
+      entry.count = countProductsForFacetValue(
+        key,
+        entry.value,
+        EMPTY_ACTIVE_FILTERS,
+        products
+      );
+    }
+  }
+
+  return {
+    gender: [
+      ...options.gender.values(),
+    ],
+    category: [
+      ...options.category.values(),
+    ],
+    color: [...options.color.values()],
+    size: [...options.size.values()],
+    brand: [...options.brand.values()],
+  };
+};
 
 /* F9 (response projection): the production payload is an explicit
    whitelist of the fields page.tsx actually renders (verified by a
@@ -574,9 +709,19 @@ export async function GET(
     /* F9: debug is the only channel that restores the scoring
        internals onto the serialized products. Production requests
        (including every URL-state / find flow) never set it, so the
-       default payload stays a strict whitelist. */
+       default payload stays a strict whitelist.
+
+       F10: debug also bypasses result pagination - it always
+       returns the full ranked envelope, so ordering/count contract
+       tests keep comparing directly against today's behavior. */
     const debug =
       searchParams.get("debug") === "1";
+
+    /* F10: production pagination. Parsed once, applied at the
+       serialization boundary only (never to matching/scoring/rank/
+       diagnostics/categoryStatus). */
+    const { limit, offset } =
+      parsePageParams(searchParams);
 
     const parsePriceParam = (
       raw: string | null
@@ -636,6 +781,9 @@ export async function GET(
         },
         exactCount: 0,
         similarCount: 0,
+        exactHasMore: false,
+        similarHasMore: false,
+        facets: EMPTY_FACETS,
         exactProducts: [],
         similarProducts: [],
       });
@@ -2154,20 +2302,62 @@ export async function GET(
 
        F9: every serialized product passes through the strict
        whitelist projection; the scoring internals are restored
-       exclusively under ?debug=1 (projectProduct). */
-    const returnedExactProducts =
-      exactProducts
-        .filter(hasRealPage)
-        .map((product) =>
-          projectProduct(product, debug)
+       exclusively under ?debug=1 (projectProduct).
+
+       F10: the serialized lists are bounded to one ranked page
+       (limit/offset) except under ?debug=1, which returns the
+       full envelope. exactCount/similarCount stay TOTAL matches;
+       exactHasMore/similarHasMore drive Load-more. The facet
+       truth block is computed over the full ranked set (exact +
+       similar, F1-filtered) BEFORE slicing, so truncating the
+       payload can never truncate facet options or their counts. */
+    const serializableExactProducts =
+      exactProducts.filter(hasRealPage);
+
+    const serializableSimilarProducts =
+      similarProducts.filter(hasRealPage);
+
+    const facets = computeFacetBlock([
+      ...serializableExactProducts,
+      ...serializableSimilarProducts,
+    ]);
+
+    const fullExactProducts =
+      serializableExactProducts.map((product) =>
+        projectProduct(product, debug)
+      );
+
+    const fullSimilarProducts =
+      serializableSimilarProducts.map((product) =>
+        projectProduct(product, debug)
+      );
+
+    const exactTotal = fullExactProducts.length;
+    const similarTotal = fullSimilarProducts.length;
+
+    const returnedExactProducts = debug
+      ? fullExactProducts
+      : fullExactProducts.slice(
+          offset,
+          offset + limit
         );
 
-    const returnedSimilarProducts =
-      similarProducts
-        .filter(hasRealPage)
-        .map((product) =>
-          projectProduct(product, debug)
+    const returnedSimilarProducts = debug
+      ? fullSimilarProducts
+      : fullSimilarProducts.slice(
+          offset,
+          offset + limit
         );
+
+    const exactHasMore =
+      !debug &&
+      offset + returnedExactProducts.length <
+        exactTotal;
+
+    const similarHasMore =
+      !debug &&
+      offset + returnedSimilarProducts.length <
+        similarTotal;
 
     /* =====================================================
        EMPTY-RESULT DIAGNOSTICS (spec §11)
@@ -2288,7 +2478,7 @@ export async function GET(
     };
 
     const diagnostics =
-      returnedExactProducts.length === 0 &&
+      exactTotal === 0 &&
       scoredProducts.length > 0
         ? buildSearchDiagnostics({
             categoryClause,
@@ -2333,11 +2523,15 @@ export async function GET(
 
       categoryStatus,
 
-      exactCount:
-        returnedExactProducts.length,
+      exactCount: exactTotal,
 
-      similarCount:
-        returnedSimilarProducts.length,
+      similarCount: similarTotal,
+
+      exactHasMore,
+
+      similarHasMore,
+
+      facets,
 
       similarMessage,
 
