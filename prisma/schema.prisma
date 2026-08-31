@@ -111,10 +111,28 @@ model Size {
   system          SizeSystem
   value           String
   normalizedValue String
-  createdAt       DateTime         @default(now())
-  variants        ProductVariant[]
+
+  /* Phase-1 context foundation (architecture C). New fields are
+     additive only: existing columns are untouched and the old
+     unique (category, system, value) is preserved. audience and
+     productType are required via safe defaults (UNKNOWN) until the
+     Phase-2 backfill assigns real values; the (audience, productType,
+     system, value) unique stops looking-alike sizes (US Men 8 vs
+     US Women 8 vs US Kids 8, EU 8 vs US 8) from ever collapsing in
+     the same row. numericValue/ordinal/displayValue/subsystem stay
+     optional: they will be populated only from real catalog data. */
+  audience      SizeAudience     @default(UNKNOWN)
+  productType   SizeProductType  @default(UNKNOWN)
+  numericValue  Float?
+  ordinal       Int?
+  displayValue  String?
+  subsystem     String?
+
+  createdAt     DateTime         @default(now())
+  variants      ProductVariant[]
 
   @@unique([category, system, value])
+  @@unique([audience, productType, system, value])
   @@index([normalizedValue])
 }
 
@@ -244,6 +262,26 @@ enum SizeSystem {
   UK
   IT
   FR
+  UNKNOWN
+}
+
+/* Who a size value belongs to. UNKNOWN is the Phase-1 default for
+   rows the catalog has not yet classified; it never means "delete". */
+enum SizeAudience {
+  MEN
+  WOMEN
+  KIDS
+  UNISEX
+  UNKNOWN
+}
+
+/* What kind of garment / item the size measures. Kept separate from
+   the legacy "category" column (clothing/shoes) which stays as is. */
+enum SizeProductType {
+  CLOTHING
+  FOOTWEAR
+  ACCESSORY
+  HEADWEAR
   UNKNOWN
 }
 
