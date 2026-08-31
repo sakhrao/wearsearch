@@ -471,6 +471,134 @@ const SIZE_ALIAS_WORDS: Record<
   "double extra large": "XXL",
 };
 
+/* Stage 3-C: explicit size-system words. A token becomes a size
+   system constraint ONLY when a size value is also detected and the
+   token sits adjacent to it (see detectSizeSystem): otherwise the
+   word remains plain query text, so legacy bare-size behavior is
+   untouched. EU/US/UK/IT/FR pin the exact stored column; a system
+   column that does not exist in the catalog can therefore never
+   invent a match (evidence-based empty + diagnostics). */
+const SIZE_SYSTEM_WORDS: Record<
+  string,
+  string
+> = {
+  eu: "EU",
+  us: "US",
+  uk: "UK",
+  it: "IT",
+  fr: "FR",
+  international: "INTERNATIONAL",
+};
+
+/* Stage 3-C: given the size span in the normalized query, find a
+   system token adjacent to it. Adjacency is measured on tokens:
+   EU/US/UK/INTERNATIONAL may be at most one token from the size
+   value; the ambiguous two-letter forms IT/FR only match as a
+   direct neighbour (so "it" as a pronoun cannot consume a distant
+   size). Returns the system name; the caller masks the token from
+   the free-text remainder. */
+function detectSizeSystem(
+  normalizedQuery: string,
+  sizeSpan: { index: number; length: number }
+): { system: string; word: string } | null {
+  const tokenAt: Array<{
+    start: number;
+    end: number;
+    text: string;
+  }> = [];
+
+  for (const match of normalizedQuery.matchAll(
+    /[^\s-]+/g
+  )) {
+    const start = match.index ?? 0;
+    tokenAt.push({
+      start,
+      end: start + match[0].length,
+      text: match[0],
+    });
+  }
+
+  if (tokenAt.length === 0) {
+    return null;
+  }
+
+  const sizeStart = sizeSpan.index;
+  const sizeEnd = sizeSpan.index + sizeSpan.length;
+
+  let sizeLastTokenIndex = -1;
+  for (let i = 0; i < tokenAt.length; i++) {
+    const token = tokenAt[i];
+    if (
+      token.start < sizeEnd &&
+      token.end > sizeStart
+    ) {
+      sizeLastTokenIndex = i;
+    }
+  }
+
+  if (sizeLastTokenIndex < 0) {
+    return null;
+  }
+
+  for (let i = 0; i < tokenAt.length; i++) {
+    const token = tokenAt[i];
+    const system = token.text
+      ? SIZE_SYSTEM_WORDS[token.text]
+      : undefined;
+
+    if (!system) {
+      continue;
+    }
+
+    const distance = Math.abs(
+      i - sizeLastTokenIndex
+    );
+    const directOnly =
+      system === "IT" || system === "FR";
+
+    if (directOnly ? distance === 1 : distance <= 2) {
+      return { system, word: token.text };
+    }
+  }
+
+  return null;
+}
+
+/* Stage 3-C: strict identity match for a system-qualified size
+   constraint. An explicit system never folds across columns: EU 42
+   matches EU 42 only, US 42 matches US 42 only, and INTERNATIONAL
+   matches the stored INTERNATIONAL column only. A variant without
+   a system is never assumed to satisfy an explicit system. */
+function variantMatchesSizeSystem(
+  size: {
+    value: string | null;
+    system: string | null;
+  } | null,
+  value: string,
+  system: string
+): boolean {
+  if (!size || !size.value) {
+    return false;
+  }
+
+  if (
+    normalizeText(size.value) !==
+    normalizeText(value)
+  ) {
+    return false;
+  }
+
+  const variantSystem = normalizeText(
+    size.system ?? ""
+  );
+
+  if (system === "INTERNATIONAL") {
+    return variantSystem === "international";
+  }
+
+  return variantSystem === system.toLowerCase();
+}
+
 const CATEGORY_ALIAS_WORDS: Record<
   string,
   string
@@ -512,6 +640,11 @@ const CATEGORY_ALIAS_WORDS: Record<
   cap: "Caps",
   caps: "Caps",
   sweatpants: "Joggers",
+  /* Stage 3-C: blouse/blouses resolve to the Blouses category
+     explicitly (already reachable via plural-flex on the catalog
+     name; the alias makes the lexicon self-documenting). */
+  blouse: "Blouses",
+  blouses: "Blouses",
 };
 
 type Gender =
@@ -581,7 +714,8 @@ function normalizeGender(
 
   KIDS search:
     KIDS   ✓
-    UNISEX ✓
+    UNISEX ✗  (Stage 3-C: UNISEX never folds into KIDS --
+                same unified rule as Questionnaire/Refine)
     MEN    ✗
     WOMEN  ✗
 
@@ -618,10 +752,10 @@ function genderMatches(
   }
 
   if (requested === "KIDS") {
-    return (
-      product === "KIDS" ||
-      product === "UNISEX"
-    );
+    /* Stage 3-C: KIDS matches KIDS products only. UNISEX is a
+       MEN/WOMEN admission; it never folds into a KIDS search
+       (unified with Questionnaire + Refine). */
+    return product === "KIDS";
   }
 
   return product === "UNISEX";
@@ -651,6 +785,13 @@ type SearchEnvelope = {
     color: string | null;
     colors: string[];
     size: string | null;
+    /* Stage 3-C (additive): present only when the query carried an
+       explicit size system (EU/US/UK/IT/FR/INTERNATIONAL) next to
+       a size value. size stays the abstract value; the system is
+       the stored column the engine matched against and sizeAudience
+       is the audience the engine derived for it. */
+    sizeSystem: string | null;
+    sizeAudience: string | null;
     gender: string | null;
     attributes: Array<{
       attributeName: string;
@@ -1018,7 +1159,10 @@ export async function GET(
        entity is consumed before the next dictionary runs)
     ===================================================== */
 
-    let workingQuery = looseNormalize(query);
+    const normalizedQuery =
+      looseNormalize(query);
+
+    let workingQuery = normalizedQuery;
 
     const detectEntity = (
       values: string[]
@@ -1092,13 +1236,25 @@ export async function GET(
     const detectedColor =
       detectedColors[0] ?? null;
 
-    const detectedSizeRaw =
-      detectEntity([
+    const sizeValueHit = findMatchSpan(
+      workingQuery,
+      [
         ...sizeValues,
         ...Object.keys(
           SIZE_ALIAS_WORDS
         ),
-      ]);
+      ]
+    );
+
+    if (sizeValueHit) {
+      workingQuery = maskValue(
+        workingQuery,
+        sizeValueHit.value
+      );
+    }
+
+    const detectedSizeRaw =
+      sizeValueHit?.value ?? null;
 
     const detectedSize =
       detectedSizeRaw
@@ -1108,6 +1264,30 @@ export async function GET(
             )
           ] ?? detectedSizeRaw)
         : null;
+
+    /* Stage 3-C: an explicit system token becomes a size-system
+       constraint ONLY when a size value is also present and the
+       token sits adjacent to it (detectSizeSystem). Otherwise the
+       system word stays plain query text - legacy bare-size
+       queries behave exactly as before. The system token is then
+       masked so it cannot leak into free-text scoring. */
+    const detectedSizeSystem =
+      sizeValueHit && detectedSize
+        ? detectSizeSystem(
+            normalizedQuery,
+            {
+              index: sizeValueHit.index,
+              length: sizeValueHit.length,
+            }
+          )
+        : null;
+
+    if (detectedSizeSystem) {
+      workingQuery = maskValue(
+        workingQuery,
+        detectedSizeSystem.word
+      );
+    }
 
     const genderWords = [
       "women",
@@ -1341,6 +1521,16 @@ export async function GET(
       color: detectedColor,
       colors: detectedColors,
       size: detectedSize,
+      /* Stage 3-C additive fields. size stays the abstract value
+         for every query; sizeSystem/sizeAudience are non-null only
+         when the query carried an explicit size system. */
+      sizeSystem:
+        detectedSizeSystem?.system ??
+        null,
+      sizeAudience:
+        detectedSizeSystem
+          ? detectedGender
+          : null,
       gender: detectedGender,
       attributes: detectedAttributes,
       budget: hasBudget
@@ -1449,6 +1639,10 @@ export async function GET(
     addStructuredWords(detectedColor);
     addStructuredWords(detectedSizeRaw);
     addStructuredWords(detectedSize);
+    addStructuredWords(
+      detectedSizeSystem?.system ??
+        null
+    );
     addStructuredWords(
       detectedGenderRaw
     );
@@ -1820,12 +2014,22 @@ export async function GET(
               );
 
         const sizeMatches =
-          !detectedSize ||
-          productSizes.includes(
-            normalizeText(
-              detectedSize
-            )
-          );
+          !detectedSize
+            ? true
+            : detectedSizeSystem
+              ? purchasableVariants.some(
+                  (variant) =>
+                    variantMatchesSizeSystem(
+                      variant.size,
+                      detectedSize,
+                      detectedSizeSystem.system
+                    )
+                )
+              : productSizes.includes(
+                  normalizeText(
+                    detectedSize
+                  )
+                );
 
         const productGenderMatches =
           genderMatches(
@@ -2513,13 +2717,22 @@ export async function GET(
             (product) =>
               availVariants(
                 product
-              ).some(
-                (variant) =>
-                  variant.size &&
-                  normalizeText(
-                    variant.size.value
-                  ) ===
-                    normalizeText(detectedSize)
+              ).some((variant) =>
+                detectedSizeSystem
+                  ? variantMatchesSizeSystem(
+                      variant.size,
+                      detectedSize,
+                      detectedSizeSystem.system
+                    )
+                  : Boolean(
+                      variant.size &&
+                        normalizeText(
+                          variant.size.value
+                        ) ===
+                          normalizeText(
+                            detectedSize
+                          )
+                    )
               )
           )
         : true,

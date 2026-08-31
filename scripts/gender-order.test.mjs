@@ -139,8 +139,9 @@ for (const [q, expectedGender, opposite] of MIXED_QUERIES) {
   }
 }
 
-/* KIDS: no real KIDS- or UNISEX-compatible jeans remain after the
-   PR2-F1 demo exclusion -> honest empty, no MEN/WOMEN leak. */
+/* KIDS: no real KIDS jeans remain after the PR2-F1 demo exclusion ->
+   honest empty, no MEN/WOMEN leak. Stage 3-C: KIDS keeps a pure KIDS
+   shape - UNISEX never folds into a KIDS result (unified rule). */
 {
   const d = await search("kids jeans");
   check(
@@ -150,12 +151,12 @@ for (const [q, expectedGender, opposite] of MIXED_QUERIES) {
   );
   const all = [...d.exactProducts, ...d.similarProducts];
   check(
-    "kids jeans -> no MEN/WOMEN leak",
-    all.every((p) => p.gender === "KIDS" || p.gender === "UNISEX"),
+    "kids jeans -> no MEN/WOMEN/UNISEX leak",
+    all.every((p) => p.gender === "KIDS"),
     `genders=${[...new Set(all.map((p) => p.gender))].join(",")}`
   );
   check(
-    "kids jeans -> honest empty with diagnostic (no real KIDS/UNISEX jeans)",
+    "kids jeans -> honest empty with diagnostic (no real KIDS jeans)",
     d.exactCount > 0 || (d.diagnostics ?? []).length > 0,
     `exact=${d.exactCount} diag=[${(d.diagnostics ?? []).join(" | ")}]`
   );

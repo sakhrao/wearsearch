@@ -127,8 +127,9 @@ function everyGenderIn(products, allowed) {
   );
 }
 
-/* 4. kids jeans -> KIDS detection; only KIDS/UNISEX shape; honest
-   empty today (no real KIDS/UNISEX jeans) */
+/* 4. kids jeans -> KIDS detection; KIDS shape only (Stage 3-C:
+   UNISEX never folds into KIDS, unified with Questionnaire/Refine);
+   honest empty today (no real KIDS jeans) */
 {
   const d = await search("kids jeans");
   check(
@@ -137,12 +138,12 @@ function everyGenderIn(products, allowed) {
     `gender=${d.structuredQuery.gender}`
   );
   check(
-    "kids jeans -> no MEN/WOMEN leak into Exact or Similar",
-    everyGenderIn([...d.exactProducts, ...d.similarProducts], ["KIDS", "UNISEX"]),
+    "kids jeans -> no MEN/WOMEN/UNISEX leak into Exact or Similar",
+    everyGenderIn([...d.exactProducts, ...d.similarProducts], ["KIDS"]),
     `genders=${[...new Set([...d.exactProducts, ...d.similarProducts].map((p) => p.gender))].join(",")}`
   );
   check(
-    "kids jeans -> honest empty with diagnostic (no real UNISEX jeans)",
+    "kids jeans -> honest empty with diagnostic (no real KIDS jeans)",
     d.exactCount > 0 || (d.diagnostics ?? []).length > 0,
     `exact=${d.exactCount} diag=[${(d.diagnostics ?? []).join(" | ")}]`
   );

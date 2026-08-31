@@ -23,6 +23,11 @@ const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
        their own gender (spec §2 UNISEX-admission holds vacuously).
      - jeans 6->1 (one real WOMEN jean remains), t-shirts 19->12,
        tank tops 58->51, shoes 71->49, clothing subtree 455.
+   From 8/31, this file also reflects the Stage 3-C parser change:
+   an explicit size system next to a size ("eu 41 sneakers") is now a
+   system-identity constraint instead of inert text, so that one case
+   was re-pinned (7 -> 0). No other case changes: bare sizes and the
+   rest of the pipeline are behavior-identical.
    ===================================================================== */
 
 const CASES = [
@@ -241,10 +246,10 @@ exact: 14,
   },
   {
     q: "eu 41 sneakers",
-    exact: 7,
+    exact: 0,
     similar: 0,
     struct: { category: "Sneakers", size: "41" },
-    note: "new in 6.5.2: numeric system prefix 'eu' stays inert, numeric size untouched by letter aliases; re-based P1/P5: real EU 41 sizes restored on Trendsi sneakers",
+    note: "Stage 3-C intended change: 'eu' is no longer inert text next to a size - it becomes the EU system constraint, so EU 41 matches the EU column only. The real catalog carries US sizes on real products (every EU size is on F1-excluded demo rows), so this honest-empty differs from bare 'sneakers 41' (7) and the old 'eu inert' behavior (7).",
   },
   {
     q: "tee",

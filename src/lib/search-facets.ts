@@ -117,8 +117,9 @@ export function getProductFacets(
      any selected gender),
    - size matches on the contextual identity (Stage 3-B):
      audience | productType | system | value. A chip built for
-     one audience never matches another audience's size, and EU 42
-     never matches US 42. */
+     one audience never matches another audience's size, EU 42
+     never matches US 42, and a UNISEX product folds into the
+     MEN/WOMEN selection only - never KIDS. */
 export function productMatchesFilters(
   product: FacetProduct,
   activeFilters: ActiveFacetFilters
@@ -139,7 +140,12 @@ export function productMatchesFilters(
         ? values.some(
             (value) =>
               selected.has(value) ||
-              value === "UNISEX"
+              /* Stage 3-C: a UNISEX product matches a selected
+                 gender only when the selection is NOT KIDS. KIDS
+                 never admits UNISEX (unified with the engine's
+                 genderMatches and the Questionnaire answers). */
+              (value === "UNISEX" &&
+                !selected.has("KIDS"))
           )
         : key === "size"
           ? productMatchesSizeIdentity(
@@ -297,9 +303,10 @@ export function buildWindowFacetCounts(
    count are derived in a single pass (O(P x V)) with semantics
    byte-identical to countProductsForFacetValue over EMPTY filters:
    - gender: a product counts for its own gender, and a UNISEX
-     product matches ANY selected gender, so every non-UNISEX
-     option also includes the UNISEX products (the UNISEX option
-     itself counts UNISEX products once);
+     product matches a MEN/WOMEN selection (never KIDS, Stage 3-C),
+     so the MEN/WOMEN options include the UNISEX products while the
+     KIDS option does not (the UNISEX option itself counts UNISEX
+     products once);
    - category/brand/color/size: a product contributes at most +1
      per value it carries, regardless of how many variants carry
      that value.
@@ -364,7 +371,13 @@ export function buildServerFacetBlock(
   for (const entry of options.gender.values()) {
     entry.count =
       (genderOwn.get(entry.value) ?? 0) +
-      (entry.value === "UNISEX" ? 0 : unisexCount);
+      /* Stage 3-C: UNISEX products fold into MEN/WOMEN counts
+         (and only there - KIDS never admits UNISEX, matching
+         productMatchesFilters/countProductsForFacetValue). */
+      (entry.value === "UNISEX" ||
+      entry.value === "KIDS"
+        ? 0
+        : unisexCount);
   }
 
   for (const key of ["category", "color", "size", "brand"] as const) {
