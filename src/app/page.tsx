@@ -416,14 +416,29 @@ function Home() {
      one search per resolved URL search. */
   const urlSearchKey = searchParams.toString();
 
-  /* The last urlSearchKey the URL effect acted on. A re-run of the
-     SAME urlSearchKey is state churn (`loading` / `fxRate` flip) and
-     never a URL change — only a urlSearchKey that actually differs
-     marks a new navigation. Lets the F15-C2 defer path distinguish a
-     genuine URL change mid-load from the Search button's own push
-     (whose bump used to invalidate the very search it launched,
-     leaving the previous results on screen). */
-  const lastUrlProcessedRef = useRef<string>(urlSearchKey);
+  /* The urlSearchKey that was current when the running search was
+     launched (set in handleSearch). F15-C2 must tell a real new
+     navigation apart from the router's own settling of a Search
+     button push: while a search is in flight, router.push /
+     useSearchParams can re-commit the pre-push urlSearchKey (here
+     populated, or an empty "/") several times. Those re-commits are
+     that search's own churn — urlSearchKey === searchStartUrlKeyRef —
+     and must not bump the F11 epoch, or the bar search would discard
+     its own response while the previous results stayed under the new
+     URL. A urlSearchKey that actually differs from it is a genuine
+     navigation, so the in-flight response is deferred and the newest
+     URL intent runs once the search settles. */
+  const searchStartUrlKeyRef = useRef<string>(urlSearchKey);
+
+  /* While router.push from the Search button is settling, the effect can
+     re-run with the PRE-PUSH urlSearchKey (fxRate syncs, loading flips)
+     even after the launched search already finished: lastUrlSearchKeyRef
+     now holds the new intent, so the old key would look like a new URL
+     to run and re-execute the previous query. The arm is set on launch
+     and cleared the moment a urlSearchKey other than the start key is
+     acted on; while armed, the effect treats the start key itself as
+     non-actionable — it belongs to the search just launched. */
+  const searchLaunchArmedRef = useRef(false);
 
   /* F14-C1: is the current URL stuck waiting for the fx rate?
      Drives the wait/error/retry surface only; parsing is
@@ -432,10 +447,37 @@ function Home() {
     parseSearchUrl(searchParams, fxRate).kind === "wait-fx";
 
   useEffect(() => {
+    /* The router can commit a render whose useSearchParams still
+       carries a PREVIOUS url while the address bar already shows the
+       pushed URL (and vice-versa during settle). Acting on that stale
+       report re-executes a previous intent after its search finished
+       and can paint it back under the new URL. Only process the
+       urlSearchKey that matches the live location; the router catches
+       up on the final commit and this effect re-runs for the match. */
+    if (urlSearchKey !==
+      new URLSearchParams(window.location.search).toString()) {
+      return;
+    }
+
     const search = new URLSearchParams(urlSearchKey);
     const parsed = parseSearchUrl(search, fxRate);
-    const prevUrl = lastUrlProcessedRef.current;
-    lastUrlProcessedRef.current = urlSearchKey;
+
+    /* While the Search button's push is still settling, the effect can
+       re-run with the pre-push urlSearchKey (fxRate sync, loading flip)
+       after the launched search already executed: lastUrlSearchKeyRef
+       holds the NEW intent now, so this OLD key would read as a fresh
+       URL to run and re-execute the previous query under the pending
+       URL. Skipping it keeps the churn inert; any urlSearchKey other
+       than the launch key is still processed normally below. */
+    if (
+      searchLaunchArmedRef.current &&
+      urlSearchKey === searchStartUrlKeyRef.current &&
+      (parsed.intent === null ||
+        lastUrlSearchKeyRef.current !==
+          searchIntentKey(parsed.intent))
+    ) {
+      return;
+    }
 
     if (parsed.kind === "wait-fx") {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- URL-driven restore while engine bounds wait for the fx rate
@@ -443,13 +485,23 @@ function Home() {
       return;
     }
 
+    /* A transient empty urlSearchKey with a search in flight is the
+       router settling a Search-bar push (the pre-push "/" re-commit).
+       Running resetResults there would bump the F11 epoch and discard
+       the very search the bar just launched. When loading settles the
+       effect re-runs; if the URL really is empty the reset proceeds. */
     if (parsed.kind === "empty") {
+      if (loading) {
+        return;
+      }
+      searchLaunchArmedRef.current = false;
       resetResults();
       return;
     }
 
     if (lastUrlSearchKeyRef.current ===
       searchIntentKey(parsed.intent)) {
+      searchLaunchArmedRef.current = false;
       return;
     }
 
@@ -460,28 +512,30 @@ function Home() {
        through the F11 epoch and let this effect re-run once the
        search settles (loading flips), so the latest URL intent
        executes exactly once.
-       The defer only applies to a REAL URL change: the urlSearchKey
-       actually differs from the last processed one AND the parsed
-       intent is not the search already in flight (the Search
-       button / Enter launches a search directly and pushes its own
-       URL — when that push lands while loading, or `loading` flips
-       before the navigation applies, the effect re-runs for the
-       SAME old URL; that is the in-flight search's own churn, and
-       bumping the epoch there would reject the response and keep
-       the previous results under the new query). */
+       The defer fires ONLY on a genuine navigation: urlSearchKey
+       differs from the one the running search was launched under
+       (searchStartUrlKeyRef) AND the parsed intent is not the
+       search already in flight. The Search button / Enter launches
+       a search directly and pushes its own URL; the router settling
+       that push re-commits the pre-push urlSearchKey — never a new
+       navigation — and bumping the epoch there (or on the key-match
+       early-return) would reject the search it launched and keep
+       the previous results under the new query. */
     if (
       loading &&
-      prevUrl !== urlSearchKey &&
+      urlSearchKey !== searchStartUrlKeyRef.current &&
       lastUrlSearchKeyRef.current !==
         searchIntentKey(parsed.intent)
     ) {
       searchSeqRef.current += 1;
+      searchLaunchArmedRef.current = false;
       return;
     }
     if (loading) {
       return;
     }
 
+    searchLaunchArmedRef.current = false;
     setQuery(parsed.intent.query);
     void handleSearch(parsed.intent, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -539,6 +593,13 @@ function Home() {
     lastUrlSearchKeyRef.current =
       searchIntentKey(intent);
     lastSearchIntentRef.current = intent;
+
+    /* Anchor the defer: this search corresponds to the urlSearchKey
+       that is current right now (the pre-push searchParams), so the
+       router re-committing that same key while the push settles is
+       this search's own churn, not a new navigation. */
+    searchStartUrlKeyRef.current = urlSearchKey;
+    searchLaunchArmedRef.current = true;
 
     if (syncUrl) {
       void router.push(

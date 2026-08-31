@@ -1,25 +1,27 @@
 /* F18 search-bar re-run — deterministic browser regression for the
-   approved fix in src/app/page.tsx.
+   Search Button fix in src/app/page.tsx.
 
-   Editing the search bar after a search and running again used to
-   leave the PREVIOUS results on screen. Root cause: the URL effect,
-   re-running while `loading` flipped, hit the F15-C2 defer for the
-   OLD urlSearchKey while the Search button's own push was still
-   landing. That bump of the F11 epoch invalidated the NEW search's
-   in-flight response; once the navigation applied, the effect
-   matched lastUrlSearchKeyRef and early-returned, so nothing
-   re-executed and the old results stayed under the new query.
+   Root cause (proven read-only, HEAD 911d743): the F15-C2 defer fired
+   whenever urlSearchKey differed from the last PROCESSED key. router.push
+   used by the Search button settles through non-monotonic urlSearchKey
+   re-commits (old -> new -> old -> ...), so the pre-push key re-appearing
+   mid-load was misread as a new navigation and bumped the F11 epoch,
+   discarding the bar search it had just launched; the OLD intent then
+   re-executed and painted under the new URL. The fix anchors the defer to
+   the urlSearchKey that was current when the search launched
+   (searchStartUrlKeyRef), so only a genuinely different urlSearchKey
+   defers, and guards the empty branch so a transient "/" re-commit cannot
+   reset the in-flight search.
 
-   The fix scopes the F15-C2 defer to a REAL URL change (urlSearchKey
-   differs from the last processed one AND the parsed intent is not
-   the in-flight search), so the button/Enter path's own churn never
-   invalidates its own search.
-
-   R1  re-running with new text replaces old results; URL, input and
-       results all reflect the new query.
-   R2  a second re-run replaces again (no accumulation, no stale).
-   R3  after an F15-style held interleave, a bar re-run still lands on
-       the bar query's final results.
+   R1  clothing -> dress via the bar: exactly one /api/search (dress),
+       never a re-fired clothing; URL/input/results = dress; no stuck
+       "Searching...".
+   R2  clothing -> tops -> jeans: each intent runs once, previous intents
+       never re-execute, final results match the final URL.
+   R3  first search from a fresh "/": paints results with a single request.
+   R4  F15 preserved: a REAL pushState to another intent during a held
+       search defers it exactly once, the held response never paints, and
+       the newest intent runs once after the search settles.
 
    Run: npx tsx scripts/browser/f18-search-bar-rerun.mjs <ws-url>
    against next dev + the CDP page target (fresh tab per run). */
@@ -30,7 +32,7 @@ let passed = 0;
 let failed = 0;
 let holdAll = false;
 const held = [];
-const seen = [];
+let apiLog = [];
 
 function check(name, cond, detail) {
   if (cond) {
@@ -51,10 +53,7 @@ function send(method, params = {}) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function ev(expression) {
-  const msg = await send("Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-  });
+  const msg = await send("Runtime.evaluate", { expression, returnByValue: true });
   return msg.result?.result?.value;
 }
 async function waitFor(fn, timeout = 30000) {
@@ -64,51 +63,10 @@ async function waitFor(fn, timeout = 30000) {
       const v = await fn();
       if (v) return v;
     } catch {}
-    await sleep(100);
+    await sleep(60);
   }
   throw new Error("timeout");
 }
-
-const href = () => ev(`location.href`);
-const inputVal = () =>
-  ev(`(document.querySelector('input[aria-label="Search for clothes"]') || {}).value`);
-const running = () => ev(`document.body.innerText.includes("Searching...")`);
-const cards = () => ev(`document.querySelectorAll("article").length`);
-const firstAlt = () =>
-  ev(`(document.querySelector("article img") || {}).alt || null`);
-const bodyText = () => ev(`document.body.innerText`);
-const settled = async (minCards = 1) =>
-  (await cards()) >= minCards && !(await running());
-const setInput = (text) =>
-  ev(`(() => {
-    const i = document.querySelector('input[aria-label="Search for clothes"]');
-    if (!i) return false;
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)});
-    i.dispatchEvent(new Event("input", { bubbles: true }));
-    return true;
-  })()`);
-const clickSearch = () =>
-  ev(`(() => {
-    const b = document.querySelector('button[aria-label="Run search"]');
-    if (b) b.click();
-    return true;
-  })()`);
-const pushState = (url) =>
-  ev(`history.pushState({}, "", ${JSON.stringify(url)}); true`);
-const releaseAll = async () => {
-  const ids = held.splice(0);
-  holdAll = false;
-  for (const requestId of ids) {
-    await send("Fetch.continueRequest", { requestId });
-  }
-};
-const headerOf = async () =>
-  ev(`(() => {
-    const el = [...document.querySelectorAll("p")].find(
-      (x) => /^\\d+ exact match(es)? found/.test((x.textContent || "").trim())
-    );
-    return el ? el.textContent.replace(/\\s+/g, " ").trim() : null;
-  })()`);
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
@@ -122,7 +80,7 @@ ws.onmessage = (event) => {
   if (msg.method === "Fetch.requestPaused") {
     const { requestId, request } = msg.params;
     if (request.url.includes("/api/search")) {
-      seen.push(request.url);
+      apiLog.push(request.url.slice(request.url.indexOf("?")));
       if (holdAll) held.push(requestId);
       else void send("Fetch.continueRequest", { requestId });
       return;
@@ -131,141 +89,210 @@ ws.onmessage = (event) => {
   }
 };
 
+const href = () => ev(`location.href`);
+const inputVal = () =>
+  ev(`(document.querySelector('input[aria-label="Search for clothes"]') || {}).value`);
+const running = () => ev(`document.body.innerText.includes("Searching...")`);
+const cards = () => ev(`document.querySelectorAll("article").length`);
+const headerOf = () =>
+  ev(`(() => {
+    const el = [...document.querySelectorAll("p")].find(
+      (x) => /\\d+ exact match(es)? found/.test((x.textContent || "").trim())
+    );
+    return el ? el.textContent.replace(/\\s+/g, " ").trim() : null;
+  })()`);
+const bodyText = () => ev(`document.body.innerText`);
+const searchButtonsEnabled = () =>
+  ev(`(() => { const b = document.querySelector('button[aria-label="Run search"]'); return b ? !b.disabled : false; })()`);
+const typeInto = (text) =>
+  ev(`(() => {
+    const i = document.querySelector('input[aria-label="Search for clothes"]');
+    if (!i) return false;
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)});
+    i.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  })()`);
+const clickSearch = () =>
+  ev(`document.querySelector('button[aria-label="Run search"]').click(); true`);
+const pushState = (url) =>
+  ev(`history.pushState({}, "", ${JSON.stringify(url)}); true`);
+const releaseAll = async () => {
+  const ids = held.splice(0);
+  holdAll = false;
+  for (const requestId of ids) {
+    await send("Fetch.continueRequest", { requestId });
+  }
+};
+const apiQueries = () => apiLog.map((u) => u.split("&")[0]);
+
+async function begin() {
+  apiLog = [];
+}
+
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
 await send("Page.enable");
 await send("Runtime.enable");
 
-const api = async (q) => {
-  const j = await (await fetch(
-    `http://localhost:3000/api/search?q=${encodeURIComponent(q)}&debug=1`
-  )).json();
-  return j;
-};
-const jeans = await api("jeans");
-const dress = await api("dress");
-const jeansCount = jeans.exactCount ?? 0;
-const dressCount = dress.exactCount ?? 0;
-const jeansHeader =
-  jeansCount === 1
-    ? "1 exact match found"
-    : `${jeansCount} exact matches found`;
-/* A query with zero exact matches renders no N-found paragraph at
-   all — only the "No exact matches found" empty state. */
-const dressHeader =
-  dressCount > 0
-    ? dressCount === 1
-      ? "1 exact match found"
-      : `${dressCount} exact matches found`
-    : null;
-
-/* ================= R1: clothing -> jeans replaces ================= */
+/* ================= R1: clothing -> dress replaces exactly once ================= */
+await send("Fetch.enable", {
+  patterns: [{ urlPattern: "*api/search*", requestStage: "Request" }],
+});
 await send("Page.navigate", { url: "http://localhost:3000/?q=clothing" });
 await waitFor(async () => (await cards()) === 30 && !(await running()));
-const clothingFirst = await firstAlt();
+await sleep(300);
 
-await setInput("jeans");
-await sleep(100);
-await clickSearch();
-await waitFor(async () =>
-  (await href()).endsWith("/?q=jeans") &&
-    (await inputVal()) === "jeans" &&
-    (await settled(jeansCount > 0 ? 1 : 0)) &&
-    !(await running()));
-const r1Href = await href();
-const r1Val = await inputVal();
-const r1Header = await headerOf();
-check("R1 URL reflects the new query",
-  r1Href.endsWith("/?q=jeans"),
-  `href=${r1Href}`);
-check("R1 input reflects the new query",
-  r1Val === "jeans",
-  `input="${r1Val}"`);
-check("R1 results replaced (jeans header, trailing counts gone)",
-  jeansCount > 0
-    ? r1Header === jeansHeader && (await cards()) === jeansCount
-    : r1Header === jeansHeader && (await cards()) === 0,
-  `header="${r1Header}" feared=${jeansHeader} cards=${await cards()}`);
-check("R1 old clothing results are gone",
-  (await firstAlt()) !== clothingFirst &&
-    !(await bodyText()).includes("Showing 30 of"),
-  `first=${await firstAlt()} clothingFirst=${clothingFirst}`);
-
-/* ================= R2: jeans -> dress replaces again ================= */
-await setInput("dress");
-await sleep(100);
+await begin();
+await typeInto("dress");
+await waitFor(searchButtonsEnabled, 15000);
 await clickSearch();
 await waitFor(async () =>
   (await href()).endsWith("/?q=dress") &&
     (await inputVal()) === "dress" &&
-    !(await running()) &&
-    (dressCount > 0 ? (await cards()) >= dressCount : (await cards()) === 0));
-await sleep(250);
-const r2Href = await href();
-const r2Val = await inputVal();
-const r2Header = await headerOf();
-check("R2 second re-run updates the URL",
-  r2Href.endsWith("/?q=dress"),
-  `href=${r2Href}`);
-check("R2 input tracks the new text",
-  r2Val === "dress",
-  `input="${r2Val}"`);
-check("R2 results replaced again, never accumulated",
-  (dressCount > 0
-    ? r2Header === dressHeader && (await cards()) === dressCount
-    : r2Header === null && (await cards()) === 0),
-  `header="${r2Header}" feared=${dressHeader} cards=${await cards()}`);
-check("R2 nothing from the previous run remains",
-  !(await bodyText()).includes(jeansHeader),
-  `staleHeader=${jeansHeader}`);
+    !(await running()));
+await sleep(600); /* give a stale re-fire any chance to appear */
+const r1api = apiQueries();
+check("R1 exactly one request fired, q=dress",
+  r1api.length === 1 && r1api[0] === "?q=dress",
+  JSON.stringify(apiLog));
+check("R1 the old query is never re-run after the click",
+  !apiLog.some((u) => u.startsWith("?q=clothing")),
+  JSON.stringify(apiLog));
+check("R1 URL/input/results = dress",
+  (await href()).endsWith("/?q=dress") &&
+    (await inputVal()) === "dress" &&
+    (await cards()) === 0 &&
+    (await headerOf()) === null,
+  `url=${await href()} input=${await inputVal()} cards=${await cards()} header=${await headerOf()}`);
+check("R1 no stuck Searching... / no stale clothing paint",
+  !(await running()) &&
+    !(await bodyText()).includes("30 exact matches found"),
+  `running=${await running()}`);
 
-/* ============ R3: held interleave then a bar re-run ============ */
+/* ================= R2: clothing -> tops -> jeans, each once ================= */
 await send("Page.navigate", { url: "http://localhost:3000/?q=clothing" });
 await waitFor(async () => (await cards()) === 30 && !(await running()));
+await sleep(300);
 
-seen.length = 0;
+await begin();
+await typeInto("tops");
+await waitFor(searchButtonsEnabled, 15000);
+await clickSearch();
+await waitFor(async () =>
+  (await href()).endsWith("/?q=tops") &&
+    (await inputVal()) === "tops" &&
+    !(await running()));
+await sleep(600);
+const r2a = apiQueries();
+check("R2 tops ran once (no previous intent re-execution)",
+  r2a.length === 1 &&
+    r2a[0] === "?q=tops" &&
+    !apiLog.some((u) => u.startsWith("?q=clothing")),
+  JSON.stringify(apiLog));
+
+await begin();
+await typeInto("jeans");
+await waitFor(searchButtonsEnabled, 15000);
+await clickSearch();
+await waitFor(async () =>
+  (await href()).endsWith("/?q=jeans") &&
+    (await inputVal()) === "jeans" &&
+    (await cards()) === 1 &&
+    (await headerOf()) === "1 exact match found" &&
+    !(await running()));
+await sleep(600);
+const r2b = apiQueries();
+check("R2 jeans ran once (neither tops nor clothing re-executed)",
+  r2b.length === 1 &&
+    r2b[0] === "?q=jeans" &&
+    !apiLog.some((u) =>
+      u.startsWith("?q=clothing") || u.startsWith("?q=tops")),
+  JSON.stringify(apiLog));
+check("R2 final results match the final URL",
+  (await href()).endsWith("/?q=jeans") &&
+    (await cards()) === 1 &&
+    (await headerOf()) === "1 exact match found" &&
+    (await inputVal()) === "jeans",
+  `url=${await href()} cards=${await cards()} header=${await headerOf()}`);
+
+/* ================= R3: first search from a fresh "/" ================= */
+await begin();
+await send("Page.navigate", { url: "http://localhost:3000/" });
+await waitFor(() => ev(`document.readyState === "complete"`));
+await sleep(1500);
+check("R3 home had no stray search requests",
+  apiQueries().length === 0,
+  JSON.stringify(apiLog));
+await begin();
+const ready = await (async () => {
+  await typeInto("clothing");
+  return waitFor(searchButtonsEnabled, 15000);
+})();
+check("R3 bar enabled after typing on home",
+  ready,
+  "button stayed disabled");
+await clickSearch();
+await waitFor(async () =>
+  (await href()).endsWith("/?q=clothing") &&
+    (await inputVal()) === "clothing" &&
+    (await cards()) === 30 &&
+    (await headerOf()) === "30 exact matches found" &&
+    !(await running()));
+await sleep(600);
+const r3api = apiQueries();
+check("R3 first search from / painted results with exactly one request",
+  r3api.length === 1 &&
+    r3api[0] === "?q=clothing" &&
+    (await cards()) === 30 &&
+    (await headerOf()) === "30 exact matches found",
+  `api=${JSON.stringify(apiLog)} cards=${await cards()} header=${await headerOf()}`);
+check("R3 no duplicate/no reset from the home-search race",
+  r3api.filter((u) => u === "?q=clothing").length === 1,
+  JSON.stringify(apiLog));
+
+/* ================= R4: F15 protection preserved ================= */
+await send("Page.navigate", { url: "http://localhost:3000/?q=clothing" });
+await waitFor(async () => (await cards()) === 30 && !(await running()));
+await sleep(300);
+apiLog = [];
+
 holdAll = true;
 await send("Fetch.enable", {
-  patterns: [
-    { urlPattern: "*api/search*", requestStage: "Request" },
-  ],
+  patterns: [{ urlPattern: "*api/search*", requestStage: "Request" }],
 });
-await setInput("tops");
-await sleep(100);
-await clickSearch();               /* tops held */
-await waitFor(() => running());
-await pushState("/?q=jeans");      /* F15-style URL change mid-load */
+await typeInto("jeans");
+await waitFor(searchButtonsEnabled, 15000);
+await clickSearch();               /* A: jeans, held */
+check("R4 the held search is in flight",
+  apiQueries().includes("?q=jeans") && (await running()),
+  `api=${JSON.stringify(apiLog)} running=${await running()}`);
+await pushState("/?q=dress");      /* genuine navigation B mid-load */
 await sleep(400);
-await releaseAll();                /* tops rejected by F11 epoch */
-await waitFor(async () =>
-  (await href()).endsWith("/?q=jeans") &&
-    (await inputVal()) === "jeans" &&
-    !(await running()));
-await sleep(250);
-const r3AfterInterleaveHeader = await headerOf();
-check("R3 deferred intent executed exactly once after F15 interleave",
-  (await inputVal()) === "jeans" &&
-    r3AfterInterleaveHeader === jeansHeader,
-  `header="${r3AfterInterleaveHeader}" feared=${jeansHeader}`);
-
-await setInput("dress");
-await sleep(100);
-await clickSearch();               /* the repaired bar path */
+await releaseAll();                /* A's response must be discarded */
+check("R4 held A (jeans) never paints after release",
+  (await bodyText()).includes("1 exact match found") === false,
+  `body=${(await bodyText()).slice(0, 400)}`);
 await waitFor(async () =>
   (await href()).endsWith("/?q=dress") &&
     (await inputVal()) === "dress" &&
     !(await running()));
-await sleep(250);
-const r3Header = await headerOf();
-check("R3 bar re-run after the interleave lands on its own results",
-  (dressCount > 0
-    ? r3Header === dressHeader && (await cards()) === dressCount
-    : r3Header === null && (await cards()) === 0) &&
-    !(await bodyText()).includes(jeansHeader),
-  `header="${r3Header}" feared=${dressHeader} cards=${await cards()}`);
+await sleep(600);
+const r4api = apiQueries();
+check("R4 exactly one B (dress) execution after the deferral",
+  r4api.filter((u) => u === "?q=dress").length === 1,
+  JSON.stringify(apiLog));
+check("R4 B's results painted under the new URL",
+  (await cards()) === 0 &&
+    (await headerOf()) === null &&
+    (await href()).endsWith("/?q=dress"),
+  `cards=${await cards()} header=${await headerOf()} url=${await href()}`);
+check("R4 A never re-executed; nothing leftover",
+  !apiLog.some((u) => u.startsWith("?q=clothing")) &&
+    apiQueries().filter((u) => u === "?q=jeans").length === 1,
+  JSON.stringify(apiLog));
 await send("Fetch.disable");
 
 console.log(
-  `F18 search-bar rerun: ${passed} passed, ${failed} failed`
+  `F18 search-bar rerun (R1-R4): ${passed} passed, ${failed} failed`
 );
 ws.close();
 process.exit(failed > 0 ? 1 : 0);
