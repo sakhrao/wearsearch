@@ -416,6 +416,15 @@ function Home() {
      one search per resolved URL search. */
   const urlSearchKey = searchParams.toString();
 
+  /* The last urlSearchKey the URL effect acted on. A re-run of the
+     SAME urlSearchKey is state churn (`loading` / `fxRate` flip) and
+     never a URL change — only a urlSearchKey that actually differs
+     marks a new navigation. Lets the F15-C2 defer path distinguish a
+     genuine URL change mid-load from the Search button's own push
+     (whose bump used to invalidate the very search it launched,
+     leaving the previous results on screen). */
+  const lastUrlProcessedRef = useRef<string>(urlSearchKey);
+
   /* F14-C1: is the current URL stuck waiting for the fx rate?
      Drives the wait/error/retry surface only; parsing is
      unchanged and the URL effect still owns wait-fx. */
@@ -425,6 +434,8 @@ function Home() {
   useEffect(() => {
     const search = new URLSearchParams(urlSearchKey);
     const parsed = parseSearchUrl(search, fxRate);
+    const prevUrl = lastUrlProcessedRef.current;
+    lastUrlProcessedRef.current = urlSearchKey;
 
     if (parsed.kind === "wait-fx") {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- URL-driven restore while engine bounds wait for the fx rate
@@ -448,9 +459,26 @@ function Home() {
        new URL. Defer instead: mark the in-flight response stale
        through the F11 epoch and let this effect re-run once the
        search settles (loading flips), so the latest URL intent
-       executes exactly once. */
-    if (loading) {
+       executes exactly once.
+       The defer only applies to a REAL URL change: the urlSearchKey
+       actually differs from the last processed one AND the parsed
+       intent is not the search already in flight (the Search
+       button / Enter launches a search directly and pushes its own
+       URL — when that push lands while loading, or `loading` flips
+       before the navigation applies, the effect re-runs for the
+       SAME old URL; that is the in-flight search's own churn, and
+       bumping the epoch there would reject the response and keep
+       the previous results under the new query). */
+    if (
+      loading &&
+      prevUrl !== urlSearchKey &&
+      lastUrlSearchKeyRef.current !==
+        searchIntentKey(parsed.intent)
+    ) {
       searchSeqRef.current += 1;
+      return;
+    }
+    if (loading) {
       return;
     }
 

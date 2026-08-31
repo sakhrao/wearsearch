@@ -6,7 +6,7 @@ import {
   computeCatalogFingerprint,
   getCatalogMemo,
 } from "../../../lib/catalog-memo";
-import { categorizeSizeList } from "../../../lib/sizes";
+import { categorizeSizeList, groupShoesBySystem } from "../../../lib/sizes";
 import { getFxRate } from "../../../lib/currency";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,11 @@ export async function GET() {
           }),
 
           prisma.size.findMany({
-            select: { category: true, value: true },
+            select: {
+              category: true,
+              value: true,
+              system: true,
+            },
           }),
 
           prisma.brand.findMany({
@@ -132,6 +136,12 @@ export async function GET() {
             .map(([value]) => value);
         }
 
+        const sizeCandidates = sizes.map((size) => ({
+          category: size.category,
+          value: size.value,
+          system: size.system,
+        }));
+
         return {
           categories: categories.map((category) => ({
             name: category.name,
@@ -150,10 +160,10 @@ export async function GET() {
             ...new Set(sizes.map((size) => size.value)),
           ],
           sizeGroups: categorizeSizeList(
-            sizes.map((size) => ({
-              category: size.category,
-              value: size.value,
-            }))
+            sizeCandidates
+          ),
+          shoeSizeGroups: groupShoesBySystem(
+            sizeCandidates
           ),
           brands: brands.map((brand) => brand.name),
           attributeGroups,
@@ -167,6 +177,7 @@ export async function GET() {
       colors: snapshot.colors,
       sizes: snapshot.sizes,
       sizeGroups: snapshot.sizeGroups,
+      shoeSizeGroups: snapshot.shoeSizeGroups,
       brands: snapshot.brands,
       attributeGroups: snapshot.attributeGroups,
       fx: {

@@ -72,10 +72,7 @@ export function hasStepAnswer(
     case "gender":
       return answers.gender !== null;
     case "colors":
-      return (
-        answers.colors.length > 0 ||
-        answers.searchText.trim() !== ""
-      );
+      return answers.colors.length > 0;
     case "size":
       return answers.size !== null;
     case "budget":
@@ -84,7 +81,10 @@ export function hasStepAnswer(
         answers.budgetMax.trim() !== ""
       );
     case "details":
-      return answers.attributes.length > 0;
+      return (
+        answers.attributes.length > 0 ||
+        answers.searchText.trim() !== ""
+      );
   }
 }
 

@@ -389,6 +389,34 @@ check(
   meta.categories.map((c) => c.name).join(",")
 );
 
+/* ============ SHOE SIZE SYSTEMS (EU / US split) ============ */
+
+const ssg = meta.shoeSizeGroups ?? {};
+const ssgKeys = Object.keys(ssg);
+check(
+  "Z7 shoe sizes are bucketed per system (EU and US present)",
+  ssgKeys.includes("EU") &&
+    ssgKeys.includes("US") &&
+    ssgKeys.every((k) => Array.isArray(ssg[k])),
+  JSON.stringify(ssg)
+);
+const eu = ssg.EU ?? [];
+check(
+  "Z8 EU bucket is numeric, ascending, and never invents values",
+  eu.length > 0 &&
+    eu.every(isNumeric) &&
+    eu.every((v, i, a) => i === 0 || parseFloat(a[i - 1]) <= parseFloat(v)) &&
+    eu.length === new Set(eu).size,
+  `EU=[${eu.join(",")}]`
+);
+check(
+  "Z9 a real EU value stays in the EU bucket while its twin stays US",
+  eu.includes("42") &&
+    (ssg.US ?? []).includes("42") &&
+    (ssg.US ?? []).every(isNumeric),
+  `US=[${(ssg.US ?? []).join(",")}] EU=[${eu.join(",")}]`
+);
+
 /* ============ FX SURFACE (EUR->USD, never invented) ============ */
 
 const fx = meta.fx ?? null;

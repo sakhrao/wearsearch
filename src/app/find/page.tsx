@@ -26,6 +26,7 @@ type Meta = {
   colors: string[];
   sizes: string[];
   sizeGroups: { clothing: string[]; shoes: string[] };
+  shoeSizeGroups: Record<string, string[]>;
   brands: string[];
   attributeGroups: Record<string, string[]>;
   fx: {
@@ -68,9 +69,75 @@ const CONTEXT_ATTRIBUTE_GROUPS: Record<
   Tops: ["Sleeve", "Collar", "Fit", "Material", "Style", "Pattern"],
   Bottoms: ["Fit", "Material", "Style", "Pattern"],
   Shoes: ["Style", "Material"],
-  Accessories: ["Style", "Material"],
-  Headwear: ["Style", "Material"],
 };
+
+/* The catalog stocks products only in Tops / Bottoms / Shoes (the
+   Accessories and Headwear categories are still empty), so no
+   accessory/headwear size or attribute rows exist to derive options
+   from. Instead these present the recognized sizing systems and
+   attributes for each subtype, never generic clothing sizes. Each
+   value maps to a real searchable token (size -> query keyword,
+   attribute -> soft match). */
+const ACCESSORY_SIZE_OPTIONS: Record<
+  string,
+  { label: string; values: string[] }
+> = {
+  belts: {
+    label: "Waist size (inches)",
+    values: ["30", "32", "34", "36", "38", "40", "42"],
+  },
+  ties: { label: "Length", values: ["One Size"] },
+  sunglasses: { label: "Fit", values: ["One Size"] },
+  watches: {
+    label: "Case diameter (mm)",
+    values: ["38", "40", "42", "44"],
+  },
+};
+
+const HEADWEAR_SIZE_OPTIONS: Record<
+  string,
+  { label: string; values: string[] }
+> = {
+  beanies: { label: "Fit (stretch)", values: ["One Size"] },
+  caps: { label: "Fit (adjustable)", values: ["One Size"] },
+  hats: {
+    label: "Head circumference (cm)",
+    values: ["54", "56", "58", "60", "62"],
+  },
+};
+
+const ACCESSORY_DETAIL_GROUPS: {
+  name: string;
+  values: string[];
+}[] = [
+  { name: "Type", values: ["Classic", "Modern", "Sport", "Formal"] },
+  { name: "Shape", values: ["Slim", "Standard", "Compact"] },
+  { name: "Material", values: ["Leather", "Metal", "Fabric", "Synthetic"] },
+  { name: "Use", values: ["Everyday", "Formal", "Outdoor", "Gift"] },
+];
+
+const HEADWEAR_DETAIL_GROUPS: {
+  name: string;
+  values: string[];
+}[] = [
+  { name: "Type", values: ["Snapback", "Bucket", "Fedora", "Wide-Brim"] },
+  { name: "Shape", values: ["Fitted", "Adjustable", "Stretch"] },
+  { name: "Material", values: ["Wool", "Cotton", "Polyester", "Straw"] },
+  { name: "Coverage", values: ["Full", "Partial", "None"] },
+];
+
+type SizeSection = { label: string | null; values: string[] };
+
+function rangeLabel(
+  system: string,
+  values: string[]
+): string {
+  const first = values[0];
+  const last = values[values.length - 1];
+  return first === last
+    ? `${system} (${first})`
+    : `${system} (${first}\u2013${last})`;
+}
 
 const GENDER_LABELS: Record<string, string> = {
   women: "Women",
@@ -82,12 +149,10 @@ function Chip({
   label,
   selected,
   onClick,
-  suffix,
 }: {
   label: string;
   selected: boolean;
   onClick: () => void;
-  suffix?: string;
 }) {
   return (
     <button
@@ -100,17 +165,6 @@ function Chip({
       }`}
     >
       {label}
-      {suffix && (
-        <span
-          className={
-            selected
-              ? "ml-1 text-gray-300"
-              : "ml-1 text-gray-400"
-          }
-        >
-          {suffix}
-        </span>
-      )}
     </button>
   );
 }
@@ -226,16 +280,55 @@ export default function FindPage() {
     );
   }, [meta, answers.category]);
 
-  const sizeOptions = useMemo(() => {
+  const selectedCategorySlug = useMemo(() => {
+    if (!meta || !answers.category) {
+      return null;
+    }
+    return (
+      meta.categories.find(
+        (category) =>
+          category.name === answers.category
+      )?.slug ?? null
+    );
+  }, [meta, answers.category]);
+
+  /* Size options per category group. Shoes split into per-system
+     sections (EU/US, ascending, range identified). Accessories and
+     Headwear use their own recognized systems per subtype. Every
+     other group keeps the global clothing surface. */
+  const sizeSections = useMemo<SizeSection[]>(() => {
     if (!meta) {
       return [];
     }
-    const isShoesGroup =
-      selectedCategoryGroup === "Shoes";
-    return isShoesGroup
-      ? meta.sizeGroups.shoes
-      : meta.sizeGroups.clothing;
-  }, [meta, selectedCategoryGroup]);
+    const group = selectedCategoryGroup;
+    if (group === "Shoes") {
+      return Object.entries(
+        meta.shoeSizeGroups ?? {}
+      ).map(([system, values]) => ({
+        label: rangeLabel(system, values),
+        values,
+      }));
+    }
+    if (group === "Accessories") {
+      const option =
+        selectedCategorySlug !== null
+          ? ACCESSORY_SIZE_OPTIONS[selectedCategorySlug]
+          : undefined;
+      return option
+        ? [{ label: option.label, values: option.values }]
+        : [];
+    }
+    if (group === "Headwear") {
+      const option =
+        selectedCategorySlug !== null
+          ? HEADWEAR_SIZE_OPTIONS[selectedCategorySlug]
+          : undefined;
+      return option
+        ? [{ label: option.label, values: option.values }]
+        : [];
+    }
+    return [{ label: null, values: meta.sizeGroups.clothing }];
+  }, [meta, selectedCategoryGroup, selectedCategorySlug]);
 
   const fxRate = meta?.fx?.rate ?? null;
   /* A restored Edit-search draft pins the budget display
@@ -245,15 +338,34 @@ export default function FindPage() {
     answers.budgetCurrency ?? (fxRate ? "USD" : "EUR");
 
   const sizeStepLabel = useMemo(() => {
-    const isShoesGroup =
-      selectedCategoryGroup === "Shoes";
-    return isShoesGroup
-      ? "Shoe size"
-      : "Clothing size";
+    const group = selectedCategoryGroup;
+    if (group === "Shoes") {
+      return "Shoe size";
+    }
+    if (group === "Accessories") {
+      return "Accessory size";
+    }
+    if (group === "Headwear") {
+      return "Headwear size";
+    }
+    return "Clothing size";
   }, [selectedCategoryGroup]);
 
-  const contextAttributeKeys = useMemo(() => {
-    if (!meta) return [];
+  /* Detail chips. Accessories and Headwear get their own recognized
+     option groups; Tops/Bottoms/Shoes keep the catalog-driven
+     attribute groups (only groups present in the catalog). */
+  const detailGroups = useMemo<
+    { name: string; values: string[] }[]
+  >(() => {
+    if (!meta) {
+      return [];
+    }
+    if (selectedCategoryGroup === "Accessories") {
+      return ACCESSORY_DETAIL_GROUPS;
+    }
+    if (selectedCategoryGroup === "Headwear") {
+      return HEADWEAR_DETAIL_GROUPS;
+    }
     const preferred =
       CONTEXT_ATTRIBUTE_GROUPS[
         selectedCategoryGroup ?? "Tops"
@@ -261,9 +373,12 @@ export default function FindPage() {
     const available = new Set(
       Object.keys(meta.attributeGroups)
     );
-    return preferred.filter((key) =>
-      available.has(key)
-    );
+    return preferred
+      .filter((key) => available.has(key))
+      .map((group) => ({
+        name: group,
+        values: meta.attributeGroups[group],
+      }));
   }, [meta, selectedCategoryGroup]);
 
   const totalSteps = STEP_KEYS.length;
@@ -498,11 +613,6 @@ export default function FindPage() {
                         <Chip
                           key={category.slug}
                           label={category.name}
-                          suffix={
-                            category.hasProducts
-                              ? undefined
-                              : "(soon)"
-                          }
                           selected={
                             answers.category ===
                             category.name
@@ -561,7 +671,7 @@ export default function FindPage() {
         {meta && step === 2 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
-              Colors &amp; words
+              Colors
             </h2>
             <p className="mb-4 text-sm text-gray-500">
               Optional. Pick one or more colors (tap
@@ -623,32 +733,11 @@ export default function FindPage() {
                 <p className="mt-3 text-sm text-gray-400">
                   No colors match “{colorFilter}”.
                 </p>
-              )}
-            <div className="mt-6">
-              <label
-                htmlFor="find-search-text"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Your own words
-              </label>
-              <input
-                id="find-search-text"
-                type="text"
-                value={answers.searchText}
-                onChange={(event) =>
-                  setAnswer(
-                    "searchText",
-                    event.target.value
-                  )
-                }
-                placeholder="Anything specific? E.g. oversized, striped, for running…"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
-              />
-            </div>
+)}
           </div>
         )}
 
-        {meta && step === 3 && (
+{meta && step === 3 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold">
               Size?
@@ -656,23 +745,61 @@ export default function FindPage() {
             <p className="mb-4 text-sm text-gray-500">
               Optional. {sizeStepLabel} options.
             </p>
-            {sizeOptions.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {sizeOptions.map((size) => (
-                  <Chip
-                    key={size}
-                    label={size}
-                    selected={answers.size === size}
-                    onClick={() =>
-                      setAnswer(
-                        "size",
-                        answers.size === size
-                          ? null
-                          : size
-                      )
-                    }
-                  />
-                ))}
+            {sizeSections.length > 0 ? (
+              <div className="space-y-5">
+                {sizeSections.map((section) =>
+                  section.label !== null ? (
+                    <div key={section.label}>
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        {section.label}
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {section.values.map((size) => (
+                          <Chip
+                            key={size}
+                            label={size}
+                            selected={
+                              answers.size === size
+                            }
+                            onClick={() =>
+                              setAnswer(
+                                "size",
+                                answers.size ===
+                                  size
+                                  ? null
+                                  : size
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      key="sizes"
+                      className="flex flex-wrap gap-2"
+                    >
+                      {section.values.map((size) => (
+                        <Chip
+                          key={size}
+                          label={size}
+                          selected={
+                            answers.size === size
+                          }
+                          onClick={() =>
+                            setAnswer(
+                              "size",
+                              answers.size ===
+                                size
+                                ? null
+                                : size
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  )
+                )}
               </div>
             ) : (
               <p className="text-sm text-gray-400">
@@ -826,13 +953,34 @@ export default function FindPage() {
               rank the best options first.
             </p>
             <div className="space-y-5">
-              {contextAttributeKeys.map((group) => (
-                <div key={group}>
+              <div>
+                <label
+                  htmlFor="find-search-text"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Your own words
+                </label>
+                <input
+                  id="find-search-text"
+                  type="text"
+                  value={answers.searchText}
+                  onChange={(event) =>
+                    setAnswer(
+                      "searchText",
+                      event.target.value
+                    )
+                  }
+                  placeholder="Anything specific? E.g. oversized, striped, for running."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              {detailGroups.map((group) => (
+                <div key={group.name}>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                    {group}
+                    {group.name}
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {(meta.attributeGroups[group] ?? [])
+                    {group.values
                       .filter(
                         (value) =>
                           value.trim().toLowerCase() !==

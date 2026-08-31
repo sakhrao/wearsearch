@@ -115,15 +115,28 @@ function fillAnswers(overrides) {
   }
 }
 
-/* 4. The colors step also counts free words as an answer */
+/* 4. Free words belong to the details step, not colors — a color
+   answer is a color chip; typed words answer the details step */
 {
   const wordsOnly = fillAnswers({
     searchText: "oversized striped",
   });
   check(
-    "colors step counts free words as an answer",
-    hasStepAnswer("colors", wordsOnly) === true,
+    "colors step counts only color chips (words moved out)",
+    hasStepAnswer("colors", wordsOnly) === false,
     `hasAnswer=${hasStepAnswer("colors", wordsOnly)}`
+  );
+  check(
+    "details step counts free words as an answer",
+    hasStepAnswer("details", wordsOnly) === true,
+    `hasAnswer=${hasStepAnswer("details", wordsOnly)}`
+  );
+
+  const colorsOnly = fillAnswers({ colors: ["Black"] });
+  check(
+    "colors step counts a color chip as an answer",
+    hasStepAnswer("colors", colorsOnly) === true,
+    `hasAnswer=${hasStepAnswer("colors", colorsOnly)}`
   );
 }
 
