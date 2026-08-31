@@ -10,9 +10,15 @@ import {
   EMPTY_ANSWERS,
   GENDER_OPTIONS,
   STEP_KEYS,
+  genderToAudience,
   getStepState,
   type QuestionnaireAnswers,
 } from "@/lib/questionnaire";
+import {
+  sizeSectionsFor,
+  type SizeCatalog,
+  type SizeSection,
+} from "@/lib/sizes";
 
 type Meta = {
   success: boolean;
@@ -27,6 +33,7 @@ type Meta = {
   sizes: string[];
   sizeGroups: { clothing: string[]; shoes: string[] };
   shoeSizeGroups: Record<string, string[]>;
+  sizeCatalog: SizeCatalog;
   brands: string[];
   attributeGroups: Record<string, string[]>;
   fx: {
@@ -73,39 +80,11 @@ const CONTEXT_ATTRIBUTE_GROUPS: Record<
 
 /* The catalog stocks products only in Tops / Bottoms / Shoes (the
    Accessories and Headwear categories are still empty), so no
-   accessory/headwear size or attribute rows exist to derive options
-   from. Instead these present the recognized sizing systems and
-   attributes for each subtype, never generic clothing sizes. Each
-   value maps to a real searchable token (size -> query keyword,
-   attribute -> soft match). */
-const ACCESSORY_SIZE_OPTIONS: Record<
-  string,
-  { label: string; values: string[] }
-> = {
-  belts: {
-    label: "Waist size (inches)",
-    values: ["30", "32", "34", "36", "38", "40", "42"],
-  },
-  ties: { label: "Length", values: ["One Size"] },
-  sunglasses: { label: "Fit", values: ["One Size"] },
-  watches: {
-    label: "Case diameter (mm)",
-    values: ["38", "40", "42", "44"],
-  },
-};
-
-const HEADWEAR_SIZE_OPTIONS: Record<
-  string,
-  { label: string; values: string[] }
-> = {
-  beanies: { label: "Fit (stretch)", values: ["One Size"] },
-  caps: { label: "Fit (adjustable)", values: ["One Size"] },
-  hats: {
-    label: "Head circumference (cm)",
-    values: ["54", "56", "58", "60", "62"],
-  },
-};
-
+   accessory/headwear attribute rows exist to derive option groups
+   from; these present the recognized attribute groups only. Size
+   options are never fabricated (Stage 3-A): when the contextual
+   size catalog yields nothing for a category the step reports "No
+   sizes available" instead of inventing belt/watch/cap sizes. */
 const ACCESSORY_DETAIL_GROUPS: {
   name: string;
   values: string[];
@@ -125,19 +104,6 @@ const HEADWEAR_DETAIL_GROUPS: {
   { name: "Material", values: ["Wool", "Cotton", "Polyester", "Straw"] },
   { name: "Coverage", values: ["Full", "Partial", "None"] },
 ];
-
-type SizeSection = { label: string | null; values: string[] };
-
-function rangeLabel(
-  system: string,
-  values: string[]
-): string {
-  const first = values[0];
-  const last = values[values.length - 1];
-  return first === last
-    ? `${system} (${first})`
-    : `${system} (${first}\u2013${last})`;
-}
 
 const GENDER_LABELS: Record<string, string> = {
   women: "Women",
@@ -280,55 +246,23 @@ export default function FindPage() {
     );
   }, [meta, answers.category]);
 
-  const selectedCategorySlug = useMemo(() => {
-    if (!meta || !answers.category) {
-      return null;
-    }
-    return (
-      meta.categories.find(
-        (category) =>
-          category.name === answers.category
-      )?.slug ?? null
-    );
-  }, [meta, answers.category]);
-
-  /* Size options per category group. Shoes split into per-system
-     sections (EU/US, ascending, range identified). Accessories and
-     Headwear use their own recognized systems per subtype. Every
-     other group keeps the global clothing surface. */
+  /* Stage 3-A: size options come from the contextual catalog. The
+     section list is audience + category driven (productType comes
+     from the selected category), so women | Sneakers shows EU and US
+     columns with only the values that buyable women's or unisex
+     products actually carry, while accessories/headwear (no data)
+     yield nothing -> "No sizes available for this category." No size
+     is ever invented. */
   const sizeSections = useMemo<SizeSection[]>(() => {
     if (!meta) {
       return [];
     }
-    const group = selectedCategoryGroup;
-    if (group === "Shoes") {
-      return Object.entries(
-        meta.shoeSizeGroups ?? {}
-      ).map(([system, values]) => ({
-        label: rangeLabel(system, values),
-        values,
-      }));
-    }
-    if (group === "Accessories") {
-      const option =
-        selectedCategorySlug !== null
-          ? ACCESSORY_SIZE_OPTIONS[selectedCategorySlug]
-          : undefined;
-      return option
-        ? [{ label: option.label, values: option.values }]
-        : [];
-    }
-    if (group === "Headwear") {
-      const option =
-        selectedCategorySlug !== null
-          ? HEADWEAR_SIZE_OPTIONS[selectedCategorySlug]
-          : undefined;
-      return option
-        ? [{ label: option.label, values: option.values }]
-        : [];
-    }
-    return [{ label: null, values: meta.sizeGroups.clothing }];
-  }, [meta, selectedCategoryGroup, selectedCategorySlug]);
+    return sizeSectionsFor({
+      audience: genderToAudience(answers.gender),
+      categoryName: answers.category,
+      catalog: meta.sizeCatalog,
+    });
+  }, [meta, answers.gender, answers.category]);
 
   const fxRate = meta?.fx?.rate ?? null;
   /* A restored Edit-search draft pins the budget display
@@ -416,6 +350,85 @@ export default function FindPage() {
     }));
   }
 
+  /* Changing What/Who invalidates the size context, so the size
+     answer is cleared the moment the category or gender actually
+     changes (never via an effect, so a restored Edit-search draft
+     that arrives pre-answered isn't wiped). */
+  function pickCategory(name: string) {
+    setAnswers((previous) => {
+      const cleared = previous.category === name;
+      return {
+        ...previous,
+        category: cleared ? null : name,
+        size: cleared ? previous.size : null,
+      };
+    });
+  }
+
+  function pickGender(value: string) {
+    setAnswers((previous) => {
+      const cleared = previous.gender === value;
+      return {
+        ...previous,
+        gender: cleared ? null : value,
+        size: cleared ? previous.size : null,
+      };
+    });
+  }
+
+  function isSizeChipSelected(
+    section: SizeSection,
+    value: string
+  ): boolean {
+    const picked = answers.size;
+    if (!picked || picked.value !== value) {
+      return false;
+    }
+    if (
+      picked.system !== null ||
+      picked.productType !== null ||
+      picked.category !== null ||
+      picked.audience !== null
+    ) {
+      return (
+        section.system === picked.system &&
+        section.productType === picked.productType
+      );
+    }
+    /* value-only restored pick: pre-select only when the value is
+       unambiguous (a single section carries it), never guess. */
+    let matches = 0;
+    for (const other of sizeSections) {
+      if (other.values.includes(value)) {
+        matches += 1;
+        if (matches > 1) {
+          return false;
+        }
+      }
+    }
+    return matches === 1 && section.values.includes(value);
+  }
+
+  function pickSize(section: SizeSection, value: string) {
+    if (isSizeChipSelected(section, value)) {
+      setAnswers((previous) => ({
+        ...previous,
+        size: null,
+      }));
+      return;
+    }
+    setAnswers((previous) => ({
+      ...previous,
+      size: {
+        value,
+        audience: genderToAudience(previous.gender),
+        productType: section.productType,
+        category: previous.category,
+        system: section.system,
+      },
+    }));
+  }
+
   function back() {
     if (step > 0) {
       setStep(step - 1);
@@ -438,7 +451,7 @@ export default function FindPage() {
       parts.push(color);
     }
     if (answers.size) {
-      parts.push(answers.size);
+      parts.push(answers.size.value);
     }
     if (answers.searchText.trim()) {
       parts.push(answers.searchText.trim());
@@ -618,12 +631,8 @@ export default function FindPage() {
                             category.name
                           }
                           onClick={() =>
-                            setAnswer(
-                              "category",
-                              answers.category ===
-                                category.name
-                                ? null
-                                : category.name
+                            pickCategory(
+                              category.name
                             )
                           }
                         />
@@ -655,13 +664,8 @@ export default function FindPage() {
                     answers.gender === value
                   }
                   onClick={() =>
-                    setAnswer(
-                      "gender",
-                      answers.gender === value
-                        ? null
-                        : value
-                    )
-                  }
+                            pickGender(value)
+                          }
                 />
               ))}
             </div>
@@ -758,17 +762,12 @@ export default function FindPage() {
                           <Chip
                             key={size}
                             label={size}
-                            selected={
-                              answers.size === size
-                            }
+                            selected={isSizeChipSelected(
+                              section,
+                              size
+                            )}
                             onClick={() =>
-                              setAnswer(
-                                "size",
-                                answers.size ===
-                                  size
-                                  ? null
-                                  : size
-                              )
+                              pickSize(section, size)
                             }
                           />
                         ))}
@@ -783,17 +782,12 @@ export default function FindPage() {
                         <Chip
                           key={size}
                           label={size}
-                          selected={
-                            answers.size === size
-                          }
+                          selected={isSizeChipSelected(
+                            section,
+                            size
+                          )}
                           onClick={() =>
-                            setAnswer(
-                              "size",
-                              answers.size ===
-                                size
-                                ? null
-                                : size
-                            )
+                            pickSize(section, size)
                           }
                         />
                       ))}

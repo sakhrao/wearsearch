@@ -6,7 +6,12 @@ import {
   computeCatalogFingerprint,
   getCatalogMemo,
 } from "../../../lib/catalog-memo";
-import { categorizeSizeList, groupShoesBySystem } from "../../../lib/sizes";
+import {
+  buildSizeCatalog,
+  categorizeSizeList,
+  groupShoesBySystem,
+  type ContextualSizeRow,
+} from "../../../lib/sizes";
 import { getFxRate } from "../../../lib/currency";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +49,7 @@ export async function GET() {
     const snapshot = await getCatalogMemo(
       prisma,
       fingerprint,
-      "meta-snapshot",
+      "meta-snapshot-v2",
       async () => {
         const [
           categories,
@@ -52,6 +57,7 @@ export async function GET() {
           sizes,
           brands,
           productAttributes,
+          sizeCatalogRows,
         ] = await Promise.all([
           prisma.category.findMany({
             select: {
@@ -87,7 +93,55 @@ export async function GET() {
               attribute: { select: { name: true } },
             },
           }),
+
+          /* Stage 3-A: the contextual questionnaire size catalog comes
+             strictly from Product -> ProductVariant -> Size restricted
+             to purchasable variants, so an option exists only when a
+             buyable variant actually carries it (F8-A single source of
+             truth). audience/productType/ordinal are the Size columns
+             written by the Stage-2 backfill. */
+          prisma.productVariant.findMany({
+            where: {
+              availability: "AVAILABLE",
+              size: { isNot: null },
+            },
+            select: {
+              product: {
+                select: {
+                  category: { select: { name: true } },
+                },
+              },
+              size: {
+                select: {
+                  audience: true,
+                  productType: true,
+                  system: true,
+                  value: true,
+                  ordinal: true,
+                },
+              },
+            },
+          }),
         ]);
+
+        const contextualRows: ContextualSizeRow[] = [];
+        for (const { product, size } of sizeCatalogRows) {
+          if (
+            size &&
+            size.audience !== "UNKNOWN" &&
+            (size.productType === "CLOTHING" ||
+              size.productType === "FOOTWEAR")
+          ) {
+            contextualRows.push({
+              audience: size.audience,
+              productType: size.productType,
+              category: product.category.name,
+              system: size.system,
+              value: size.value,
+              ordinal: size.ordinal,
+            });
+          }
+        }
 
         const usedIds = new Set(
           (
@@ -165,6 +219,7 @@ export async function GET() {
           shoeSizeGroups: groupShoesBySystem(
             sizeCandidates
           ),
+          sizeCatalog: buildSizeCatalog(contextualRows),
           brands: brands.map((brand) => brand.name),
           attributeGroups,
         };
@@ -178,6 +233,7 @@ export async function GET() {
       sizes: snapshot.sizes,
       sizeGroups: snapshot.sizeGroups,
       shoeSizeGroups: snapshot.shoeSizeGroups,
+      sizeCatalog: snapshot.sizeCatalog,
       brands: snapshot.brands,
       attributeGroups: snapshot.attributeGroups,
       fx: {

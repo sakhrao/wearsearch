@@ -1,3 +1,8 @@
+import type {
+  ContextualSizeAudience,
+  ContextualProductType,
+} from "./sizes";
+
 export type StepKey =
   | "category"
   | "gender"
@@ -38,16 +43,37 @@ export function isValidGender(
   ).includes(value);
 }
 
+export function genderToAudience(
+  gender: string | null
+): ContextualSizeAudience | null {
+  if (gender === "women") return "WOMEN";
+  if (gender === "men") return "MEN";
+  if (gender === "kids") return "KIDS";
+  return null;
+}
+
 export type QuestionnaireAnswers = {
   category: string | null;
   gender: string | null;
   colors: string[];
   searchText: string;
-  size: string | null;
+  size: SizeAnswer | null;
   budgetMin: string;
   budgetMax: string;
   budgetCurrency: "USD" | "EUR" | null;
   attributes: string[];
+};
+
+/* The size answer is contextual (Stage 3-A): the questionnaire
+   stores which value was picked and what context it belongs to. The
+   URL/q payload stays a bare value token — context lives in this
+   answer only, never in the query string (URL/q semantics are 3-C). */
+export type SizeAnswer = {
+  value: string;
+  audience: ContextualSizeAudience | null;
+  productType: ContextualProductType | null;
+  category: string | null;
+  system: string | null;
 };
 
 export const EMPTY_ANSWERS: QuestionnaireAnswers = {

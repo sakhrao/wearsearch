@@ -69,8 +69,19 @@ export function buildEditAnswers(
     answers.category = structuredQuery.category;
   }
 
+  /* The bare size token restores the value only: the QR string carries
+     no audience/system/category context, and re-guessing one would be
+     reinterpretation (Stage 3-A forbids inventing context). The chips
+     still pre-select it when the value is unambiguous in the current
+     context (see find/page.tsx). */
   if (structuredQuery?.size) {
-    answers.size = structuredQuery.size;
+    answers.size = {
+      value: structuredQuery.size,
+      audience: null,
+      productType: null,
+      category: null,
+      system: null,
+    };
   }
 
   const coveredWords = new Set<string>();

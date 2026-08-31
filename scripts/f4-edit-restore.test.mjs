@@ -32,7 +32,7 @@ function builtIntentText(answers) {
   const parts = [];
   if (answers.gender) parts.push(answers.gender);
   for (const color of answers.colors) parts.push(color);
-  if (answers.size) parts.push(answers.size);
+  if (answers.size) parts.push(answers.size.value);
   if (answers.searchText.trim())
     parts.push(answers.searchText.trim());
   if (answers.category) parts.push(answers.category);
@@ -68,7 +68,18 @@ const empty = {
   check("full round-trip gender", answers.gender === "women");
   check("full round-trip category", answers.category === "Trousers");
   check("full round-trip colors", eq(answers.colors, ["Red"]));
-  check("full round-trip size", answers.size === "30");
+  check(
+    "full round-trip size value",
+    answers.size?.value === "30"
+  );
+  check(
+    "value-only restore keeps context fields null (no guessing)",
+    answers.size &&
+      answers.size.audience === null &&
+      answers.size.productType === null &&
+      answers.size.category === null &&
+      answers.size.system === null
+  );
   check("full round-trip attributes", eq(answers.attributes, ["Linen"]));
   check("full round-trip no leftover", answers.searchText === "");
   check(
