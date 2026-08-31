@@ -7,6 +7,8 @@ import {
   Availability,
   Gender,
   SizeSystem,
+  SizeAudience,
+  SizeProductType,
   AttributeType,
 } from "../src/generated/prisma/client";
 
@@ -565,8 +567,9 @@ async function main() {
   for (const value of clothingSizes) {
     sizes[value] = await prisma.size.upsert({
       where: {
-        category_system_value: {
-          category: "clothing",
+        audience_productType_system_value: {
+          audience: SizeAudience.UNKNOWN,
+          productType: SizeProductType.UNKNOWN,
           system: SizeSystem.INTERNATIONAL,
           value,
         },
@@ -586,8 +589,9 @@ async function main() {
   for (const value of shoeSizes) {
     sizes[`EU-${value}`] = await prisma.size.upsert({
       where: {
-        category_system_value: {
-          category: "shoes",
+        audience_productType_system_value: {
+          audience: SizeAudience.UNKNOWN,
+          productType: SizeProductType.UNKNOWN,
           system: SizeSystem.EU,
           value,
         },

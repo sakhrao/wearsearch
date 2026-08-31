@@ -113,14 +113,18 @@ model Size {
   normalizedValue String
 
   /* Phase-1 context foundation (architecture C). New fields are
-     additive only: existing columns are untouched and the old
-     unique (category, system, value) is preserved. audience and
+     additive only: existing columns are untouched. audience and
      productType are required via safe defaults (UNKNOWN) until the
      Phase-2 backfill assigns real values; the (audience, productType,
      system, value) unique stops looking-alike sizes (US Men 8 vs
      US Women 8 vs US Kids 8, EU 8 vs US 8) from ever collapsing in
-     the same row. numericValue/ordinal/displayValue/subsystem stay
-     optional: they will be populated only from real catalog data. */
+     the same row. The pre-context unique (category, system, value) was
+     dropped in the Stage-2 amendment because clone-per-audience means
+     the same (category, system, value) legitimately appears once per
+     (audience, productType); uniqueness of the originals is preserved
+     by their (UNKNOWN, UNKNOWN) tuple under the new unique.
+     numericValue/ordinal/displayValue/subsystem stay optional: they
+     will be populated only from real catalog data. */
   audience      SizeAudience     @default(UNKNOWN)
   productType   SizeProductType  @default(UNKNOWN)
   numericValue  Float?
@@ -131,7 +135,6 @@ model Size {
   createdAt     DateTime         @default(now())
   variants      ProductVariant[]
 
-  @@unique([category, system, value])
   @@unique([audience, productType, system, value])
   @@index([normalizedValue])
 }

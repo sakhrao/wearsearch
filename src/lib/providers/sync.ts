@@ -3,6 +3,8 @@ import "dotenv/config";
 import {
   PrismaClient,
   SizeSystem,
+  SizeAudience,
+  SizeProductType,
   SourceStatus,
   SourceType,
   type Gender,
@@ -73,8 +75,9 @@ async function sizeIdOf(
   if (hit !== undefined) return hit;
   const size = await prisma.size.upsert({
     where: {
-      category_system_value: {
-        category,
+      audience_productType_system_value: {
+        audience: SizeAudience.UNKNOWN,
+        productType: SizeProductType.UNKNOWN,
         system: system as SizeSystem,
         value,
       },
