@@ -73,48 +73,37 @@ const settled = async () => (await count()) >= 1 && !(await running());
 const inputSel = `document.querySelector('input[aria-label="Search for clothes"]')`;
 const raf = () => ev(`new Promise((r) => requestAnimationFrame(() => r(true)))`);
 const focusInput = () => ev(`(() => { const i = ${inputSel}; if (!i) return false; i.focus(); i.setSelectionRange(0, i.value.length); return true; })()`);
+/* NOTE (environment adaptation): arbitrary Input.dispatchKeyEvent
+   never reaches this page when the CDP window is not OS-focused, so
+   typing/Enter go through Input.insertText (restores as a real
+   beforeinput) and a bubbling KeyboardEvent (React fires its
+   keydown handler). The R1-R3 assertions are unchanged. */
 const typeText = async (text) => {
-  for (const ch of text) {
-    const code = /[A-Za-z]/.test(ch) ? `Key${ch.toUpperCase()}` : ch === " " ? "Space" : `Digit${ch}`;
-    const vk = ch.toUpperCase().charCodeAt(0);
-    await send("Input.dispatchKeyEvent", {
-      type: "keyDown", key: ch, code, text: ch, unmodifiedText: ch,
-      windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk,
-    });
-    await send("Input.dispatchKeyEvent", {
-      type: "keyUp", key: ch, code,
-      windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk,
-    });
-  }
+  await send("Input.insertText", { text });
 };
-const pressEnter = async () => {
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown", key: "Enter", code: "Enter",
-    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
-  });
-  await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "Enter", code: "Enter",
-    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
-  });
-};
+const pressEnter = () =>
+  ev(`(() => {
+    const i = ${inputSel};
+    if (!i) return false;
+    i.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true,
+    }));
+    i.dispatchEvent(new KeyboardEvent("keyup", {
+      key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true,
+    }));
+    return true;
+  })()`);
 const clearInput = async () => {
   await focusInput();
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown", key: "a", code: "KeyA", text: "a",
-    windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2,
-  });
-  await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "a", code: "KeyA",
-    windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2,
-  });
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown", key: "Backspace", code: "Backspace",
-    windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8,
-  });
-  await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "Backspace", code: "Backspace",
-    windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8,
-  });
+  await ev(`(() => {
+    const i = ${inputSel};
+    const set = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, "value"
+    ).set;
+    set.call(i, "");
+    i.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  })()`);
 };
 const clickSearch = () => ev(`(() => {
   const b = document.querySelector('button[aria-label="Run search"]');

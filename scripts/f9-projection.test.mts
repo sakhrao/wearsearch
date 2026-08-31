@@ -42,7 +42,7 @@ const BLOAT_BRAND = ["slug"];
 const BLOAT_CATEGORY = ["slug"];
 const BLOAT_VARIANT = ["id", "sku"];
 const BLOAT_COLOR = ["slug"];
-const BLOAT_SIZE = ["id", "normalizedValue", "system"];
+const BLOAT_SIZE = ["id", "normalizedValue"];
 
 type WireObject = Record<string, unknown>;
 type WireProduct = WireObject & { id?: unknown };
@@ -200,7 +200,12 @@ const scalarCompare = (a: unknown, b: unknown) => {
         ) {
           missingClient += 1;
         }
-        if (size && !("value" in size)) {
+        /* A2: the client consumes size.value (facets) and
+           size.system (F19b US/EU sectioning). */
+        if (
+          size &&
+          (!("value" in size) || !("system" in size))
+        ) {
           missingClient += 1;
         }
       }
@@ -223,7 +228,7 @@ const scalarCompare = (a: unknown, b: unknown) => {
     `brand=${bloatBrand} category=${bloatCategory}`
   );
   check(
-    "A1 no bloat variant/color/size fields (id/sku/slug/system/normalizedValue)",
+    "A1 no bloat variant/color/size fields (id/sku/slug/normalizedValue)",
     bloatVariant === 0 && bloatColor === 0 && bloatSize === 0,
     `variant=${bloatVariant} color=${bloatColor} size=${bloatSize}`
   );

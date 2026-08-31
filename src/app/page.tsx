@@ -28,6 +28,11 @@ import {
   type FacetKey,
 } from "@/lib/search-facets";
 import {
+  SIZE_SECTION_LABELS,
+  SIZE_SECTION_ORDER,
+  buildSizeSectionValues,
+} from "@/lib/size-sections";
+import {
   type QuestionnaireAnswers,
 } from "@/lib/questionnaire";
 import { buildEditAnswers } from "@/lib/questionnaire-restore";
@@ -202,11 +207,6 @@ type FacetsBlock = {
   brand: FacetOption[];
 };
 
-type CatalogSizeGroups = {
-  clothing: string[];
-  shoes: string[];
-};
-
 /* Facet helpers are shared pure logic in @/lib/search-facets. */
 
 const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
@@ -252,9 +252,6 @@ function Home() {
     max: string | null;
     currency: "USD" | "EUR" | null;
   } | null>(null);
-
-  const [catalogSizes, setCatalogSizes] =
-    useState<CatalogSizeGroups | null>(null);
 
   const [structuredQuery, setStructuredQuery] =
     useState<StructuredQuery | null>(null);
@@ -364,9 +361,6 @@ function Home() {
             Number.isFinite(rate) &&
             rate > 0
           ) {
-            if (data.success && data.sizeGroups) {
-              setCatalogSizes(data.sizeGroups);
-            }
             setFxRate(rate);
             setFxError(false);
             return true;
@@ -897,9 +891,15 @@ function Home() {
     [exactProducts, similarProducts]
   );
 
-  /* F13-1: the option set (values + labels) stays exactly the
-     server block's; only the COUNTS are re-derived per render
-     from the currently loaded window via buildWindowFacetCounts. */
+  /* F13-1: for gender/category/color/brand the option set stays
+     exactly the server block's; only the COUNTS are re-derived per
+     render from the currently loaded window via
+     buildWindowFacetCounts. The SIZE option set is the F19/F19b
+     exception: it is scoped to the families and size systems
+     actually carried by the current result products (grouped per
+     family via sizeSectionValues), so a shoes-only result never
+     shows clothing sizes and vice versa - and mixed results keep
+     all their families. */
   const facetOptions = useMemo(() => {
     const options: Record<
       FacetKey,
@@ -923,19 +923,34 @@ function Home() {
     return options;
   }, [facets]);
 
+  /* F19-1: the Size option set derives from the CURRENT result
+     products only (never the query text or the full catalog), so
+     cross-category sizes cannot leak. F19b splits it into per-family
+     sections (Clothing / Shoe Size (US) / Shoe Size (EU) /
+     Accessories / Headwear); a section exists only if at least one
+     result product carries it, its chips are the exact values those
+     products own, and the shoes US/EU split comes from
+     variant.size.system - never from the numeric value. */
+  const sizeSectionValues = useMemo(
+    () =>
+      buildSizeSectionValues(allProducts),
+    [allProducts]
+  );
+
   /* F13-1: counts are scoped to the loaded window and recomputed
      whenever more results are appended (Load more) or the active
      filters change. A value with no match in the window renders
-     as (0) + disabled, so choosing it can never empty the page. */
+     as (0) + disabled, so choosing it can never empty the page.
+     (Size options come from sizeSectionValues above, so every
+     rendered size chip has a window match by construction.) */
   const windowCounts = useMemo(() => {
     const optionValues: Record<FacetKey, string[]> = {
       gender: [...facetOptions.gender.keys()],
       category: [...facetOptions.category.keys()],
       color: [...facetOptions.color.keys()],
-      size: [
-        ...(catalogSizes?.clothing ?? []),
-        ...(catalogSizes?.shoes ?? []),
-      ],
+      size: SIZE_SECTION_ORDER.flatMap(
+        (key) => [...sizeSectionValues[key]]
+      ),
       brand: [...facetOptions.brand.keys()],
     };
 
@@ -948,28 +963,36 @@ function Home() {
     allProducts,
     activeFilters,
     facetOptions,
-    catalogSizes,
+    sizeSectionValues,
   ]);
 
   const sizeOptionGroups = useMemo(() => {
     const build = (
-      values: string[]
+      values: Set<string>
     ): {
       value: string;
       label: string;
       count: number;
     }[] =>
-      values.map((value) => ({
+      [...values].map((value) => ({
         value,
         label: value,
         count: windowCounts.size.get(value) ?? 0,
       }));
 
-    return {
-      clothing: build(catalogSizes?.clothing ?? []),
-      shoes: build(catalogSizes?.shoes ?? []),
-    };
-  }, [catalogSizes, windowCounts]);
+    return SIZE_SECTION_ORDER.flatMap((key) => {
+      const options = build(sizeSectionValues[key]);
+      return options.length === 0
+        ? []
+        : [
+            {
+              key,
+              label: SIZE_SECTION_LABELS[key],
+              options,
+            },
+          ];
+    });
+  }, [sizeSectionValues, windowCounts]);
 
   const filteredExactProducts = useMemo(
     () =>
@@ -1234,31 +1257,11 @@ function Home() {
                     <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                       {FACET_KEYS.map((key) => {
                         if (key === "size") {
-                          const sections: {
-                            label: string;
-                            options: {
-                              value: string;
-                              label: string;
-                              count: number;
-                            }[];
-                          }[] = sizeOptionGroups.clothing.length > 0 ||
-                            sizeOptionGroups.shoes.length > 0
-                            ? [
-                                {
-                                  label: "Clothing Size",
-                                  options:
-                                    sizeOptionGroups.clothing,
-                                },
-                                {
-                                  label: "Shoe Size",
-                                  options:
-                                    sizeOptionGroups.shoes,
-                                },
-                              ].filter(
-                                (section) =>
-                                  section.options.length > 0
-                              )
-                            : [];
+                          /* F19b: sizeOptionGroups is already the
+                             non-empty per-family section list
+                             (Clothing / Shoe Size (US) / Shoe Size
+                             (EU) / Accessories / Headwear). */
+                          const sections = sizeOptionGroups;
 
                           if (sections.length === 0) {
                             return null;

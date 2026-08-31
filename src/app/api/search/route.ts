@@ -109,7 +109,10 @@ const parsePageParams = (
 /* F9 (response projection): the production payload is an explicit
    whitelist of the fields page.tsx actually renders (verified by a
    full consumption audit - the client never reads description,
-   ids/slugs/sku/system/normalizedValue or any scoring internal).
+   ids/slugs/sku/normalizedValue or any scoring internal).
+   variant.size.system is serialized for F19b: the client splits
+   a shoes result into US/EU sections from the stored system, never
+   from the numeric value.
    The scoring internals are re-attached ONLY under ?debug=1 so the
    ranking contract stays directly verifiable by the test suites;
    debug is a narrow channel, never a dump of the full scored object.
@@ -144,7 +147,10 @@ type ProjectedProduct = {
     currency: string | null;
     availability: string | null;
     color: { id: string; name: string; hex: string | null } | null;
-    size: { value: string | null } | null;
+    size: {
+      value: string | null;
+      system: string | null;
+    } | null;
   }[];
   attributes: {
     value: string;
@@ -207,7 +213,10 @@ const projectProduct = (
       currency: string | null;
       availability: string | null;
       color: { id: string; name: string; hex: string | null } | null;
-      size: { value: string | null } | null;
+      size: {
+        value: string | null;
+        system: string | null;
+      } | null;
     }[];
     attributes: {
       value: string;
@@ -248,6 +257,8 @@ const projectProduct = (
       size: variant.size
         ? {
             value: variant.size.value,
+            system:
+              variant.size.system ?? null,
           }
         : null,
     })),
@@ -1196,6 +1207,7 @@ export async function GET(
               size: {
                 select: {
                   value: true,
+                  system: true,
                 },
               },
             },

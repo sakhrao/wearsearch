@@ -1,7 +1,11 @@
 /* O3 regression guard.
    Static, deterministic, no DB / no server:
    the search catalog `select` (src/app/api/search/route.ts) must not
-   pull columns the pipeline, projection and client never read. */
+   pull columns the pipeline, projection and client never read.
+   size.system IS read since F19b (the client splits shoes into
+   US/EU sections from the stored system), so it is a required
+   consumed column here - unlike id/normalizedValue which stay
+   forbidden. */
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -29,7 +33,7 @@ const REQUIRED_NESTS = [
   ["brand", ["id", "name"]],
   ["category", ["id", "name"]],
   ["color", ["id", "name", "hex"]],
-  ["size", ["value"]],
+  ["size", ["value", "system"]],
 ];
 
 let passed = 0;
@@ -122,12 +126,12 @@ if (start < 0 || end < 0 || end <= start) {
     if (/^\s*normalizedValue: true,$/m.test(size)) {
       throw new Error("'size.normalizedValue' still selected");
     }
-    if (/^\s*system: true,$/m.test(size)) throw new Error("'size.system' still selected");
     if (!/^\s*value: true,$/m.test(size)) throw new Error("'size.value' must remain");
+    if (!/^\s*system: true,$/m.test(size)) throw new Error("'size.system' must remain (F19b)");
   });
 
   check("no forbidden token leaks anywhere in the select block", () => {
-    for (const token of ["sku: true", "system: true", "normalizedValue: true"]) {
+    for (const token of ["sku: true", "normalizedValue: true"]) {
       if (block.includes(token)) throw new Error(`'${token}' present in select`);
     }
     const slugCount = (block.match(/^\s*slug: true,$/gm) ?? []).length;
