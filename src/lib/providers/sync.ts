@@ -159,7 +159,9 @@ async function syncVariants(
       const sizeId = variant.size
         ? await sizeIdOf(
             product.sizeCategory ?? "clothing",
-            product.sizeSystem ?? "INTERNATIONAL",
+            variant.sizeSystem ??
+              product.sizeSystem ??
+              "INTERNATIONAL",
             variant.size
           )
         : null;

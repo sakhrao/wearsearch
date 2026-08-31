@@ -124,19 +124,28 @@ function normalizeColor(
   return null;
 }
 
-function normalizeSize(
+export type NormalizedSize = {
+  value: string;
+  /* The system the source explicitly states for this value, else
+     UNKNOWN. Bare Group-2 numerics carry no label in source, so they
+     never become US or EU via inference or range heuristics. */
+  system: "INTERNATIONAL" | "US" | "EU" | "UNKNOWN";
+};
+
+export function normalizeSize(
   rawSize: string,
   isShoes: boolean
-): { category: string; system: "INTERNATIONAL" | "US"; value: string } | null {
+): NormalizedSize[] {
   const value = rawSize.trim();
-  if (!value) return null;
+  if (!value) return [];
 
   if (/^one[\s-]?size$|^os$|^uni$/i.test(value)) {
-    return {
-      category: "clothing",
-      system: "INTERNATIONAL",
-      value: "One Size",
-    };
+    return [
+      {
+        value: "One Size",
+        system: "INTERNATIONAL",
+      },
+    ];
   }
 
   if (
@@ -144,31 +153,39 @@ function normalizeSize(
       value
     )
   ) {
-    return {
-      category: "clothing",
-      system: "INTERNATIONAL",
-      value: value.toUpperCase().replace(/^2XL$/, "XXL").replace(/^3XL$/, "XXXL").replace(/^4XL$/, "XXXXL"),
-    };
+    return [
+      {
+        value: value.toUpperCase().replace(/^2XL$/, "XXL").replace(/^3XL$/, "XXXL").replace(/^4XL$/, "XXXXL"),
+        system: "INTERNATIONAL",
+      },
+    ];
   }
 
   if (isShoes) {
-    /* Numeric shoe sizes arrive either bare ("41") or as
-       combined EU+US strings ("36(US5)", "42(US10)"). Both
-       are real source values; the bare leading number is the
-       EU size users search on. */
-    const match = value.match(
-      /^(\d{1,2}(?:\.\d)?)(?:\(\s*US\s*\d+(?:\.\d+)?\s*\))?$/i
+    /* Group 1: explicit EU(US) strings such as "36(US5)" or
+       "42(US10.5)". The source states BOTH systems literally, so we
+       preserve both as independent values with zero conversion:
+       leading = EU, parenthetical = US. */
+    const explicit = value.match(
+      /^(\d{1,2}(?:\.\d)?)\s*\(\s*US\s*(\d{1,2}(?:\.\d+)?)\s*\)$/i
     );
-    if (match) {
-      return {
-        category: "shoes",
-        system: "US",
-        value: match[1],
-      };
+    if (explicit) {
+      return [
+        { value: explicit[1], system: "EU" },
+        { value: explicit[2], system: "US" },
+      ];
+    }
+
+    /* Group 2: bare numeric shoe sizes ("6", "7.5", ...). The source
+       carries no system label, so we refuse to infer US or EU and mark
+       it UNKNOWN (no range heuristic, no guessing). */
+    const bare = value.match(/^(\d{1,2}(?:\.\d)?)$/i);
+    if (bare) {
+      return [{ value: bare[1], system: "UNKNOWN" }];
     }
   }
 
-  return null;
+  return [];
 }
 
 function resolveCategory(
@@ -231,14 +248,10 @@ function buildVariants(
     const color = normalizeColor(
       variant.options?.Color
     );
-    const normalizedSize = normalizeSize(
+    const normalizedSizes = normalizeSize(
       variant.options?.Size ?? "",
       isShoes
     );
-    const sizeValue = normalizedSize?.value ?? null;
-    const key = `${color ?? "-"}|${sizeValue ?? "-"}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
 
     if (
       typeof variant.price_usd !== "number" ||
@@ -247,12 +260,19 @@ function buildVariants(
       continue;
     }
 
-    variants.push({
-      color,
-      size: sizeValue,
-      price: Number(variant.price_usd.toFixed(2)),
-      inStock: Boolean(variant.in_stock),
-    });
+    for (const sz of normalizedSizes) {
+      const key = `${color ?? "-"}|${sz.system ?? "product"}|${sz.value ?? "-"}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      variants.push({
+        color,
+        size: sz.value,
+        sizeSystem: sz.system,
+        price: Number(variant.price_usd.toFixed(2)),
+        inStock: Boolean(variant.in_stock),
+      });
+    }
   }
 
   return variants;

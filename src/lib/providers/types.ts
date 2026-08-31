@@ -5,6 +5,11 @@ export type UnifiedGender = "MEN" | "WOMEN" | "UNISEX";
 export interface UnifiedVariant {
   color: string | null;
   size: string | null;
+  /* Per-variant explicit system for the size value, when the source
+     states it (Livostyle explicit EU(US) strings). Bare numerics
+     where the source carries no system are marked UNKNOWN (never
+     inferred as US or EU). */
+  sizeSystem?: "INTERNATIONAL" | "US" | "EU" | "UNKNOWN" | null;
   price: number;
   inStock: boolean;
 }

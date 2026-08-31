@@ -16,12 +16,23 @@ const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
    matches US-stored 42 only; a queried system with no stored data is
    an honest empty + diagnostic.
 
-   LIVE-DATA NOTE (2026-08-31): the real (F1-pruned) catalog carries
-   US-tagged sizes only; every EU size lives on demo/placeholder
-   products that F1 excludes from results. So explicit-EU queries on
-   this catalog are honest empties, and the sharpest live proof of
-   system strictness is the DIFFERENCE between a bare number and its
-   EU form (e.g. "women shoes 40" = 21, "women shoes EU 40" = 0).
+   LIVE-DATA NOTE (2026-09-01, re-locked post Livostyle Group-1 fix):
+   Livostyle explicit EU(US) source strings are now parsed into BOTH
+   systems as real values (e.g. "42(US10.5)" -> EU 42 + US 10.5), and
+   bare Group-2 numerics are stored as UNKNOWN (never inferred as
+   US/EU). So the corrected catalog HAS real EU-tagged products, and
+   explicit-EU queries now match them instead of being honest empties.
+
+   Re-locked baselines (old data inferred bare numerics as US, so EU
+   queries were honest empties and bare==US):
+     - C3  "women shoes US 10"=22 vs bare "women shoes 10"=26
+          (bare now also folds UNKNOWN Group-2 numerics).
+     - C4  "women shoes EU 40"=21 vs bare=21 (real EU-40 products).
+     - C6  "EU 42"=21 vs "US 42"=0 (US-42 went UNKNOWN under the fix;
+          the strict system-identity assertion now flips).
+     - C11 "eu 41 sneakers"=7 vs bare=7 (real EU-41 products).
+   Column/size-system identity remains strict and unchanged semantics:
+   EU-stored 42 only matches EU 42; US-stored only matches US.
 
    No ranking weights, pagination, /api/meta, Schema, or DB changes.
    ===================================================================== */
@@ -149,15 +160,18 @@ function allProducts(d) {
     `n=${allProducts(d).length}`
   );
   check(
-    "C3 explicit US 10 agrees with the bare 10 result (all real sizes are US)",
-    d.exactCount === bare.exactCount,
+    "C3 explicit US 10 returns only real US-10 products (strict subset of bare",
+    d.exactCount > 0 &&
+      d.exactCount <= bare.exactCount &&
+      bare.exactCount > d.exactCount,
     `us10=${d.exactCount} bare=${bare.exactCount}`
   );
 }
 
 /* ------------------------------------------------------------------
    C4. "women shoes EU 40" -> EU-only. Bare "women shoes 40" returns
-   the US-40 products (21); the EU form must return none of them.
+   the same real set (21); the EU form returns the EU-stored 40 only
+   (never folding to US-stored 40 products).
 ------------------------------------------------------------------ */
 {
   const d = await search("women shoes EU 40");
@@ -169,8 +183,16 @@ function allProducts(d) {
     `sizeSystem=${d.structuredQuery.sizeSystem} sizeAudience=${d.structuredQuery.sizeAudience}`
   );
   check(
-    "C4 EU-40 never folds to the US-40 products",
-    d.exactCount === 0 && bare.exactCount > 0,
+    "C4 EU-40 matches real EU-stored products (every result carries an EU 40)",
+    d.exactCount > 0 &&
+      allProducts(d).every((p) =>
+        productHasAvailableSize(p, "40", "EU")
+      ),
+    `eu40=${d.exactCount}`
+  );
+  check(
+    "C4 EU-40 set equals the bare result set (both cover the real EU-40 products)",
+    d.exactCount === bare.exactCount && d.exactCount > 0,
     `eu40=${d.exactCount} bare40=${bare.exactCount}`
   );
 }
@@ -201,8 +223,11 @@ function allProducts(d) {
 }
 
 /* ------------------------------------------------------------------
-   C6. "EU 42" vs "US 42" -> column isolation on live data. The US-42
-   result set (21 products) must NEVER satisfy the EU-42 query.
+   C6. "EU 42" vs "US 42" -> column isolation on live data. After the
+   Livostyle fix, source-explicit "42(US10.5)" yields EU 42 (real), and
+   the bare Group-2 "42" went UNKNOWN (never US). So EU 42 matches real
+   EU-stored 42 products and US 42 is an honest empty. The two columns
+   must stay strictly isolated - EU 42 never folds to US 42.
 ------------------------------------------------------------------ */
 {
   const d = await search("EU 42");
@@ -214,9 +239,9 @@ function allProducts(d) {
     `sizeSystem=${d.structuredQuery.sizeSystem} sizeAudience=${d.structuredQuery.sizeAudience}`
   );
   check(
-    "C6 US 42 matches, EU 42 does not (system is part of the identity)",
-    us.exactCount > 0 && d.exactCount === 0,
-    `us42=${us.exactCount} eu42=${d.exactCount}`
+    "C6 EU 42 matches real EU-stored 42, US 42 is honest empty (columns isolated)",
+    d.exactCount > 0 && us.exactCount === 0,
+    `eu42=${d.exactCount} us42=${us.exactCount}`
   );
 }
 
@@ -298,8 +323,9 @@ function allProducts(d) {
 
 /* ------------------------------------------------------------------
    C11. "eu 41 sneakers" (regression case) -> the formerly inert "eu"
-   is now a system constraint: EU-41 only, honest empty on live data,
-   while bare "sneakers 41" keeps its 7 matches.
+   is now a system constraint: EU-41 only. After the fix the corrected
+   catalog carries real EU-41 products, so it matches 7 (== bare 41).
+   The EU constraint must surface real EU-stored 41 products only.
 ------------------------------------------------------------------ */
 {
   const eu = await search("eu 41 sneakers");
@@ -311,8 +337,8 @@ function allProducts(d) {
     `sizeSystem=${eu.structuredQuery.sizeSystem} size=${eu.structuredQuery.size}`
   );
   check(
-    "C11 'eu 41 sneakers' honest empty while bare 'sneakers 41' still matches",
-    eu.exactCount === 0 && bare.exactCount > 0,
+    "C11 'eu 41 sneakers' matches real EU-stored 41 (== bare 41, strict EU)",
+    eu.exactCount > 0 && eu.exactCount === bare.exactCount,
     `eu41=${eu.exactCount} bare41=${bare.exactCount}`
   );
 }
