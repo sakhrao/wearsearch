@@ -27,12 +27,27 @@ function check(name, cond, detail) {
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /* Mirrors find/buildIntent composition (excluding budget, which
-   is numeric-only). Used to prove no duplication on re-submit. */
+   is numeric-only). Used to prove no duplication on re-submit.
+   The system prefix mirrors R8: when a size answer carries an
+   explicit system it is emitted adjacent to the value, else the
+   bare value is used (never guess a system). */
 function builtIntentText(answers) {
   const parts = [];
   if (answers.gender) parts.push(answers.gender);
   for (const color of answers.colors) parts.push(color);
-  if (answers.size) parts.push(answers.size.value);
+  if (answers.size) {
+    const opts = answers.size.system || "";
+    const sys = opts.trim().toLowerCase();
+    const known = [
+      "eu",
+      "us",
+      "uk",
+      "it",
+      "fr",
+      "international",
+    ].includes(sys);
+    parts.push(known ? `${sys} ${answers.size.value}` : answers.size.value);
+  }
   if (answers.searchText.trim())
     parts.push(answers.searchText.trim());
   if (answers.category) parts.push(answers.category);

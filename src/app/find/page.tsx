@@ -451,7 +451,31 @@ export default function FindPage() {
       parts.push(color);
     }
     if (answers.size) {
-      parts.push(answers.size.value);
+      /* R8: carry the size system the user explicitly chose (EU/US/
+         UK/IT/FR/INTERNATIONAL) as an adjacent token so the engine's
+         existing strict parser (detectSizeSystem +
+         variantMatchesSizeSystem) enforces it instead of collapsing
+         to bare-size legacy matching. When the section has no system
+         (e.g. a generic CLOTHING section) or an unrecognized value,
+         we emit the bare size exactly as before - never guess. */
+      const sys = answers.size.system
+        ?.trim()
+        .toLowerCase();
+      const systemIsKnown =
+        sys != null &&
+        [
+          "eu",
+          "us",
+          "uk",
+          "it",
+          "fr",
+          "international",
+        ].includes(sys);
+      parts.push(
+        systemIsKnown
+          ? `${sys} ${answers.size.value}`
+          : answers.size.value
+      );
     }
     if (answers.searchText.trim()) {
       parts.push(answers.searchText.trim());
