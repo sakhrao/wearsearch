@@ -1,3 +1,10 @@
+import {
+  normalizeAudience,
+  parseSizeIdentity,
+  productSizeTriples,
+  type SizeSectionInput,
+} from "./size-sections";
+
 export type FacetKey =
   | "gender"
   | "category"
@@ -31,7 +38,10 @@ export type FacetProduct = {
   brand: { id: string; name: string };
   variants: {
     color: { id: string; name: string } | null;
-    size: { value: string } | null;
+    size: {
+      value: string;
+      system?: string | null;
+    } | null;
   }[];
 };
 
@@ -104,7 +114,11 @@ export function getProductFacets(
    - OR within a section,
    - AND across sections,
    - gender special-cases UNISEX (a UNISEX product matches
-     any selected gender). */
+     any selected gender),
+   - size matches on the contextual identity (Stage 3-B):
+     audience | productType | system | value. A chip built for
+     one audience never matches another audience's size, and EU 42
+     never matches US 42. */
 export function productMatchesFilters(
   product: FacetProduct,
   activeFilters: ActiveFacetFilters
@@ -127,9 +141,15 @@ export function productMatchesFilters(
               selected.has(value) ||
               value === "UNISEX"
           )
-        : values.some((value) =>
-            selected.has(value)
-          );
+        : key === "size"
+          ? productMatchesSizeIdentity(
+              product,
+              selected,
+              values
+            )
+          : values.some((value) =>
+              selected.has(value)
+            );
 
     if (!matches) {
       return false;
@@ -137,6 +157,57 @@ export function productMatchesFilters(
   }
 
   return true;
+}
+
+/* Stage 3-B: a product matches a selected size identity when it
+   carries the exact (productType, system, value) AND the audience
+   agrees: exact audience, or the product is UNISEX and the selected
+   audience is MEN/WOMEN. Selecting a KIDS or US/EU identity can
+   never be satisfied by another audience or system. Legacy bare
+   size values (the server facet block rests on them) keep the old
+   value-only match; the UI never produces them, so the contextual
+   path is the only one users can reach. */
+function productMatchesSizeIdentity(
+  product: FacetProduct,
+  selected: ReadonlySet<string>,
+  bareValues: string[]
+): boolean {
+  const audience = normalizeAudience(product.gender);
+  const triples = productSizeTriples(product);
+
+  for (const identity of selected) {
+    const sel = parseSizeIdentity(identity);
+
+    if (!sel) {
+      if (bareValues.includes(identity)) {
+        return true;
+      }
+      continue;
+    }
+
+    const isFold =
+      sel.audience === "MEN" || sel.audience === "WOMEN";
+
+    for (const triple of triples) {
+      if (
+        sel.productType !== triple.productType ||
+        sel.system !== triple.system ||
+        sel.value !== triple.value
+      ) {
+        continue;
+      }
+
+      if (audience === sel.audience) {
+        return true;
+      }
+
+      if (audience === "UNISEX" && isFold) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /* Dynamic faceted count for a single option: how many

@@ -28,9 +28,10 @@ import {
   type FacetKey,
 } from "@/lib/search-facets";
 import {
+  AUDIENCE_DISPLAY_LABELS,
   SIZE_SECTION_LABELS,
   SIZE_SECTION_ORDER,
-  buildSizeSectionValues,
+  buildSizeSectionColumns,
 } from "@/lib/size-sections";
 import {
   type QuestionnaireAnswers,
@@ -930,10 +931,14 @@ function Home() {
      Accessories / Headwear); a section exists only if at least one
      result product carries it, its chips are the exact values those
      products own, and the shoes US/EU split comes from
-     variant.size.system - never from the numeric value. */
-  const sizeSectionValues = useMemo(
+     variant.size.system - never from the numeric value. Stage 3-B
+     additionally splits each section into audience columns
+     (Men / Women; UNISEX folds into MEN and WOMEN only), each chip
+     carrying a contextual identity (audience | productType | system
+     | value) so EU 42, US 42 and men/women/kids sizes never merge. */
+  const sizeSectionColumns = useMemo(
     () =>
-      buildSizeSectionValues(allProducts),
+      buildSizeSectionColumns(allProducts),
     [allProducts]
   );
 
@@ -941,15 +946,17 @@ function Home() {
      whenever more results are appended (Load more) or the active
      filters change. A value with no match in the window renders
      as (0) + disabled, so choosing it can never empty the page.
-     (Size options come from sizeSectionValues above, so every
+     (Size options come from sizeSectionColumns above, so every
      rendered size chip has a window match by construction.) */
   const windowCounts = useMemo(() => {
     const optionValues: Record<FacetKey, string[]> = {
       gender: [...facetOptions.gender.keys()],
       category: [...facetOptions.category.keys()],
       color: [...facetOptions.color.keys()],
-      size: SIZE_SECTION_ORDER.flatMap(
-        (key) => [...sizeSectionValues[key]]
+      size: SIZE_SECTION_ORDER.flatMap((key) =>
+        sizeSectionColumns[key].flatMap((column) =>
+          column.chips.map((chip) => chip.identity)
+        )
       ),
       brand: [...facetOptions.brand.keys()],
     };
@@ -963,36 +970,42 @@ function Home() {
     allProducts,
     activeFilters,
     facetOptions,
-    sizeSectionValues,
+    sizeSectionColumns,
   ]);
 
   const sizeOptionGroups = useMemo(() => {
     const build = (
-      values: Set<string>
+      chips: { identity: string; value: string }[]
     ): {
       value: string;
       label: string;
       count: number;
     }[] =>
-      [...values].map((value) => ({
-        value,
-        label: value,
-        count: windowCounts.size.get(value) ?? 0,
+      chips.map((chip) => ({
+        value: chip.identity,
+        label: chip.value,
+        count: windowCounts.size.get(chip.identity) ?? 0,
       }));
 
     return SIZE_SECTION_ORDER.flatMap((key) => {
-      const options = build(sizeSectionValues[key]);
-      return options.length === 0
+      const columns = sizeSectionColumns[key]
+        .map((column) => ({
+          audience: column.audience,
+          options: build(column.chips),
+        }))
+        .filter((column) => column.options.length > 0);
+
+      return columns.length === 0
         ? []
         : [
             {
               key,
               label: SIZE_SECTION_LABELS[key],
-              options,
+              columns,
             },
           ];
     });
-  }, [sizeSectionValues, windowCounts]);
+  }, [sizeSectionColumns, windowCounts]);
 
   const filteredExactProducts = useMemo(
     () =>
@@ -1275,50 +1288,80 @@ function Home() {
 
                               <div className="mt-2 flex flex-col gap-3">
                                 {sections.map((section) => {
+                                  const multipleColumns =
+                                    section.columns.length > 1;
+
                                   return (
                                     <div key={section.label}>
                                       <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
                                         {section.label}
                                       </p>
 
-                                      <div className="mt-1 flex flex-wrap gap-2">
-                                        {section.options.map(
-                                          ({
-                                            value,
-                                            label,
-                                            count,
-                                          }) => {
-                                            const disabled =
-                                              count === 0;
-                                            const selected =
-                                              activeFilters[
-                                                key
-                                              ].has(value);
+                                      <div className="mt-1 flex flex-col gap-2">
+                                        {section.columns.map(
+                                          (column, idx) => {
+                                            const audienceLabel =
+                                              column.audience != null
+                                                ? AUDIENCE_DISPLAY_LABELS[
+                                                    column.audience
+                                                  ] ??
+                                                  column.audience
+                                                : null;
 
                                             return (
-                                              <button
-                                                key={value}
-                                                type="button"
-                                                disabled={disabled}
-                                                onClick={() =>
-                                                  toggleFilter(
-                                                    key,
-                                                    value
-                                                  )
-                                                }
-                                                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                                                  selected
-                                                    ? "bg-black text-white"
-                                                    : disabled
-                                                      ? "cursor-not-allowed bg-gray-50 text-gray-300"
-                                                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                                }`}
-                                              >
-                                                {label}{" "}
-                                                {count > 0
-                                                  ? `(${count})`
-                                                  : "(0)"}
-                                              </button>
+                                              <div key={idx}>
+                                                {multipleColumns &&
+                                                  audienceLabel && (
+                                                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                                      {audienceLabel}
+                                                    </p>
+                                                  )}
+
+                                                <div className="mt-1 flex flex-wrap gap-2">
+                                                  {column.options.map(
+                                                    ({
+                                                      value,
+                                                      label,
+                                                      count,
+                                                    }) => {
+                                                      const disabled =
+                                                        count === 0;
+                                                      const selected =
+                                                        activeFilters[
+                                                          key
+                                                        ].has(value);
+
+                                                      return (
+                                                        <button
+                                                          key={value}
+                                                          type="button"
+                                                          disabled={
+                                                            disabled
+                                                          }
+                                                          onClick={() =>
+                                                            toggleFilter(
+                                                              key,
+                                                              value
+                                                            )
+                                                          }
+                                                          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                                                            selected
+                                                              ? "bg-black text-white"
+                                                              : disabled
+                                                                ? "cursor-not-allowed bg-gray-50 text-gray-300"
+                                                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                                          }`}
+                                                        >
+                                                          {label}{" "}
+                                                          {count > 0
+                                                            ? `(${count})`
+                                                            : "(0)"}
+                                                        </button>
+                                                      );
+                                                    }
+                                                  )}
+                                                </div>
+                                              </div>
                                             );
                                           }
                                         )}
