@@ -2037,6 +2037,16 @@ function ProductCard({
             </span>
           )}
         </div>
+
+        {/* STYLE THIS ITEM */}
+        {hasProductPage && !outOfStock && (
+          <a
+            href={`/outfit?anchor=${encodeURIComponent(product.id)}`}
+            className="mt-3 block w-full rounded-lg border border-gray-300 px-4 py-2 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            Style this item
+          </a>
+        )}
       </div>
     </article>
   );
