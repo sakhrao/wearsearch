@@ -27,6 +27,14 @@ export async function loadOutfitCatalog(
           currency: true,
           availability: true,
           color: { select: { name: true, hex: true } },
+          size: {
+            select: {
+              system: true,
+              value: true,
+              normalizedValue: true,
+              productType: true,
+            },
+          },
         },
       },
       attributes: {
@@ -53,6 +61,14 @@ export async function loadOutfitCatalog(
       currency: v.currency,
       availability: v.availability,
       color: v.color,
+      size: v.size
+        ? {
+            system: v.size.system,
+            value: v.size.value,
+            normalizedValue: v.size.normalizedValue,
+            productType: v.size.productType,
+          }
+        : null,
     })),
     attributes: (r.attributes ?? []).map((a) => ({
       value: a.value,

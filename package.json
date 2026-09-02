@@ -21,6 +21,15 @@
     "test:diagnostics": "tsx scripts/diagnostics.test.mts",
     "test:url-state": "tsx scripts/url-state.test.mjs",
     "test:edit-restore": "tsx scripts/f4-edit-restore.test.mjs",
+    "test:catalog-normalize": "tsx scripts/catalog-normalize.test.mts",
+    "test:catalog-validation": "tsx scripts/catalog-validation.test.mts",
+    "test:catalog-dedupe": "tsx scripts/catalog-dedupe.test.mts",
+    "test:catalog-registry": "tsx scripts/catalog-registry.test.mts",
+    "test:catalog-offers": "tsx scripts/catalog-offers.test.mts",
+    "test:catalog-variants": "tsx scripts/catalog-variants.test.mts",
+    "test:ebay-adapter": "tsx scripts/ebay-adapter.test.mts",
+    "test:ebay-integration": "tsx scripts/ebay-integration.test.mts",
+    "test:ebay-notifications": "tsx scripts/ebay-notifications.test.mts",
     "sync:providers": "tsx src/lib/providers/sync.ts"
   },
   "prisma": {

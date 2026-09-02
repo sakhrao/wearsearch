@@ -61,6 +61,12 @@ export type OutfitProduct = {
     currency: string | null;
     availability: string;
     color: { name: string; hex: string | null } | null;
+    size?: {
+      system: string | null;
+      value: string | null;
+      normalizedValue: string | null;
+      productType: string | null;
+    } | null;
   }[];
   attributes: { value: string; attribute: { name: string } }[];
 };
@@ -117,6 +123,8 @@ export type OutfitRequest = {
   occasion?: Occasion | null;
   style?: StyleLabel | null;
   budget?: number | null;
+  size?: string | null;
+  lockProductIds?: string[];
 };
 
 export type ReplaceRequest = {

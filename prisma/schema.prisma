@@ -27,6 +27,8 @@ model Brand {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   products   Product[]
+  aliases    BrandAlias[]
+  mpnRecords MpnRecord[]
 }
 
 model Source {
@@ -38,7 +40,245 @@ model Source {
   lastSyncedAt DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-  products     Product[]
+
+  /* ---- Phase 0: real-catalog source architecture (additive) ---- */
+  /* Priority order for primary/display offer choice:
+     1=Official Brand, 2=Authorized Retailer, 3=Trusted Affiliate
+     Retailer, 4=Marketplace, 5=Other approved. Never hardcoded into
+     Search; read from this column by the offer resolver. */
+  priority      Int          @default(5)
+  /* Freshness window for this source: how long a previously synced
+     offer may go without re-sync before its availability is demoted
+     to UNKNOWN (never silently deleted). Configurable per source:
+     dynamic sources (API/feeds) default 24h, slow static catalogs may
+     be larger (e.g. 7d). Consumed by the freshness policy, not Search. */
+  freshnessHours Int?        @default(24)
+  /* True for a source that IS the brand itself (official), so a
+     marketplace listing can never masquerade as the official product. */
+  official      Boolean      @default(false)
+  /* Opaque reference to stored credentials (secret key only; never
+     secrets themselves) used by adapters to authenticate/paginate. */
+  authRef       String?
+  products      Product[]
+  offers        ProductOffer[]
+  syncRuns      SourceSyncRun[]
+  mapping       CategoryMapping[]
+  brandAliases  BrandAlias[]
+  quarantines   ProductQuarantine[]
+}
+
+/* One canonical brand, many source spellings. The existing Brand table
+   is the canonical brand registry; BrandAlias maps a raw source token
+   (e.g. "polo ralph lauren", "PoloRalphLauren") to its canonical Brand
+   row. Aliases are human-curated (never inferred on similarity), so a
+   source brand is never auto-merged on name resemblance alone. */
+model BrandAlias {
+  id          String @id @default(cuid())
+  brandId     String
+  /* A source may have a distinct spelling for the same brand
+     ("ralph lauren" vs the canonical "Ralph Lauren"); scope the alias
+     to a source so the same token under two sources still maps
+     deterministically. sourceId is nullable to allow a global alias. */
+  sourceId    String?
+  token       String
+  kind        AliasKind @default(EXACT)
+  createdAt   DateTime  @default(now())
+  brand       Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  source      Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@unique([token, sourceId])
+  @@index([brandId])
+}
+
+/* Source category token -> canonical Category. A source's own
+   taxonomy never passes through to Search; every incoming category
+   string maps (per source) to a canonical Category row. Unmapped
+   tokens quarantine rather than leak into Search. */
+model CategoryMapping {
+  id          String   @id @default(cuid())
+  sourceId    String
+  sourceToken String
+  categoryId  String
+  createdAt   DateTime @default(now())
+  source      Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, sourceToken])
+  @@index([categoryId])
+}
+
+/* A single sellable listing from one source, attached to a canonical
+   Product. Product = searchable/rankable identity; offer = the price /
+   currency / availability / purchase URL / freshniveness for one place
+   a user could buy it. One product may have many offers (official +
+   retailer + marketplace), all preserved; exactly one is the primary
+   display offer chosen by the priority resolver. Search never reads
+   source-specific logic here; it reads the canonical Product whose
+   price/availability/url mirror the primary offer. */
+model ProductOffer {
+  id                  String       @id @default(cuid())
+  productId           String
+  sourceId            String
+  externalListingId   String
+  externalTitle       String       @default("")
+  sourceProductUrl    String
+  purchaseUrl         String       @default("")
+  originalPrice       Decimal      @db.Decimal(10, 2)
+  originalCurrency    String
+  salePrice           Decimal?     @db.Decimal(10, 2)
+  /* Derived value computed at ingestion (not a replacement): the
+     original price converted to the EUR reference using the real
+     fx layer when available. non-USD non-EUR currencies are NEVER
+     treated as EUR; if no rate exists the offer quarantines rather
+     than invent a number. */
+  normalizedEur       Decimal      @db.Decimal(10, 2)
+  /* Offer availability retains the full source state (in/out of stock,
+     preorder, backorder, unknown) as a raw string. The Search-facing
+     Product mirror narrows this to the existing Availability enum
+     (PREORDER/BACKORDER demote to OUT_OF_STOCK there), so Search
+     semantics are untouched by richer offer states. */
+  availability        String       @default("UNKNOWN")
+  imageUrl            String?
+  isPrimary           Boolean      @default(false)
+  firstSeenAt         DateTime     @default(now())
+  priceUpdatedAt      DateTime     @default(now())
+  availabilityUpdatedAt DateTime   @default(now())
+  lastSyncedAt         DateTime     @default(now())
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  product             Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  source              Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  /* Per-variation rows so a multi-variation listing (eBay item with
+     size/color variations, retailer feed lines) NEVER flattens its
+     variants into one ambiguous offer. Each variant keeps its own
+     identity and its own price/availability/buy URL. */
+  variants            ProductOfferVariant[]
+
+  @@unique([sourceId, externalListingId])
+  @@index([productId])
+  @@index([sourceId])
+  @@index([availability])
+}
+
+/* A specific variation of a ProductOffer: identity + offer data kept
+   together at the variation grain. ProductOffer = the listing; these
+   rows are the sellable size/color/SKU lines under it. When an
+   adapter reports no variation dimension a listing simply has no
+   variant rows - there is nothing ambiguous to preserve. The unique
+   (offerId, variantKey) makes re-syncs idempotent; variantKey picks
+   the STRONGEST identity the source provided: SKU > variant GTIN >
+   source variant id > color+size fingerprint. */
+model ProductOfferVariant {
+  id                  String    @id @default(cuid())
+  offerId             String
+  /* Source's own variation id (e.g. eBay VariationId / item-spec), if
+     it provides one. NOT the identity we key on. */
+  externalVariantId   String?
+  /* Stable within-offer identity for upsert (sku / gtin / variant-id /
+     color+size fingerprint). Never null; re-syncs merge on it. */
+  variantKey          String
+  sku                 String?
+  /* Variant-level barcode (EAN13/EAN8/UPC/GTIN...), when the source
+     reports per-variation codes. */
+  gtin                String?
+  gtinType            String?
+  color               String?
+  sizeValue           String?
+  sizeSystem          String?
+  sizeProductType     String?
+  sizeAudience        String?
+  /* Full source availability state retained verbatim (see offer). */
+  availability        String    @default("UNKNOWN")
+  originalPrice       Decimal   @db.Decimal(10, 2)
+  originalCurrency    String
+  salePrice           Decimal?  @db.Decimal(10, 2)
+  normalizedEur       Decimal?  @db.Decimal(10, 2)
+  /* Per-variation buy URL; null when the source only has one URL for
+     the whole listing. */
+  purchaseUrl         String?
+  firstSeenAt         DateTime  @default(now())
+  priceUpdatedAt      DateTime  @default(now())
+  availabilityUpdatedAt DateTime @default(now())
+  lastSyncedAt        DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  offer               ProductOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, variantKey])
+  @@index([offerId])
+  @@index([gtin])
+  @@index([availability])
+}
+
+/* Identity records for deduplication. A canonical Product may carry
+   several GTINs and MPNs across its offers; the dedup engine keys off
+   these (with brand scope) before falling back to name+color or fuzzy
+   similarity. One source may independently report the same GTIN. */
+model GtinRecord {
+  id        String @id @default(cuid())
+  productId String
+  gtin      String
+  /* EAN13, EAN8, UPC, ISBN... */
+  gtinType  String
+  sourceId  String?
+  createdAt DateTime @default(now())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([gtin])
+  @@index([productId])
+  @@unique([gtin, gtinType, sourceId])
+}
+
+model MpnRecord {
+  id        String @id @default(cuid())
+  productId String
+  brandId   String
+  mpn       String
+  sourceId  String?
+  createdAt DateTime @default(now())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  brand     Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, mpn])
+  @@unique([brandId, mpn, sourceId])
+}
+
+/* Audit trail for every controlled source sync. Drives freshness /
+   degraded-source status without touching Search. */
+model SourceSyncRun {
+  id              String        @id @default(cuid())
+  sourceId        String
+  startedAt       DateTime      @default(now())
+  finishedAt      DateTime?
+  status          SyncRunStatus @default(RUNNING)
+  fetchedCount    Int           @default(0)
+  insertedCount   Int           @default(0)
+  updatedCount    Int           @default(0)
+  droppedCount    Int           @default(0)
+  quarantinedCount Int          @default(0)
+  error           String?
+  source          Source        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@index([status])
+}
+
+/* Low-quality or unmapped raw listings park here (with payload +
+   reason) instead of ever becoming sellable catalog rows. Nothing here
+   reaches Search. */
+model ProductQuarantine {
+  id                String   @id @default(cuid())
+  sourceId          String
+  externalListingId String
+  reason            String
+  categoryToken     String?
+  brandToken        String?
+  rawData           Json?
+  createdAt         DateTime @default(now())
+  source            Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@unique([sourceId, externalListingId])
 }
 
 model Category {
@@ -51,6 +291,7 @@ model Category {
   parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children  Category[] @relation("CategoryTree")
   products  Product[]
+  mappings  CategoryMapping[]
 }
 
 model Product {
@@ -77,6 +318,18 @@ model Product {
   source       Source             @relation(fields: [sourceId], references: [id])
   attributes   ProductAttribute[]
   variants     ProductVariant[]
+
+  /* ---- Phase 0: real-catalog source architecture (additive) ---- */
+  /* Frozen identity fingerprint produced by the dedup engine
+     (layer 1 GTIN .. layer 5 similarity). Null for legacy/pre-split
+     rows. Search is untouched; this only drives merging. */
+  dedupKey     String?
+  /* Which dedup layer produced dedupKey: 1 GTIN, 2 Brand+MPN,
+     3 Brand+SKU, 4 brand+name+color, 5 similarity fallback. */
+  identityLayer Int?
+  offers       ProductOffer[]
+  gtins        GtinRecord[]
+  mpns         MpnRecord[]
 
   @@unique([sourceId, externalId])
   @@index([brandId])
@@ -302,4 +555,18 @@ enum QuestionType {
   TEXT
   NUMBER
   RANGE
+}
+
+/* How a BrandAlias token matches its canonical brand: EXACT for a
+   verbatim normalized spelling (default), CONTAINS for a loose
+   token. Human-curated only - never inferred. */
+enum AliasKind {
+  EXACT
+  CONTAINS
+}
+
+enum SyncRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -37,6 +37,7 @@ type Look = {
 
 type OutfitsResult = {
   anchor: ProductSummary;
+  request?: { size?: string | null };
   outfits: Look[];
 };
 
@@ -52,9 +53,15 @@ const SLOT_LABEL: Record<string, string> = {
   accessory: "Accessories",
 };
 
+const SLOT_ORDER = ["top", "bottom", "layer", "footwear", "accessory"];
+
+const BUDGET_PRESETS = [100, 150, 200, 300];
+
+const SAVE_KEY = "wearsearch-outfit-saved";
+const SHARE_KEY = "wearsearch-outfit-share-url";
+
 function money(v: string | number): string {
-  const n =
-    typeof v === "string" ? Number(v) : Number(v);
+  const n = typeof v === "string" ? Number(v) : Number(v);
   return Number.isFinite(n) ? n.toFixed(2) : String(v);
 }
 
@@ -69,6 +76,12 @@ function OutfitPage() {
   const searchParams = useSearchParams();
   const productId =
     searchParams.get("anchor") ?? searchParams.get("productId") ?? "";
+  const initialIds = useMemo(() => {
+    const ids = searchParams.get("ids");
+    if (!ids) return [];
+    return ids.split(",").filter((x) => x.length > 0);
+  }, [searchParams]);
+  const initialSize = searchParams.get("size") ?? "";
 
   const [state, setState] = useState<
     | { status: "loading" }
@@ -80,8 +93,10 @@ function OutfitPage() {
   const [occasion, setOccasion] = useState("Everyday");
   const [style, setStyle] = useState("");
   const [budget, setBudget] = useState("");
+  const [size, setSize] = useState(initialSize);
   const [replacingSlot, setReplacingSlot] = useState<string | null>(null);
   const [replaceError, setReplaceError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!productId) {
@@ -99,6 +114,8 @@ function OutfitPage() {
       if (budget.trim() !== "" && Number.isFinite(b) && b > 0) {
         body.budget = b;
       }
+      if (size.trim() !== "") body.size = size.trim();
+      if (initialIds.length > 0) body.lockProductIds = initialIds;
       try {
         const res = await fetch("/api/outfits", {
           method: "POST",
@@ -120,9 +137,13 @@ function OutfitPage() {
     return () => {
       cancelled = true;
     };
-  }, [productId, occasion, style, budget]);
+  }, [productId, occasion, style, budget, size, initialIds]);
 
-  const replace = async (lookIndex: number, slot: string) => {
+  const replace = async (
+    lookIndex: number,
+    slot: string,
+    extra?: { excludeProductIds?: string[] }
+  ) => {
     if (state.status !== "ready") return;
     const look = state.result.outfits[lookIndex];
     if (!look) return;
@@ -141,6 +162,9 @@ function OutfitPage() {
           lockedProductIds,
           occasion,
           style: style || null,
+          ...(extra?.excludeProductIds?.length
+            ? { excludeProductIds: extra.excludeProductIds }
+            : {}),
         }),
       });
       const json = await res.json();
@@ -166,19 +190,128 @@ function OutfitPage() {
     }
   };
 
+  // Remove an item from the active look (client-side edit).
+  const removeItem = (slot: string) => {
+    setState((prev) => {
+      if (prev.status !== "ready") return prev;
+      const look = prev.result.outfits[activeIndex];
+      if (!look) return prev;
+      const items = look.items.filter((it) => it.slot !== slot);
+      if (items.length === look.items.length) return prev;
+      const totalPriceEur =
+        Math.round(items.reduce((s, it) => s + Number(it.product.price), 0) * 100) / 100;
+      const missingSlots = [...look.missingSlots];
+      if (!missingSlots.includes(slot)) missingSlots.push(slot);
+      const outfits = prev.result.outfits.map((o, i) =>
+        i === activeIndex
+          ? {
+              ...o,
+              items,
+              totalPriceEur,
+              complete: false,
+              missingSlots,
+              score: o.score,
+            }
+          : o
+      );
+      return { status: "ready", result: { ...prev.result, outfits } };
+    });
+  };
+
+  // Add an item into the first empty slot of the look.
+  const addItem = async () => {
+    if (state.status !== "ready") return;
+    const look = state.result.outfits[activeIndex];
+    if (!look) return;
+    const present = new Set(look.items.map((it) => it.slot));
+    const target = SLOT_ORDER.find((s) => !present.has(s));
+    if (!target) {
+      setReplaceError("The outfit is already complete — remove an item first.");
+      return;
+    }
+    await replace(activeIndex, target);
+  };
+
+  const saveOutfit = () => {
+    if (state.status !== "ready") return;
+    const look = state.result.outfits[activeIndex];
+    if (!look) return;
+    const payload = {
+      anchorId: state.result.anchor.id,
+      occasion,
+      style,
+      budget,
+      size,
+      ids: look.items.map((it) => it.product.id),
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      window.sessionStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setReplaceError("Couldn't save — session storage unavailable.");
+    }
+  };
+
+  const shareOutfit = async () => {
+    if (state.status !== "ready") return;
+    const look = state.result.outfits[activeIndex];
+    if (!look) return;
+    const ids = look.items.map((it) => it.product.id).join(",");
+    const url = new URL(window.location.href);
+    url.searchParams.set("anchor", state.result.anchor.id);
+    url.searchParams.set("ids", ids);
+    if (occasion) url.searchParams.set("occasion", occasion);
+    if (style) url.searchParams.set("style", style);
+    if (budget.trim()) url.searchParams.set("budget", budget);
+    if (size.trim()) url.searchParams.set("size", size.trim());
+    try {
+      window.sessionStorage.setItem(SHARE_KEY, url.toString());
+    } catch {
+      /* session storage unavailable — the toast still signals a share attempt */
+    }
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2000);
+    // Best-effort clipboard; fire-and-forget, never blocks the page
+    // (headless-safe). The share link is persisted in session storage.
+    navigator.clipboard?.writeText(url.toString()).catch(() => {});
+  };
+
+  const look = state.status === "ready" ? state.result.outfits[activeIndex] : null;
+  const budgetNum = Number(budget);
+
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Style this item
-          </h1>
-          <Link
-            href="/"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            Back to search
-          </Link>
+          <h1 className="text-3xl font-bold tracking-tight">Style this item</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            {state.status === "ready" && look && (
+              <>
+                <button
+                  type="button"
+                  onClick={saveOutfit}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  {saved ? "Saved" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={shareOutfit}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  {saved ? "Link copied" : "Share"}
+                </button>
+              </>
+            )}
+            <Link
+              href="/"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              Back to search
+            </Link>
+          </div>
         </div>
 
         {!productId && (
@@ -252,16 +385,44 @@ function OutfitPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Budget (EUR)
+                  Your size
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="Optional"
-                  className="mt-1 block w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
+                  type="text"
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  placeholder="e.g. M or 42"
+                  className="mt-1 block w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Budget (EUR)
+                </label>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {BUDGET_PRESETS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setBudget(String(p))}
+                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                        Number(budget) === p
+                          ? "bg-black text-white"
+                          : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      €{p}
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min="1"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder="Custom"
+                    className="block w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-black"
+                  />
+                </div>
               </div>
             </div>
 
@@ -283,6 +444,7 @@ function OutfitPage() {
                 <h2 className="text-xl font-semibold">{state.result.anchor.name}</h2>
                 <p className="mt-1 text-sm text-gray-500">
                   {refName(state.result.anchor.category)} · {state.result.anchor.gender}
+                  {size.trim() ? ` · size ${size.trim()}` : ""}
                 </p>
               </div>
             </div>
@@ -290,9 +452,9 @@ function OutfitPage() {
             {/* LOOK TABS */}
             {state.result.outfits.length > 0 && (
               <div className="mb-6 flex flex-wrap gap-2">
-                {state.result.outfits.map((look, i) => (
+                {state.result.outfits.map((l, i) => (
                   <button
-                    key={look.id}
+                    key={l.id}
                     type="button"
                     onClick={() => setActiveIndex(i)}
                     className={`rounded-full px-4 py-2 text-sm font-medium transition ${
@@ -302,21 +464,24 @@ function OutfitPage() {
                     }`}
                   >
                     Look {i + 1}
-                    {!look.complete && " (partial)"}
+                    {!l.complete && " (partial)"}
                   </button>
                 ))}
               </div>
             )}
 
             {/* ACTIVE LOOK */}
-            {state.result.outfits[activeIndex] && (
+            {look && (
               <OutfitLook
-                look={state.result.outfits[activeIndex]}
+                look={look}
                 lookIndex={activeIndex}
                 anchorId={state.result.anchor.id}
+                budget={Number.isFinite(budgetNum) ? budgetNum : null}
                 replacingSlot={replacingSlot}
                 replaceError={replaceError}
                 onReplace={replace}
+                onRemove={removeItem}
+                onAdd={addItem}
               />
             )}
 
@@ -338,20 +503,30 @@ function OutfitLook({
   look,
   lookIndex,
   anchorId,
+  budget,
   replacingSlot,
   replaceError,
   onReplace,
+  onRemove,
+  onAdd,
 }: {
   look: Look;
   lookIndex: number;
   anchorId: string;
+  budget: number | null;
   replacingSlot: string | null;
   replaceError: string | null;
-  onReplace: (lookIndex: number, slot: string) => void;
+  onReplace: (lookIndex: number, slot: string, extra?: { excludeProductIds?: string[] }) => void;
+  onRemove: (slot: string) => void;
+  onAdd: () => void;
 }) {
   const [showWhy, setShowWhy] = useState(false);
-  const itemExplanations =
-    look.explanations ?? {};
+  const itemExplanations = look.explanations ?? {};
+
+  const pieces = look.items.length;
+  const totalPieces = pieces + look.missingSlots.length;
+  const remaining =
+    budget !== null ? Math.round((budget - look.totalPriceEur) * 100) / 100 : null;
 
   return (
     <div className="rounded-2xl border border-gray-200 p-6">
@@ -363,6 +538,23 @@ function OutfitLook({
           <p className="mt-1 text-lg font-bold">
             Total: €{look.totalPriceEur.toFixed(2)}
           </p>
+          <p className="mt-1 text-sm text-gray-600">
+            {pieces} of {Math.max(totalPieces, pieces)} pieces ·{" "}
+            {look.complete ? "Full outfit" : "Partial outfit"}
+          </p>
+          {remaining !== null && (
+            <p
+              className={`mt-1 text-sm font-medium ${
+                remaining < 0 ? "text-red-600" : "text-emerald-700"
+              }`}
+            >
+              {remaining === 0
+                ? "On budget"
+                : remaining > 0
+                  ? `€${remaining.toFixed(2)} under budget`
+                  : `€${Math.abs(remaining).toFixed(2)} over budget`}
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -433,14 +625,32 @@ function OutfitLook({
                   View product
                 </a>
                 {item.product.id !== anchorId && (
-                  <button
-                    type="button"
-                    onClick={() => onReplace(lookIndex, item.slot)}
-                    disabled={replacingSlot !== null}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {replacingSlot === item.slot ? "Swapping…" : "Replace"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onReplace(lookIndex, item.slot)}
+                      disabled={replacingSlot !== null}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {replacingSlot === item.slot ? "Swapping…" : "Replace"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReplace(lookIndex, item.slot, { excludeProductIds: [item.product.id] })}
+                      disabled={replacingSlot !== null}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100 disabled:opacity-50"
+                      title="Replace this piece with something different from your taste"
+                    >
+                      Not my style
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(item.slot)}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -458,6 +668,18 @@ function OutfitLook({
           </div>
         ))}
       </div>
+
+      {/* ADD A PIECE */}
+      {look.missingSlots.length > 0 && (
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={replacingSlot !== null}
+          className="mt-5 rounded-xl border border-dashed border-gray-300 px-5 py-4 w-full text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+        >
+          + Add an item
+        </button>
+      )}
 
       {/* SHOP THE LOOK */}
       {look.items.length > 0 && (

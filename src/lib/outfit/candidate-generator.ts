@@ -8,12 +8,18 @@
      4. gender policy (mirrors search route genderMatches).
      5. category is allowed for the anchor+slot (matrix gate).
 
-   Only products passing ALL gates reach scoring. */
+   Only products passing ALL gates reach scoring.
+
+   Additive: when a `size` preference is supplied, the stable sort is
+   made size-aware so an AVAILABLE in-size product ranks above one
+   that is not, within the same preference/name tier. When no size is
+   given the ordering is byte-identical to the size-unaware path. */
 
 import { hasRealProductPage } from "@/lib/product-url";
 import { preferenceFor } from "./category-rules";
 import { resolveCandidateColor } from "./compatibility";
 import { deriveStyleProfile } from "./style-profile";
+import { evalSize, type SizePreference } from "./outfit-size";
 import type {
   Gender,
   OutfitProduct,
@@ -78,8 +84,9 @@ export function candidatesForSlot(args: {
   anchorGender: Gender | null;
   anchorProfile: StyleProfile | null;
   anchorColor: string | null;
+  size?: SizePreference | null;
 }): CandidateEntry[] {
-  const { products, slot, anchorSlug, anchorGender, anchorProfile, anchorColor } = args;
+  const { products, slot, anchorSlug, anchorGender, anchorProfile, anchorColor, size = null } = args;
 
   const entries: CandidateEntry[] = [];
   const seen = new Set<string>();
@@ -104,10 +111,17 @@ export function candidatesForSlot(args: {
   }
 
   // Stable ordering: preference, then name, then id — deterministic.
+  // When a size is requested, an AVAILABLE in-size candidate ranks
+  // ahead within the same preference tier (additive size awareness).
   entries.sort((a, b) => {
     const pa = preferenceFor(anchorSlug, slot, a.categorySlug);
     const pb = preferenceFor(anchorSlug, slot, b.categorySlug);
     if (pa !== pb) return pa - pb;
+    if (size && size.value && size.value.trim() !== "") {
+      const sa = evalSize(a.product, size).score;
+      const sb = evalSize(b.product, size).score;
+      if (sa !== sb) return sb - sa;
+    }
     if (a.product.name < b.product.name) return -1;
     if (a.product.name > b.product.name) return 1;
     if (a.product.id < b.product.id) return -1;

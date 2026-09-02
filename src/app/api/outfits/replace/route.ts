@@ -35,6 +35,8 @@ export async function POST(request: Request) {
       occasion?: unknown;
       style?: unknown;
       budget?: unknown;
+      size?: unknown;
+      excludeProductIds?: unknown;
     };
 
     const anchorProductId =
@@ -61,6 +63,10 @@ export async function POST(request: Request) {
     const occasion = parseOccasion(body?.occasion);
     const style = parseStyle(body?.style);
     const budget = parseBudget(body?.budget);
+    const size = parseSize(body?.size);
+    const excludeProductIds: string[] = Array.isArray(body?.excludeProductIds)
+      ? body.excludeProductIds.filter((x): x is string => typeof x === "string")
+      : [];
 
     const [rate, fingerprint] = await Promise.all([
       getFxRate(),
@@ -126,8 +132,10 @@ export async function POST(request: Request) {
       occasion,
       style,
       budget,
+      size,
       rate: rate.rate,
       max: 3,
+      excludeProductIds,
     });
 
     return Response.json({
@@ -166,4 +174,9 @@ function parseBudget(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+function parseSize(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s.length > 0 && s.length <= 20 ? s : null;
 }

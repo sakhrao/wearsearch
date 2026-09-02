@@ -111,7 +111,54 @@ const GENDER_LABELS: Record<string, string> = {
   kids: "Kids",
 };
 
-function Chip({
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="size-4"
+    >
+      <path d="m5 13 4 4L19 7" />
+    </svg>
+  );
+}
+
+function ArrowIcon({ dir }: { dir: "left" | "right" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="size-4"
+    >
+      {dir === "left" ? (
+        <path d="M19 12H5m6 6-6-6 6-6" />
+      ) : (
+        <path d="M5 12h14m-6-6 6 6-6 6" />
+      )}
+    </svg>
+  );
+}
+
+const PRIMARY_BTN =
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-accent-deep hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none";
+
+const SECONDARY_BTN =
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 text-sm font-medium text-ink-soft transition-all duration-200 hover:border-accent/50 hover:text-ink active:scale-[0.98] disabled:invisible";
+
+const TERTIARY_BTN =
+  "inline-flex h-12 items-center justify-center gap-1 rounded-full px-4 text-sm font-medium text-ink-faint transition-colors hover:text-accent";
+
+function OptionCard({
   label,
   selected,
   onClick,
@@ -123,15 +170,95 @@ function Chip({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={onClick}
-      className={`rounded-full border px-4 py-2 text-sm transition-colors ${
+      className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
         selected
-          ? "border-black bg-black text-white"
-          : "border-gray-300 bg-white text-gray-700 hover:border-gray-500"
+          ? "border-accent bg-accent-tint text-ink"
+          : "border-line bg-surface text-ink-soft hover:-translate-y-px hover:border-accent/60 hover:text-ink hover:shadow-md"
       }`}
     >
+      <span>{label}</span>
+      {selected && (
+        <span className="text-accent">
+          <CheckIcon />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function OptionPill({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`flex min-h-11 items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-150 ${
+        selected
+          ? "border-accent bg-accent-tint text-ink"
+          : "border-line bg-surface text-ink-soft hover:border-accent/50 hover:text-ink"
+      }`}
+    >
+      {selected && (
+        <span className="text-accent">
+          <CheckIcon />
+        </span>
+      )}
       {label}
     </button>
+  );
+}
+
+function FieldInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  icon,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  icon?: boolean;
+}) {
+  return (
+    <div className="relative">
+      {icon && (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-ink-faint"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+      )}
+      <input
+        id={id}
+        type={icon ? "search" : "text"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className={`h-11 w-full rounded-full border border-line bg-surface text-sm text-ink shadow-sm outline-none transition placeholder:text-ink-faint hover:border-ink/30 focus:border-accent/40 focus:ring-4 focus:ring-accent/10 ${
+          icon ? "pl-11 pr-4" : "px-4"
+        }`}
+      />
+    </div>
   );
 }
 
@@ -325,6 +452,37 @@ export default function FindPage() {
   );
 
   const canProceed = stepState.canNext;
+
+  /* Conversation-style ask + helper line per step. */
+  const stepCopy: Record<
+    number,
+    { ask: string; hint: string }
+  > = {
+    0: {
+      ask: "What are you shopping for?",
+      hint: "Pick a category to start — you can change it later.",
+    },
+    1: {
+      ask: "Who is it for?",
+      hint: "We'll tailor the options to the person you're shopping for.",
+    },
+    2: {
+      ask: "Which colors do you like?",
+      hint: "Optional · pick as many as you like, tap again to remove.",
+    },
+    3: {
+      ask: "What size do you need?",
+      hint: `Optional · ${sizeStepLabel} options that fit your picks.`,
+    },
+    4: {
+      ask: "What's your budget?",
+      hint: `Optional · set a range in ${budgetCurrencyLabel}.`,
+    },
+    5: {
+      ask: "Anything else that matters?",
+      hint: "Optional · tell us in your own words or pick a detail.",
+    },
+  };
 
   function setAnswer<K extends keyof Answers>(
     key: K,
@@ -568,12 +726,12 @@ export default function FindPage() {
   if (metaError) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-4 px-4">
-        <p className="text-center text-gray-600">
+        <p className="text-center text-ink-soft">
           {metaError}
         </p>
         <Link
           href="/"
-          className="text-sm underline"
+          className="text-sm font-medium text-accent underline-offset-4 hover:underline"
         >
           Back to search
         </Link>
@@ -585,69 +743,74 @@ export default function FindPage() {
      rendered so SSR produces a meaningful first paint. Only
      the data-dependent option area waits, showing a localized
      loader while /api/meta is in flight. */
+  const copy = stepCopy[step];
+
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      <div className="mb-6 flex items-center justify-between gap-4">
+    <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-16 pt-8 sm:pt-12">
+      {/* Small header */}
+      <div className="flex items-center justify-between gap-4">
         <Link
           href="/"
-          className="text-sm text-gray-500 hover:text-black"
+          className="inline-flex items-center gap-1 text-sm font-medium text-ink-faint transition-colors hover:text-accent"
         >
-          ← Direct search
+          <ArrowIcon dir="left" />
+          Search
         </Link>
-        <span className="text-xs font-medium text-gray-400">
-          Step {step + 1} of {totalSteps}
-        </span>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
+          Your preferences
+        </p>
       </div>
 
-      <h1 className="text-2xl font-bold sm:text-3xl">
-        Find your perfect clothing
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Answer a few quick questions. The first two
-        steps are required; the rest are optional —
-        skip anything you don&apos;t care about.
-      </p>
-
-      <div
-        className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-gray-200"
-        role="progressbar"
-        aria-valuenow={step + 1}
-        aria-valuemin={1}
-        aria-valuemax={totalSteps}
-      >
+      {/* Minimal progress */}
+      <div className="mt-6 flex items-center gap-4">
+        <span className="shrink-0 text-sm font-medium text-ink-soft">
+          Step {step + 1} of {totalSteps}
+        </span>
         <div
-          className="h-full rounded-full bg-black transition-all duration-300"
-          style={{
-            width:
-              ((step + 1) / totalSteps) * 100 +
-              "%",
-          }}
-        />
+          className="h-1 w-full overflow-hidden rounded-full bg-line"
+          role="progressbar"
+          aria-valuenow={step + 1}
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+          aria-label={`Step ${step + 1} of ${totalSteps}`}
+        >
+          <div
+            className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+            style={{
+              width:
+                ((step + 1) / totalSteps) * 100 +
+                "%",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Question */}
+      <div className="mt-10 text-center">
+        <h1 className="font-display text-3xl font-medium tracking-tight text-ink sm:text-4xl">
+          {copy.ask}
+        </h1>
+        <p className="mt-3 text-ink-soft">
+          {copy.hint}
+        </p>
       </div>
 
       <section
-        className="mt-8 min-h-[16rem]"
+        className="mt-9 min-h-[16rem]"
         aria-busy={!meta}
       >
-        {meta && step === 0 && (
-          <div>
-            <h2 className="mb-1 text-lg font-semibold">
-              What are you looking for?
-            </h2>
-            <p className="mb-4 text-sm text-gray-500">
-              Required. Pick a category.
-            </p>
-            <div className="space-y-5">
-              {groupedCategories.map((group) => {
-                const items = group.items.slice();
-                return (
+        {meta && (
+          <div key={step} className="step-animate">
+            {step === 0 && (
+              <div className="space-y-6">
+                {groupedCategories.map((group) => (
                   <div key={group.group}>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
                       {group.group}
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {items.map((category) => (
-                        <Chip
+                    </h2>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {group.items.map((category) => (
+                        <OptionCard
                           key={category.slug}
                           label={category.name}
                           selected={
@@ -663,367 +826,340 @@ export default function FindPage() {
                       ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                ))}
+              </div>
+            )}
 
-        {meta && step === 1 && (
-          <div>
-            <h2 className="mb-1 text-lg font-semibold">
-              Who is it for?
-            </h2>
-            <p className="mb-4 text-sm text-gray-500">
-              Required.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {GENDER_OPTIONS.map((value) => (
-                <Chip
-                  key={value}
-                  label={
-                    GENDER_LABELS[value] ?? value
-                  }
-                  selected={
-                    answers.gender === value
-                  }
-                  onClick={() =>
-                            pickGender(value)
-                          }
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {meta && step === 2 && (
-          <div>
-            <h2 className="mb-1 text-lg font-semibold">
-              Colors
-            </h2>
-            <p className="mb-4 text-sm text-gray-500">
-              Optional. Pick one or more colors (tap
-              again to deselect).
-            </p>
-            <div className="mb-4">
-              <input
-                id="find-color-filter"
-                type="search"
-                value={colorFilter}
-                onChange={(event) =>
-                  setColorFilter(
-                    event.target.value
-                  )
-                }
-                placeholder="Search colors…"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {meta.colors
-                .filter((color) =>
-                  colorFilter.trim()
-                    ? color
-                        .toLowerCase()
-                        .includes(
-                          colorFilter
-                            .trim()
-                            .toLowerCase()
-                        )
-                    : true
-                )
-                .map((color) => (
-                  <Chip
-                    key={color}
-                    label={color}
-                    selected={answers.colors.includes(
-                      color
-                    )}
+            {step === 1 && (
+              <div className="mx-auto grid max-w-md gap-3">
+                {GENDER_OPTIONS.map((value) => (
+                  <OptionCard
+                    key={value}
+                    label={
+                      GENDER_LABELS[value] ?? value
+                    }
+                    selected={
+                      answers.gender === value
+                    }
                     onClick={() =>
-                      toggleInList(
-                        "colors",
-                        color
-                      )
+                      pickGender(value)
                     }
                   />
                 ))}
-            </div>
-            {colorFilter.trim() !== "" &&
-              meta.colors.filter((color) =>
-                color
-                  .toLowerCase()
-                  .includes(
-                    colorFilter
-                      .trim()
-                      .toLowerCase()
-                  )
-              ).length === 0 && (
-                <p className="mt-3 text-sm text-gray-400">
-                  No colors match “{colorFilter}”.
-                </p>
-)}
-          </div>
-        )}
+              </div>
+            )}
 
-{meta && step === 3 && (
-          <div>
-            <h2 className="mb-1 text-lg font-semibold">
-              Size?
-            </h2>
-            <p className="mb-4 text-sm text-gray-500">
-              Optional. {sizeStepLabel} options.
-            </p>
-            {sizeSections.length > 0 ? (
-              <div className="space-y-5">
-                {sizeSections.map((section) =>
-                  section.label !== null ? (
-                    <div key={section.label}>
-                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                        {section.label}
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {section.values.map((size) => (
-                          <Chip
-                            key={size}
-                            label={size}
-                            selected={isSizeChipSelected(
-                              section,
-                              size
-                            )}
-                            onClick={() =>
-                              pickSize(section, size)
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      key="sizes"
-                      className="flex flex-wrap gap-2"
-                    >
-                      {section.values.map((size) => (
-                        <Chip
-                          key={size}
-                          label={size}
-                          selected={isSizeChipSelected(
-                            section,
-                            size
-                          )}
-                          onClick={() =>
-                            pickSize(section, size)
-                          }
-                        />
-                      ))}
-                    </div>
-                  )
+            {step === 2 && (
+              <div>
+                <div className="mx-auto mb-6 max-w-sm">
+                  <FieldInput
+                    id="find-color-filter"
+                    value={colorFilter}
+                    onChange={setColorFilter}
+                    placeholder="Search colors…"
+                    icon
+                  />
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {meta.colors
+                    .filter((color) =>
+                      colorFilter.trim()
+                        ? color
+                            .toLowerCase()
+                            .includes(
+                              colorFilter
+                                .trim()
+                                .toLowerCase()
+                            )
+                        : true
+                    )
+                    .map((color) => (
+                      <OptionPill
+                        key={color}
+                        label={color}
+                        selected={answers.colors.includes(
+                          color
+                        )}
+                        onClick={() =>
+                          toggleInList(
+                            "colors",
+                            color
+                          )
+                        }
+                      />
+                    ))}
+                </div>
+                {colorFilter.trim() !== "" &&
+                  meta.colors.filter((color) =>
+                    color
+                      .toLowerCase()
+                      .includes(
+                        colorFilter
+                          .trim()
+                          .toLowerCase()
+                      )
+                  ).length === 0 && (
+                    <p className="mt-4 text-center text-sm text-ink-faint">
+                      No colors match “{colorFilter}”.
+                    </p>
+                  )}
+              </div>
+            )}
+
+            {step === 3 && (
+              <div>
+                {sizeSections.length > 0 ? (
+                  <div className="space-y-6">
+                    {sizeSections.map((section) =>
+                      section.label !== null ? (
+                        <div key={section.label}>
+                          <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                            {section.label}
+                          </h2>
+                          <div className="flex flex-wrap justify-center gap-2">
+                            {section.values.map((size) => (
+                              <OptionPill
+                                key={size}
+                                label={size}
+                                selected={isSizeChipSelected(
+                                  section,
+                                  size
+                                )}
+                                onClick={() =>
+                                  pickSize(
+                                    section,
+                                    size
+                                  )
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          key="sizes"
+                          className="flex flex-wrap justify-center gap-2"
+                        >
+                          {section.values.map((size) => (
+                            <OptionPill
+                              key={size}
+                              label={size}
+                              selected={isSizeChipSelected(
+                                section,
+                                size
+                              )}
+                              onClick={() =>
+                                pickSize(
+                                  section,
+                                  size
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                ) : (
+                  <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
+                    <p className="text-sm text-ink-soft">
+                      No sizes are available for your
+                      picks right now — you can skip
+                      this step.
+                    </p>
+                  </div>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-gray-400">
-                No sizes available for this
-                category.
-              </p>
             )}
-          </div>
-        )}
 
-        {meta && step === 4 && (
-          <div>
-            <h2 className="mb-1 text-lg font-semibold">
-              Budget?
-            </h2>
-            <p className="mb-4 text-sm text-gray-500">
-              Optional. Set a {budgetCurrencyLabel}{" "}
-              range.
-            </p>
-            <div className="space-y-5">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium text-gray-700">
-                    Min
-                  </span>
-                  <span className="text-gray-500">
-                    {budgetCurrencyLabel}{" "}
-                    {answers.budgetMin === ""
-                      ? 0
-                      : answers.budgetMin}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={200}
-                  step={1}
-                  aria-label={`Minimum budget in ${budgetCurrencyLabel}`}
-                  value={
-                    answers.budgetMin === ""
-                      ? 0
-                      : Number(answers.budgetMin)
-                  }
-                  onChange={(event) => {
-                    const value = Number(
-                      event.target.value
-                    );
-                    const maxNumber =
-                      answers.budgetMax === ""
+            {step === 4 && (
+              <div className="mx-auto max-w-md space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="font-medium text-ink">
+                      Minimum
+                    </span>
+                    <span className="tabular-nums text-ink-soft">
+                      {budgetCurrencyLabel}{" "}
+                      {answers.budgetMin === ""
                         ? 0
-                        : Number(answers.budgetMax);
-                    if (
-                      maxNumber > 0 &&
-                      value > maxNumber
-                    ) {
-                      setAnswer(
-                        "budgetMax",
-                        String(value)
-                      );
-                    }
-                    setAnswer(
-                      "budgetMin",
-                      String(value)
-                    );
-                  }}
-                  className="w-full accent-black"
-                />
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium text-gray-700">
-                    Max
-                  </span>
-                  <span className="text-gray-500">
-                    {budgetCurrencyLabel}{" "}
-                    {answers.budgetMax === ""
-                      ? 200
-                      : answers.budgetMax}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={200}
-                  step={1}
-                  aria-label={`Maximum budget in ${budgetCurrencyLabel}`}
-                  value={
-                    answers.budgetMax === ""
-                      ? 200
-                      : Number(answers.budgetMax)
-                  }
-                  onChange={(event) => {
-                    const value = Number(
-                      event.target.value
-                    );
-                    const minNumber =
+                        : answers.budgetMin}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={200}
+                    step={1}
+                    aria-label={`Minimum budget in ${budgetCurrencyLabel}`}
+                    value={
                       answers.budgetMin === ""
                         ? 0
-                        : Number(answers.budgetMin);
-                    if (
-                      minNumber > 0 &&
-                      value < minNumber
-                    ) {
+                        : Number(answers.budgetMin)
+                    }
+                    onChange={(event) => {
+                      const value = Number(
+                        event.target.value
+                      );
+                      const maxNumber =
+                        answers.budgetMax === ""
+                          ? 0
+                          : Number(answers.budgetMax);
+                      if (
+                        maxNumber > 0 &&
+                        value > maxNumber
+                      ) {
+                        setAnswer(
+                          "budgetMax",
+                          String(value)
+                        );
+                      }
                       setAnswer(
                         "budgetMin",
                         String(value)
                       );
-                    }
-                    setAnswer(
-                      "budgetMax",
-                      String(value)
-                    );
-                  }}
-                  className="w-full accent-black"
-                />
-              </div>
-            </div>
-            {fxRate ? (
-              <p className="mt-3 text-xs text-gray-400">
-                Budgets are compared in a single reference
-                currency: your USD range is converted with the
-                ECB reference rate (1 EUR ≈{" "}
-                {fxRate.toFixed(4)} USD,{" "}
-                {meta?.fx?.asOf ?? "latest"}), and every
-                product&apos;s price is normalized the same way
-                before matching. Each card still shows the
-                original price in its original currency.
-                Products outside your range but within 35% still
-                show under “Similar”.
-              </p>
-            ) : (
-              <p className="mt-3 text-xs text-amber-600">
-                Budgets are compared in EUR (reference
-                currency). No reliable USD rate is available
-                right now, so prices are matched at their stored
-                value — nothing is invented. Conversion is
-                applied automatically once a rate is configured
-                or reachable.
-              </p>
-            )}
-          </div>
-        )}
-
-        {meta && step === 5 && (
-          <div>
-            <h2 className="mb-1 text-lg font-semibold">
-              Any details that matter?
-            </h2>
-            <p className="mb-4 text-sm text-gray-500">
-              Optional. These preferences help
-              rank the best options first.
-            </p>
-            <div className="space-y-5">
-              <div>
-                <label
-                  htmlFor="find-search-text"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Your own words
-                </label>
-                <input
-                  id="find-search-text"
-                  type="text"
-                  value={answers.searchText}
-                  onChange={(event) =>
-                    setAnswer(
-                      "searchText",
-                      event.target.value
-                    )
-                  }
-                  placeholder="Anything specific? E.g. oversized, striped, for running."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
-                />
-              </div>
-              {detailGroups.map((group) => (
-                <div key={group.name}>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                    {group.name}
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {group.values
-                      .filter(
-                        (value) =>
-                          value.trim().toLowerCase() !==
-                            "n/a" &&
-                          value.trim() !== ""
-                      )
-                      .map((value) => (
-                        <Chip
-                          key={value}
-                          label={value}
-                          selected={answers.attributes.includes(
-                            value
-                          )}
-                          onClick={() =>
-                            toggleInList(
-                              "attributes",
-                              value
-                            )
-                          }
-                        />
-                      ))}
-                  </div>
+                    }}
+                    className="w-full accent-[var(--accent)]"
+                  />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="font-medium text-ink">
+                      Maximum
+                    </span>
+                    <span className="tabular-nums text-ink-soft">
+                      {budgetCurrencyLabel}{" "}
+                      {answers.budgetMax === ""
+                        ? 200
+                        : answers.budgetMax}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={200}
+                    step={1}
+                    aria-label={`Maximum budget in ${budgetCurrencyLabel}`}
+                    value={
+                      answers.budgetMax === ""
+                        ? 200
+                        : Number(answers.budgetMax)
+                    }
+                    onChange={(event) => {
+                      const value = Number(
+                        event.target.value
+                      );
+                      const minNumber =
+                        answers.budgetMin === ""
+                          ? 0
+                          : Number(answers.budgetMin);
+                      if (
+                        minNumber > 0 &&
+                        value < minNumber
+                      ) {
+                        setAnswer(
+                          "budgetMin",
+                          String(value)
+                        );
+                      }
+                      setAnswer(
+                        "budgetMax",
+                        String(value)
+                      );
+                    }}
+                    className="w-full accent-[var(--accent)]"
+                  />
+                </div>
+                <p className="text-center text-xs leading-relaxed text-ink-faint">
+                  {budgetCurrencyLabel === "USD"
+                    ? `Your budget is compared fairly across currencies
+                       using the ECB reference rate (1 EUR ≈
+                       ${fxRate?.toFixed(4) ?? "—"} USD,
+                       ${meta?.fx?.asOf ?? "latest"}). Cards
+                       always show each product's original price.
+                       Matches just outside your range appear under
+                       Similar.`
+                    : `Prices are matched at their listed value. No
+                       rate is needed for ${budgetCurrencyLabel}{" "}
+                       budgets — nothing is invented or converted.`}
+                </p>
+                {!fxRate && budgetCurrencyLabel === "USD" && (
+                  <p className="text-center text-xs text-amber-700">
+                    No reliable USD rate is available right now, so
+                    your budget is matched at its listed value. Nothing
+                    is invented — conversion applies automatically once
+                    a rate is reachable.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {step === 5 && (
+              <div className="space-y-8">
+                <div className="mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-accent/20 bg-accent-tint px-5 py-4">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-white">
+                    <CheckIcon />
+                  </span>
+                  <p className="text-sm leading-snug">
+                    <span className="font-semibold text-ink">
+                      We&apos;ve got your preferences.
+                    </span>{" "}
+                    <span className="text-ink-soft">
+                      Let&apos;s find something you&apos;ll love.
+                    </span>
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="find-search-text"
+                    className="mb-3 block text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint"
+                  >
+                    Your own words
+                  </label>
+                  <FieldInput
+                    id="find-search-text"
+                    value={answers.searchText}
+                    onChange={(value) =>
+                      setAnswer("searchText", value)
+                    }
+                    placeholder="Anything specific? E.g. oversized, striped, for running."
+                  />
+                </div>
+
+                {detailGroups.map((group) => (
+                  <div key={group.name}>
+                    <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                      {group.name}
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                      {group.values
+                        .filter(
+                          (value) =>
+                            value.trim().toLowerCase() !==
+                              "n/a" &&
+                            value.trim() !== ""
+                        )
+                        .map((value) => (
+                          <OptionPill
+                            key={value}
+                            label={value}
+                            selected={answers.attributes.includes(
+                              value
+                            )}
+                            onClick={() =>
+                              toggleInList(
+                                "attributes",
+                                value
+                              )
+                            }
+                          />
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1033,23 +1169,25 @@ export default function FindPage() {
             role="status"
           >
             <div
-              className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-black"
+              className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-accent"
               aria-hidden="true"
             />
-            <p className="text-sm text-gray-500">
-              Loading options…
+            <p className="text-sm text-ink-soft">
+              Finding your options…
             </p>
           </div>
         )}
       </section>
 
-      <div className="mt-8 flex items-center justify-between gap-3 border-t border-gray-100 pt-6">
+      {/* Bottom navigation */}
+      <div className="mt-10 flex items-center justify-between gap-3 border-t border-line pt-6">
         <button
           type="button"
           onClick={back}
           disabled={!meta || step === 0}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:invisible"
+          className={SECONDARY_BTN}
         >
+          <ArrowIcon dir="left" />
           Back
         </button>
 
@@ -1058,30 +1196,31 @@ export default function FindPage() {
             type="button"
             onClick={submit}
             disabled={!meta || !buildIntent()}
-            className="rounded-lg bg-black px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+            className={PRIMARY_BTN}
           >
-            Search
+            See my matches
+            <ArrowIcon dir="right" />
           </button>
         ) : (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center gap-2">
             {meta && stepState.canSkip && (
               <button
                 type="button"
-                onClick={() =>
-                  setStep(step + 1)
-                }
-                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100"
+                onClick={() => setStep(step + 1)}
+                className={TERTIARY_BTN}
               >
-                Skip
+                Skip for now
+                <ArrowIcon dir="right" />
               </button>
             )}
             <button
               type="button"
               onClick={next}
               disabled={!meta || !canProceed}
-              className="rounded-lg bg-black px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+              className={PRIMARY_BTN}
             >
-              Next
+              Continue
+              <ArrowIcon dir="right" />
             </button>
           </div>
         )}

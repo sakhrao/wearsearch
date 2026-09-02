@@ -57,6 +57,12 @@ function parseBudget(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function parseSize(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s.length > 0 && s.length <= 20 ? s : null;
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<OutfitRequest>;
@@ -76,6 +82,13 @@ export async function POST(request: Request) {
     const occasion = parseOccasion(body?.occasion ?? null);
     const style = parseStyle(body?.style ?? null);
     const budget = parseBudget(body?.budget ?? null);
+    const size = parseSize(body?.size ?? null);
+
+    // Optional pre-locked product ids for exact reconstruction of a
+    // saved/shared outfit (additive: empty when building fresh).
+    const lockIds: string[] = Array.isArray(body?.lockProductIds)
+      ? body.lockProductIds.filter((x): x is string => typeof x === "string")
+      : [];
 
     const [rate, fingerprint] = await Promise.all([
       getFxRate(),
@@ -110,13 +123,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const lockProducts = lockIds
+      .map((id) => catalog.find((p) => p.id === id))
+      .filter((p): p is OutfitProduct => Boolean(p))
+      .filter((p) => p && p.id !== anchor.id);
+
     const outfits = buildOutfits({
       anchor,
       occasion,
       style,
       budget,
+      size,
       products: catalog,
       rate: rate.rate,
+      lockProducts,
     });
 
     return Response.json({
@@ -125,6 +145,7 @@ export async function POST(request: Request) {
         occasion,
         style,
         budget,
+        size,
       },
       catalogVersion: fingerprint,
       outfits: outfits.map(serializeOutfit),

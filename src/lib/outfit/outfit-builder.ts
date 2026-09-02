@@ -61,8 +61,13 @@ export type BuilderOptions = {
   occasion?: Occasion | null;
   style?: StyleLabel | null;
   budget?: number | null;
+  size?: string | null;
   products: OutfitProduct[];
   rate?: number | null;
+  /* Additive: pre-placed products to lock into the look (used to
+     reconstruct a saved/shared outfit). Remaining slots are filled
+     around them. Empty by default -> identical to the size/frozen path. */
+  lockProducts?: OutfitProduct[];
 };
 
 /* Normalize a product's stored price to EUR using the given rate. */
@@ -103,8 +108,10 @@ export function buildOutfits(options: BuilderOptions): Outfit[] {
     occasion = null,
     style = null,
     budget = null,
+    size = null,
     products,
     rate = null,
+    lockProducts = [],
   } = options;
   const truth: GroundTruth = {
     anchorId: anchor.id,
@@ -122,6 +129,8 @@ export function buildOutfits(options: BuilderOptions): Outfit[] {
   const requiredSlots = templates.filter((t) => t.required).map((t) => t.slot);
   const optionalSlots = templates.filter((t) => !t.required).map((t) => t.slot);
 
+  const sizePref = size && size.trim() !== "" ? { value: size } : null;
+
   // Build candidate pools per required slot.
   const requiredPools: Map<SlotName, CandidateEntry[]> = new Map();
   for (const slot of requiredSlots) {
@@ -132,6 +141,7 @@ export function buildOutfits(options: BuilderOptions): Outfit[] {
       anchorGender,
       anchorProfile,
       anchorColor: anchorColor?.name ?? null,
+      size: sizePref,
     });
     requiredPools.set(slot, entries.slice(0, TOP_M));
   }
@@ -143,15 +153,38 @@ export function buildOutfits(options: BuilderOptions): Outfit[] {
     color: anchorColor,
   };
 
-  // Base partial containing just the anchor.
+  // Optional pre-locked items (Share reconstruction): place each into
+  // its natural slot and add its profile. They are excluded from the
+  // pools' required/optional sets so the builder fills only the rest.
+  const lockSlots = new Set<SlotName>();
+  const lockedItems: PlacedItem[] = [];
+  const lockedProfiles: StyleProfile[] = [];
+  for (const lp of lockProducts) {
+    if (lp.id === anchor.id) continue;
+    const slug = lp.category?.slug?.toLowerCase() ?? "";
+    const ls = slotOfCategory(slug);
+    lockSlots.add(ls);
+    lockedItems.push({
+      slot: ls,
+      product: lp,
+      color: resolveCandidateColor(lp, anchorColor?.name ?? null),
+    });
+    lockedProfiles.push(deriveStyleProfile(lp));
+  }
+
+  // Base partial containing the anchor (+ any pre-locked items).
   const base: PartialOutfit = {
-    items: [anchorItem],
-    profiles: [anchorProfile],
+    items: [anchorItem, ...lockedItems],
+    profiles: [anchorProfile, ...lockedProfiles],
   };
+
+  // Required/optional slots to fill = templates minus locked slots.
+  const fillRequired = requiredSlots.filter((s) => !lockSlots.has(s));
+  const fillOptional = optionalSlots.filter((s) => !lockSlots.has(s));
 
   // Enumerate required-slot combos.
   const combos = enumerateCombos({
-    requiredSlots,
+    requiredSlots: fillRequired,
     requiredPools,
     base,
     anchor,
@@ -222,11 +255,12 @@ export function buildOutfits(options: BuilderOptions): Outfit[] {
       anchorGender,
       anchorProfile,
       anchorColor: anchorColor?.name ?? null,
-      optionalSlots,
+      optionalSlots: fillOptional,
       products,
       truth,
       rate,
-      requiredSlots,
+      requiredSlots: fillRequired,
+      size,
     })
   );
 
@@ -334,10 +368,11 @@ function finalizeOutfit(args: {
   truth: GroundTruth;
   rate: number | null;
   requiredSlots: SlotName[];
+  size?: string | null;
 }): Outfit {
   const {
     combo, total, scores, idx, anchor, anchorSlug, anchorGender,
-    anchorProfile, anchorColor, optionalSlots, products, truth, rate, requiredSlots,
+    anchorProfile, anchorColor, optionalSlots, products, truth, rate, requiredSlots, size = null,
   } = args;
 
   let items = [...combo.items];
@@ -367,6 +402,7 @@ function finalizeOutfit(args: {
       anchorGender,
       anchorProfile,
       anchorColor,
+      size: size && size.trim() !== "" ? { value: size } : null,
     });
     // find the best optional candidate that improves the outfit
     let bestAdd: { item: PlacedItem; profile: StyleProfile } | null = null;
@@ -523,8 +559,15 @@ export type ReplaceOptions = {
   occasion?: Occasion | null;
   style?: StyleLabel | null;
   budget?: number | null;
+  size?: string | null;
   rate?: number | null;
   max?: number;
+  /* Additive: product ids to exclude from the candidate pool (e.g.
+     "Not my style", or removing a current item before re-adding). */
+  excludeProductIds?: string[];
+  /* When true, also exclude products whose style profile is very
+     close to a rejected item (soft variety). */
+  excludeSimilar?: boolean;
 };
 
 /* Replace a single slot: every other item in the current outfit is
@@ -541,8 +584,11 @@ export function replaceSlot(options: ReplaceOptions): Outfit[] {
     occasion = null,
     style = null,
     budget = null,
+    size = null,
     rate = null,
     max = 3,
+    excludeProductIds = [],
+    excludeSimilar = false,
   } = options;
 
   const truth: GroundTruth = {
@@ -570,14 +616,37 @@ export function replaceSlot(options: ReplaceOptions): Outfit[] {
   };
   const baseItems: PlacedItem[] = [anchorItem, ...locked];
 
-  const candidates = candidatesForSlot({
+  let candidates = candidatesForSlot({
     products,
     slot,
     anchorSlug,
     anchorGender,
     anchorProfile,
     anchorColor: anchorColor?.name ?? null,
+    size: size && size.trim() !== "" ? { value: size } : null,
   });
+
+  // Exclude explicitly rejected / to-remove products (Not my style) and
+  // any current item already placed in another slot (defensive dup guard).
+  const excluded = new Set(excludeProductIds);
+  for (const it of locked) excluded.add(it.product.id);
+  if (excluded.size > 0) {
+    candidates = candidates.filter((c) => !excluded.has(c.product.id));
+  }
+
+  // Soft variety: skip products whose style profile is extremely close
+  // to a rejected item (share nearly identical attribute vectors).
+  if (excludeSimilar && excludeProductIds.length > 0) {
+    const rejectedProfiles = products
+      .filter((p) => excludeProductIds.includes(p.id))
+      .map((p) => deriveStyleProfile(p));
+    if (rejectedProfiles.length > 0) {
+      candidates = candidates.filter((c) => {
+        const profile = deriveStyleProfile(c.product);
+        return !rejectedProfiles.some((r) => cosineStyle(profile, [r, r]) >= 0.99);
+      });
+    }
+  }
 
   const scored: Array<{ items: PlacedItem[]; total: number; scores: OutfitScores }> = [];
   for (const cand of candidates) {
