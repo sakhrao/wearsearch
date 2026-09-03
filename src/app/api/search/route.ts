@@ -1339,11 +1339,33 @@ export async function GET(
         where: {
           availability: { not: "OUT_OF_STOCK" },
 
-          variants: {
-            some: {
-              availability: "AVAILABLE",
+          /* Compatibility bridge (Phase-0 commerce): a product is
+             searchable when it has a valid AVAILABLE purchasing path
+             through EITHER the legacy ProductVariant (pre-Phase-0
+             catalog) OR the commerce chain Product -> ProductOffer ->
+             ProductOfferVariant (eBay and other Phase-0 sources). The
+             existing `availability != OUT_OF_STOCK` rule is unchanged,
+             and F1 real-product URL validation plus ranking run exactly
+             as before. Commerce variant size/color do NOT yet
+             participate in size/color filters or serialization (eBay
+             products simply carry no size/color data), documented rather
+             than inventing behavior. */
+          OR: [
+            {
+              variants: {
+                some: { availability: "AVAILABLE" },
+              },
             },
-          },
+            {
+              offers: {
+                some: {
+                  variants: {
+                    some: { availability: "AVAILABLE" },
+                  },
+                },
+              },
+            },
+          ],
         },
         select: {
           id: true,
