@@ -175,6 +175,23 @@ export type EbayVariationRaw = {
   image?: { imageUrl?: string };
 };
 
+/* eBay image sizing: i.ebayimg.com URLs carry a documented size token
+   `/s-l{width}.jpg` and serve the SAME image at any width. The Browse
+   search summary returns s-l225 (a 225px thumbnail -> blurry on cards).
+   Empirically verified: s-l500 and s-l1600 both return the identical
+   listing image at higher resolution (HTTP 200, image/jpeg, real decoded
+   dims scale accordingly). We request s-l500: the highest consistent
+   size that is sharp on a ~300px card without the multi-hundred-KB
+   s-l1600 payload (which is also not guaranteed - eBay caps it at the
+   source's max, e.g. 592x500 or 1000x1000). Only the s-l{width} token is
+   rewritten; path/filename are untouched. */
+export const EBAY_IMAGE_WIDTH = 500;
+
+export function ebayImageAtWidth(url: string | null | undefined, width: number = EBAY_IMAGE_WIDTH): string | null {
+  if (!url) return null;
+  return url.replace(/\/s-l\d+(\.(?:jpg|jpeg|png|webp))$/i, `/s-l${width}$1`);
+}
+
 /* Normalize one raw eBay item to a NormalizedListing.
    Returns null when the payload is too broken to carry any identity
    (no item id AND no title AND no valid URL) - the validation layer
@@ -188,7 +205,9 @@ export function ebayItemToNormalizedListing(raw: unknown): NormalizedListing | n
   const price = parseMoney(item.price);
   const sale = item.marketingPrice ? parseMoney({ value: item.marketingPrice?.originalPrice?.value, currency: item.marketingPrice?.originalPrice?.currency }) : null;
 
-  const imageUrl = item.image?.imageUrl?.trim() || item.additionalImages?.[0]?.imageUrl?.trim() || null;
+  const imageUrl = ebayImageAtWidth(
+    item.image?.imageUrl?.trim() || item.additionalImages?.[0]?.imageUrl?.trim() || null
+  );
   const sourceProductUrl = item.itemWebUrl?.trim() || item.itemAffiliateWebUrl?.trim() || "";
   const purchaseUrl = item.itemAffiliateWebUrl?.trim() || sourceProductUrl;
 

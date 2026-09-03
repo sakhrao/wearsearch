@@ -2060,7 +2060,7 @@ function ProductCard({
             alt={product.name}
             loading="lazy"
             decoding="async"
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+            className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.04]"
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-sm text-ink-faint">
