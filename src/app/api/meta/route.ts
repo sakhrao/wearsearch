@@ -13,6 +13,9 @@ import {
   type ContextualSizeRow,
 } from "../../../lib/sizes";
 import { getFxRate } from "../../../lib/currency";
+import {
+  buildQuestionnaireCategories,
+} from "../../../lib/catalog/category-display";
 
 export const dynamic = "force-dynamic";
 
@@ -21,18 +24,6 @@ const adapter = new PrismaPg({
 });
 
 const prisma = new PrismaClient({ adapter });
-
-/* Root accessory/headwear categories are stored as flat roots;
-   map them onto the groups the questionnaire presents. */
-const SLUG_TO_GROUP: Record<string, string> = {
-  beanies: "Headwear",
-  caps: "Headwear",
-  hats: "Headwear",
-  belts: "Accessories",
-  sunglasses: "Accessories",
-  ties: "Accessories",
-  watches: "Accessories",
-};
 
 export async function GET() {
   try {
@@ -49,7 +40,7 @@ export async function GET() {
     const snapshot = await getCatalogMemo(
       prisma,
       fingerprint,
-      "meta-snapshot-v2",
+      "meta-snapshot-v3",
       async () => {
         const [
           categories,
@@ -196,19 +187,40 @@ export async function GET() {
           system: size.system,
         }));
 
-        return {
-          categories: categories.map((category) => ({
+        /* Questionnaire categories = CANONICAL taxonomy (import-plan,
+           via category-display) merged with any legacy DB-only categories
+           so that nothing currently offered disappears. Canonical wins on
+           slug overlap (no duplicates); legacy rows are tagged source
+           "legacy" with an additive root/subgroup so the client can render
+           the hierarchy while still labelling size/detail by `group`. */
+        /* Questionnaire categories = canonical taxonomy (import-plan, via
+           category-display) merged with any legacy DB-only categories so
+           nothing currently offered disappears. Canonical wins on slug
+           overlap (no duplicates); legacy rows stay under a sensible root
+           and are tagged source "legacy". */
+        const dbRows = categories.map((category) => ({
+          slug: category.slug,
+          name: category.name,
+          id: category.id,
+          parentName: category.parent?.name ?? null,
+        }));
+        const questionnaireCategories =
+          buildQuestionnaireCategories({
+            dbRows,
+            usedProductCategoryIds: usedIds,
+          }).map((category) => ({
             name: category.name,
             slug: category.slug,
-            group:
-              category.parent?.name ??
-              SLUG_TO_GROUP[category.slug] ??
-              category.name,
-            parent: category.parent?.name ?? null,
-            hasProducts: usedIds.has(
-              category.id
-            ),
-          })),
+            group: category.group,
+            parent: category.subgroup,
+            root: category.root,
+            subgroup: category.subgroup,
+            source: category.source,
+            hasProducts: category.hasProducts,
+          }));
+
+        return {
+          categories: questionnaireCategories,
           colors: colors.map((color) => color.name),
           sizes: [
             ...new Set(sizes.map((size) => size.value)),
@@ -226,24 +238,35 @@ export async function GET() {
       }
     );
 
-    return NextResponse.json({
-      success: true,
-      categories: snapshot.categories,
-      colors: snapshot.colors,
-      sizes: snapshot.sizes,
-      sizeGroups: snapshot.sizeGroups,
-      shoeSizeGroups: snapshot.shoeSizeGroups,
-      sizeCatalog: snapshot.sizeCatalog,
-      brands: snapshot.brands,
-      attributeGroups: snapshot.attributeGroups,
-      fx: {
-        rate: fx.rate,
-        asOf: fx.asOf,
-        source: fx.source,
-        from: "EUR",
-        to: "USD",
+    return NextResponse.json(
+      {
+        success: true,
+        categories: snapshot.categories,
+        colors: snapshot.colors,
+        sizes: snapshot.sizes,
+        sizeGroups: snapshot.sizeGroups,
+        shoeSizeGroups: snapshot.shoeSizeGroups,
+        sizeCatalog: snapshot.sizeCatalog,
+        brands: snapshot.brands,
+        attributeGroups: snapshot.attributeGroups,
+        fx: {
+          rate: fx.rate,
+          asOf: fx.asOf,
+          source: fx.source,
+          from: "EUR",
+          to: "USD",
+        },
       },
-    });
+      /* The questionnaire's categories/sizes depend on the canonical
+         taxonomy and catalog dictionaries. Never let a browser
+         heuristically cache an older /api/meta body (there is no
+         Cache-Control by default, so a stale response could resurface
+         long after a taxonomy/code change). no-store forces the exact
+         request the clients make (fetch('/api/meta')) to always hit
+         the server - the in-process memo already guarantees cheap,
+         fresh recompute, so this is purely a correctness header. */
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("Meta failed:", error);
 

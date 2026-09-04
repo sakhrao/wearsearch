@@ -27,6 +27,9 @@ type Meta = {
     slug: string;
     group: string;
     parent: string | null;
+    root: string;
+    subgroup: string | null;
+    source: "canonical" | "legacy";
     hasProducts: boolean;
   }[];
   colors: string[];
@@ -61,9 +64,11 @@ type Answers = QuestionnaireAnswers;
 
 const STORAGE_KEY = "wearsearch-find-answers";
 
+/* Top-level branches of the category tree, in display order. These are
+   the canonical roots; Clothing is a shell that contains the clothing
+   sub-groups (Tops, Bottoms, Outerwear, ...). */
 const GROUP_ORDER = [
-  "Tops",
-  "Bottoms",
+  "Clothing",
   "Shoes",
   "Accessories",
   "Headwear",
@@ -338,27 +343,34 @@ export default function FindPage() {
     );
   }, [answers, sessionReady]);
 
-  const groupedCategories = useMemo(() => {
+  /* Build the hierarchical category tree for the "Pick a category" step.
+     Top level = canonical root (Clothing / Shoes / Accessories / Headwear);
+     within a root, leaves with a `subgroup` (e.g. Tops, Bags) are nested
+     under that sub-header, and leaves with no subgroup are offered directly
+     under the root. Every canonical leaf (IMPORTABLE and PLANNED alike) and
+     every preserved legacy DB-only category appears exactly once. */
+  const categoryTree = useMemo(() => {
     if (!meta) return [];
-    const groups = new Map<
-      string,
-      Meta["categories"]
-    >();
+    const rootMap = new Map<string, { leaves: Meta["categories"]; subgroups: Map<string, Meta["categories"]> }>();
     for (const category of meta.categories) {
-      if (category.name === category.group) {
-        continue;
+      const root = category.root;
+      const entry = rootMap.get(root) ?? {
+        leaves: [],
+        subgroups: new Map<string, Meta["categories"]>(),
+      };
+      if (category.subgroup) {
+        const list = entry.subgroups.get(category.subgroup) ?? [];
+        list.push(category);
+        entry.subgroups.set(category.subgroup, list);
+      } else {
+        entry.leaves.push(category);
       }
-      const list =
-        groups.get(category.group) ?? [];
-      list.push(category);
-      groups.set(category.group, list);
+      rootMap.set(root, entry);
     }
-    return GROUP_ORDER.filter((name) =>
-      groups.has(name)
-    ).map((group) => ({
-      group,
-      items: groups.get(group)!,
-    }));
+    return GROUP_ORDER.filter((root) => rootMap.has(root)).map((root) => {
+      const entry = rootMap.get(root)!;
+      return { root, leaves: entry.leaves, subgroups: [...entry.subgroups.entries()] };
+    });
   }, [meta]);
 
   const selectedCategoryGroup = useMemo(() => {
@@ -803,28 +815,59 @@ export default function FindPage() {
           <div key={step} className="step-animate">
             {step === 0 && (
               <div className="space-y-6">
-                {groupedCategories.map((group) => (
-                  <div key={group.group}>
+                {categoryTree.map((group) => (
+                  <div key={group.root}>
                     <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                      {group.group}
+                      {group.root}
                     </h2>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {group.items.map((category) => (
-                        <OptionCard
-                          key={category.slug}
-                          label={category.name}
-                          selected={
-                            answers.category ===
-                            category.name
-                          }
-                          onClick={() =>
-                            pickCategory(
+                    {group.leaves.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {group.leaves.map((category) => (
+                          <OptionCard
+                            key={category.slug}
+                            label={category.name}
+                            selected={
+                              answers.category ===
                               category.name
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
+                            }
+                            onClick={() =>
+                              pickCategory(
+                                category.name
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {group.subgroups.map(
+                      ([subgroup, items]) => (
+                        <div
+                          key={subgroup}
+                          className="mt-4"
+                        >
+                          <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-ink-soft">
+                            {subgroup}
+                          </h3>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            {items.map((category) => (
+                              <OptionCard
+                                key={category.slug}
+                                label={category.name}
+                                selected={
+                                  answers.category ===
+                                  category.name
+                                }
+                                onClick={() =>
+                                  pickCategory(
+                                    category.name
+                                  )
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 ))}
               </div>
