@@ -141,6 +141,15 @@ export type NormalizedListing = {
   sku: string | null;
 
   attributes: Array<{ name: string; value: string }>;
+
+  /* Seller identity surfaced structurally for the seller-trust gate.
+     Optional: populated by adapters that expose a seller username; the
+     seller-eligibility engine reads ONLY this (never infers trust). */
+  sellerUsername?: string | null;
+  /* Adapter-reported seller metadata (optional, threaded to diagnostics).
+     sellerAccountType (BUSINESS|INDIVIDUAL) is only provided by eBay on
+     EU marketplaces (never EBAY_US) and is NOT a trust verdict. */
+  sellerAccountType?: string | null;
 };
 
 /* ==== Identity bundle used by the dedup engine ==== */

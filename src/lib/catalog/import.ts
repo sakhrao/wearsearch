@@ -18,11 +18,14 @@
    canonical Product mirror this harness maintains. */
 
 import type { PrismaClient } from "../../generated/prisma/client";
+import { getFxRate } from "../currency";
 import {
   ensureSource,
   resolveBrand,
   resolveCategory,
+  ensureCanonicalBrand,
 } from "./registry";
+import { slugToken } from "./normalize";
 import { validateListing, sampleIsWellFormed } from "./validation";
 import {
   startSyncRun,
@@ -32,7 +35,50 @@ import {
   type SyncRunHandle,
 } from "./sync-run";
 import { applyListingToCatalog } from "./offers";
+import { CATEGORY_PLANS } from "./import-plan";
 import type { CommerceSourceAdapter, NormalizedListing } from "./types";
+import {
+  decideSeller,
+  type FinalSellerRegistry,
+} from "./seller-eligibility";
+
+/* ---- Layer B: brand diversity budget (Hybrid Diversity) ----
+   Pure, in-memory quota enforcement over this run's CANONICAL progress.
+   Deliberately DB-free: the budget tracks how many NEW canonical products
+   each brand has created THIS run (via applyListingToCatalog's
+   createdProduct flag), so headroom is canonical-aware after dedupe. */
+export type DiversityBudget = {
+  /* how many NEW canonical products this run is allowed to create */
+  target: number;
+  /* ceiling (0-1) a single brand may hold of the run target */
+  maxBrandShare: number;
+  /* canonical brand id -> NEW canonical products created this run */
+  brandCanonical: Map<string, number>;
+  /* DENOMINATOR for the brand cap. Defaults to `target` (in-run only).
+     A resumed category passes the FULL category target here so the cap is
+     computed against the actual 100-product goal, not the smaller "missing"
+     window of one resume run. */
+  capTarget?: number;
+  /* canonical brand id -> EXISTING canonical products already in the
+     category (from before this run). Seeded on resume so a brand that
+     already fills 60/100 can never silently be pushed past maxBrandShare
+     by a follow-up run that only sees its fresh 40-window. */
+  existingByBrand?: Map<string, number>;
+};
+
+export function diversityBrandCap(budget: DiversityBudget): number {
+  const denominator = budget.capTarget ?? budget.target;
+  return Math.max(1, Math.ceil(budget.maxBrandShare * denominator));
+}
+
+export function brandHasHeadroom(
+  budget: DiversityBudget,
+  brandId: string
+): boolean {
+  const existing = budget.existingByBrand?.get(brandId) ?? 0;
+  const fresh = budget.brandCanonical.get(brandId) ?? 0;
+  return existing + fresh < diversityBrandCap(budget);
+}
 
 export type FxOption = {
   /* Caller-supplied static rate (deterministic tests) or null to let
@@ -60,6 +106,42 @@ export type ImportRunOptions = {
   /* true = never write; only report what WOULD happen */
   dryRun?: boolean;
   fx?: FxOption;
+  /* Layer B brand-diversity budget. When set, the run stops once `target`
+     NEW canonical products are created and never lets a single brand exceed
+     `maxBrandShare * (capTarget ?? target)` of them. maxBrandShare: from the
+     category plan (import-plan.ts); target: NEW canonical products for the
+     run (the "missing" count); capTarget: the FULL category target (used on
+     resume so the brand cap is computed against 100, not just the resume
+     window); existingByBrand: EXISTING canonical products per brand before
+     the run (seeded on resume so a saturated brand cannot grow further). */
+  diversity?: {
+    target: number;
+    maxBrandShare: number;
+    capTarget?: number;
+    existingByBrand?: Map<string, number>;
+  } | null;
+  /* Seller-trust gate. When set, listings whose seller resolves to a
+     non-importable decision (UNKNOWN / LOW_TRUST / REJECTED) are
+     quarantined and NEVER reach canonical creation. When null/undefined,
+     the gate is disabled (backwards compatible - existing callers/tests
+     are unchanged). The registry, not the API, is the source of truth
+     (see seller-eligibility.ts). Per-brand scope is enforced via
+     decideSeller(listing.sellerUsername, listing.brand). */
+  sellerEligibility?: FinalSellerRegistry | null;
+  /* canonical category slug for this run (plan.slug), passed into the
+     seller gate so that ENFORCED_SELLER_CATEGORY_SCOPE categories require
+     a seller profile to prove category scope. Absent/null = legacy
+     brand-scoped gate behavior (unchanged). */
+  categorySlug?: string | null;
+  /* Brand-gate bypass (Step 14 fallback exception). When provided and the
+     canonical alias resolution (resolveBrand) returns null, this resolver
+     supplies a deterministic canonical brand name so the brand gate
+     passes; the harness then registers it via ensureCanonicalBrand (real
+     identity row, never an alias/scope/family change). Absent/null = the
+     normal Brand Gate runs unchanged. Exactly the orchestrator injects
+     brandFallbackFor(plan.slug, {fallbackMode}) for the 12 fallback
+     categories ONLY. */
+  brandFallback?: (token: string | null | undefined) => string | null;
 };
 
 export type ImportRunResult = {
@@ -71,6 +153,14 @@ export type ImportRunResult = {
   updated: number;
   mergedExisting: number;
   quarantined: number;
+  /* Layer B: listings that passed every quality gate but were held back
+     solely because their brand's canonical share reached the cap */
+  skippedByDiversity: number;
+  /* Seller gate: listings quarantined only because their seller resolved
+     to a non-importable decision (UNKNOWN / LOW_TRUST / REJECTED), or a
+     scope mismatch. Already included in `quarantined`; surfaced
+     separately for diagnostics. */
+  sellerIneligible: number;
   dropped: number;
   errors: string[];
   productCountBefore: number;
@@ -79,18 +169,25 @@ export type ImportRunResult = {
 
 /* Resolve canonical brand/category for a listing, feeding the pure
    validation engine. Null canonical brand or category = quarantinable
-   gap, never a silent pass-through. */
+   gap, never a silent pass-through. The optional brandFallback resolver
+   (fallback-mode 12 categories only) supplies a canonical brand name
+   when the curated alias map has none. */
 async function externalStateOf(
   db: PrismaClient,
   sourceId: string,
   listing: NormalizedListing,
-  fxRate: number | null
+  fxRate: number | null,
+  brandFallback?: ImportRunOptions["brandFallback"]
 ) {
   const [brandResolved, categoryResolved] = await Promise.all([
     resolveBrand(db, sourceId, listing.brand ?? ""),
     resolveCategory(db, sourceId, listing.category ?? ""),
   ]);
-  return { brandResolved, categoryResolved, fxRate };
+  let canonicalBrand = brandResolved;
+  if (!canonicalBrand && brandFallback) {
+    canonicalBrand = brandFallback(listing.brand);
+  }
+  return { brandResolved: canonicalBrand, categoryResolved, fxRate };
 }
 
 /* ---- Step 1: sample (defaults small, never written) ---- */
@@ -135,9 +232,14 @@ export async function inspectSample(
     }
     inspection.wellFormed += 1;
 
-    const external = await externalStateOf(db, source.id, listing, fxRate);
+const external = await externalStateOf(
+      db,
+      source.id,
+      listing,
+      fxRate,
+      options?.brandFallback
+    );
     const verdict = validateListing(listing, { external });
-
     if (verdict.status === "ACCEPT") {
       inspection.accepted.push({
         externalListingId: listing.externalListingId,
@@ -193,6 +295,8 @@ export async function runImport(
       mergedExisting: 0,
       quarantined: 0,
       dropped: 0,
+      skippedByDiversity: 0,
+      sellerIneligible: 0,
       errors: ["sample is empty; aborting before any batch"],
       productCountBefore,
       productCountAfter: productCountBefore,
@@ -210,6 +314,8 @@ export async function runImport(
       mergedExisting: 0,
       quarantined: 0,
       dropped: 0,
+      skippedByDiversity: 0,
+      sellerIneligible: 0,
       errors: [`sample contains structurally invalid listings: ${reasons}`],
       productCountBefore,
       productCountAfter: productCountBefore,
@@ -221,77 +327,219 @@ export async function runImport(
     : await startSyncRun(db, source.id);
 
   const counts = { created: 0, updated: 0, quarantined: 0, dropped: 0 };
+  let skippedByDiversity = 0;
+  let sellerIneligible = 0;
   const errors: string[] = [];
 
-  /* Controlled page loop with a hard cap. */
+  /* Layer B in-run brand budget (canonical-aware). `target` may be larger
+     than maxListings; the binding stop is whichever comes first. */
+  const diversityOpt = options?.diversity ?? null;
+  const budget: DiversityBudget | null = diversityOpt
+    ? {
+        target: diversityOpt.target,
+        maxBrandShare: diversityOpt.maxBrandShare,
+        brandCanonical: new Map<string, number>(),
+        /* resume safety: cap computed against the FULL category target and
+           seeded with EXISTING canonical counts so a brand already at the
+           max share can never be pushed past it by a follow-up run. Both
+           default away to in-run-only behavior for single-shot callers. */
+        capTarget: diversityOpt.capTarget ?? diversityOpt.target,
+        existingByBrand: diversityOpt.existingByBrand ?? new Map<string, number>(),
+      }
+    : null;
+  const targetCreated = budget ? Math.max(0, budget.target) : 0;
+
+  /* Controlled page loop with a hard cap. Fatal errors (e.g. eBay HTTP
+     429) must leave a terminal FAILED trail (never a RUNNING row that
+     looks alive forever) and propagate so the orchestrator halts. */
   let page = 1;
   let processed = 0;
   let hasMore = true;
-  while (hasMore && processed < maxListings) {
-    const batch = await adapter.fetch({ page, limit: sampleSize });
-    if (batch.listings.length === 0) break;
+  try {
+    while (hasMore && processed < maxListings) {
+      const batch = await adapter.fetch({ page, limit: sampleSize });
+      if (batch.listings.length === 0) break;
 
-    for (const raw of batch.listings) {
-      if (processed >= maxListings) break;
+      for (const raw of batch.listings) {
+        if (processed >= maxListings) break;
 
-      const listing = adapter.toNormalizedListing(raw);
-      processed += 1;
-      if (!listing) {
-        counts.dropped += 1;
-        continue;
-      }
-
-      const external = await externalStateOf(db, source.id, listing, fxRate);
-      const verdict = validateListing(listing, { external });
-      if (verdict.status !== "ACCEPT") {
-        if (verdict.status === "QUARANTINE" && !dryRun) {
-          await quarantineListing(db, {
-            sourceId: source.id,
-            externalListingId: listing.externalListingId,
-            reason: verdictReason(verdict),
-            categoryToken: listing.category ?? null,
-            brandToken: listing.brand ?? null,
-            rawData: raw,
-          });
+        const listing = adapter.toNormalizedListing(raw);
+        processed += 1;
+        if (!listing) {
+          counts.dropped += 1;
+          continue;
         }
-        counts.quarantined += 1;
-        continue;
+
+        /* Seller-trust gate (before canonical brand/category/offer work):
+           a listing whose seller resolves to a non-importable decision is
+           quarantined and NEVER reaches canonical creation. The registry
+           (not the API) is the source of truth; scope is per-brand; disabled
+           when no registry is injected (backwards compatible). */
+        if (options?.sellerEligibility) {
+          const sellerVerdict = decideSeller(
+            {
+              sellerUsername: listing.sellerUsername ?? null,
+              brand: listing.brand ?? null,
+              category: options.categorySlug ?? null,
+            },
+            options.sellerEligibility
+          );
+          if (!sellerVerdict.eligible) {
+            if (!dryRun) {
+              await quarantineListing(db, {
+                sourceId: source.id,
+                externalListingId: listing.externalListingId,
+                reason: `${sellerVerdict.reason}; ${sellerVerdict.detail}`,
+                categoryToken: listing.category ?? null,
+                brandToken: listing.brand ?? null,
+                rawData: raw,
+              });
+            }
+            counts.quarantined += 1;
+            sellerIneligible += 1;
+            continue;
+          }
+        }
+
+        const external = await externalStateOf(
+          db,
+          source.id,
+          listing,
+          fxRate,
+          options?.brandFallback
+        );
+        const verdict = validateListing(listing, { external });
+        if (verdict.status !== "ACCEPT") {
+          if (verdict.status === "QUARANTINE" && !dryRun) {
+            await quarantineListing(db, {
+              sourceId: source.id,
+              externalListingId: listing.externalListingId,
+              reason: verdictReason(verdict),
+              categoryToken: listing.category ?? null,
+              brandToken: listing.brand ?? null,
+              rawData: raw,
+            });
+          }
+          counts.quarantined += 1;
+          continue;
+        }
+
+        const canonicalBrandId = await resolveBrand(db, source.id, listing.brand ?? "");
+        /* Fallback-mode target category (Step 14 exception): the 12 MVP
+           categories assign their plan slug directly instead of resolving
+           the real marketplace token, so bag/loafer etc. items land in
+           THEIR leaf rather than a shared sibling (handbags/sneakers).
+           Only active when the brand gate is bypassed (brandFallback). */
+        const canonicalCategoryId =
+          options?.brandFallback && options.categorySlug
+            ? (await db.category.findUnique({ where: { slug: options.categorySlug } }))?.id ?? null
+            : await resolveCategory(
+                db,
+                source.id,
+                listing.category ?? ""
+              );
+        /* Fallback-mode brand name (no DB write): an unmapped real brand
+           resolves to a deterministic canonical name so the row stays
+           importable. Null here = the normal Brand Gate rules applied. */
+        const fallbackBrandName =
+          !canonicalBrandId && options?.brandFallback
+            ? (options.brandFallback(listing.brand) ?? null)
+            : null;
+        if ((!canonicalBrandId && !fallbackBrandName) || !canonicalCategoryId) {
+          /* validation already quarantined these - defensive skip */
+          counts.dropped += 1;
+          continue;
+        }
+
+        if (dryRun) {
+          /* forecast only; nothing written */
+          counts.updated += 1;
+          continue;
+        }
+
+        /* Live only: materialize the canonical Brand row for an unmapped
+           fallback name via the existing harness writer (a real identity
+           row - never an alias/scope/family change). A slug collision with
+           an existing canonical row reuses that row instead of failing. */
+        let finalBrandId: string | null = canonicalBrandId;
+        if (!finalBrandId && fallbackBrandName) {
+          try {
+            finalBrandId = (await ensureCanonicalBrand(db, fallbackBrandName)).id;
+          } catch (err) {
+            const existing = await db.brand.findFirst({
+              where: { slug: slugToken(fallbackBrandName) },
+            });
+            finalBrandId = existing?.id ?? null;
+          }
+        }
+        if (!finalBrandId) {
+          counts.dropped += 1;
+          continue;
+        }
+
+        /* Layer B: refuse a brand once it has saturated its canonical share
+           of the run target. Canonical-aware: checked against this run's
+           NEW-product count per brand (plus EXISTING on resume), so
+           raw-listing volume for a minority brand (e.g. Puma) never gets
+           starved by a dominant leader. */
+        if (budget) {
+          if (!brandHasHeadroom(budget, finalBrandId)) {
+            skippedByDiversity += 1;
+            continue;
+          }
+          if (targetCreated > 0 && counts.created >= targetCreated) {
+            hasMore = false;
+            break;
+          }
+        }
+
+        const outcome = await applyListingToCatalog(db, {
+          sourceId: source.id,
+          canonicalBrandId: finalBrandId,
+          canonicalCategoryId,
+          listing,
+          fxRate,
+        });
+        if (outcome.createdProduct) {
+          counts.created += 1;
+          budget?.brandCanonical.set(
+            finalBrandId,
+            (budget.brandCanonical.get(finalBrandId) ?? 0) + 1
+          );
+        } else {
+          counts.updated += 1;
+        }
       }
 
-      const canonicalBrandId = await resolveBrand(db, source.id, listing.brand ?? "");
-      const canonicalCategoryId = await resolveCategory(
-        db,
-        source.id,
-        listing.category ?? ""
-      );
-      if (!canonicalBrandId || !canonicalCategoryId) {
-        /* validation already quarantined these - defensive skip */
-        counts.dropped += 1;
-        continue;
-      }
-
-      if (dryRun) {
-        /* forecast only; nothing written */
-        counts.updated += 1;
-        continue;
-      }
-
-      const outcome = await applyListingToCatalog(db, {
-        sourceId: source.id,
-        canonicalBrandId,
-        canonicalCategoryId,
-        listing,
-        fxRate,
-      });
-      if (outcome.createdProduct) {
-        counts.created += 1;
-      } else {
-        counts.updated += 1;
+      hasMore = batch.hasMore;
+      page += 1;
+    }
+  } catch (err) {
+    /* Fatal mid-run error: record a terminal FAILED sync run (with the
+       error), the source is marked ERROR, then rethrow so the caller
+       (orchestrator) stops immediately. Products already written before
+       the failure remain intact (idempotent on resume). */
+    if (!dryRun && run) {
+      try {
+        await finishSyncRun(
+          db,
+          run,
+          {
+            fetchedCount: processed,
+            insertedCount: counts.created,
+            updatedCount: counts.updated,
+            droppedCount: counts.dropped,
+            quarantinedCount: counts.quarantined,
+          },
+          `import aborted: ${err instanceof Error ? err.message : String(err)}`
+        );
+      } catch (finishErr) {
+        errors.push(
+          `finishSyncRun (failed path) also failed: ${finishErr instanceof Error ? finishErr.message : String(finishErr)}`
+        );
       }
     }
-
-    hasMore = batch.hasMore;
-    page += 1;
+    throw err;
   }
 
   const productCountAfter = await db.product.count();
@@ -328,6 +576,8 @@ export async function runImport(
     updated: counts.updated,
     mergedExisting: counts.updated,
     quarantined: counts.quarantined,
+    skippedByDiversity,
+    sellerIneligible,
     dropped: counts.dropped,
     errors,
     productCountBefore,
@@ -409,5 +659,10 @@ async function resolveFx(option?: FxOption): Promise<number | null> {
     const value = Number(envOverride);
     if (Number.isFinite(value) && value > 0) return value;
   }
-  return null;
+  /* No env override: fall back to the live ECB (Frankfurter) rate via the
+     shared currency helper. Returns null when unavailable, which preserves
+     the existing quarantine path (USD cannot be normalized without a rate).
+     The helper owns caching; it does not print any rate to logs. */
+  const rate = await getFxRate();
+  return rate.rate ?? null;
 }
