@@ -127,6 +127,8 @@ export async function computeCatalogFingerprint(
   const [
     products,
     variants,
+    offerVariants,
+    offerCount,
     brandCount,
     categoryCount,
     colorCount,
@@ -141,6 +143,14 @@ export async function computeCatalogFingerprint(
     client.productVariant.aggregate({
       _max: { updatedAt: true },
     }),
+    /* Phase-0: ProductOfferVariant colors/sizes fuel the questionnaire
+       surfaces and search detection, so any offer-variant change must
+       invalidate the cached meta/search dictionaries. */
+    client.productOfferVariant.aggregate({
+      _max: { updatedAt: true },
+      _count: true,
+    }),
+    client.productOffer.count(),
     client.brand.count(),
     client.category.count(),
     client.color.count(),
@@ -155,6 +165,10 @@ export async function computeCatalogFingerprint(
       null,
     variants._max.updatedAt?.toISOString() ??
       null,
+    offerVariants._count,
+    offerVariants._max.updatedAt?.toISOString() ??
+      null,
+    offerCount,
     brandCount,
     categoryCount,
     colorCount,

@@ -19,6 +19,10 @@ import {
   buildServerFacetBlock,
   type FacetsBlock,
 } from "@/lib/search-facets";
+import {
+  canonicalColorFromOffer,
+  expandOfferSizeChips,
+} from "@/lib/catalog/offer-vocab";
 
 /* F1 (Post-Audit Product Readiness): demo/playground items have
    no real product page, so they must never surface in
@@ -1049,6 +1053,8 @@ export async function GET(
       categories,
       colors,
       sizes,
+      offerColorRows,
+      offerSizeRows,
     ] = await getCatalogMemo(
       prisma,
       intentFingerprint,
@@ -1079,6 +1085,28 @@ export async function GET(
             select: {
               value: true,
             },
+          }),
+
+          /* Phase-0: a catalog whose only sellable reality sits on
+             ProductOfferVariant rows (no Color/Size dictionary rows)
+             still gets color/size detection: the dictionary below is
+             a strict SUPERSET of the legacy DB dictionaries + the real
+             offer colors/sizes, so legacy behavior is unchanged and
+             Phase-0 catalogs stop being "no filters, text only". */
+          prisma.productOfferVariant.findMany({
+            where: {
+              availability: "AVAILABLE",
+              color: { not: null },
+            },
+            select: { color: true },
+          }),
+
+          prisma.productOfferVariant.findMany({
+            where: {
+              availability: "AVAILABLE",
+              sizeValue: { not: null },
+            },
+            select: { sizeValue: true },
           }),
         ])
     );
@@ -1145,13 +1173,25 @@ export async function GET(
       return names;
     };
 
-    const colorNames = colors.map(
-      (item) => item.name
-    );
+    const colorNames = [
+      ...new Set([
+        ...colors.map((item) => item.name),
+        ...offerColorRows
+          .map((row) =>
+            canonicalColorFromOffer(row.color)
+          )
+          .filter((value): value is string => Boolean(value)),
+      ]),
+    ];
 
-    const sizeValues = sizes.map(
-      (item) => item.value
-    );
+    const sizeValues = [
+      ...new Set([
+        ...sizes.map((item) => item.value),
+        ...offerSizeRows.flatMap((row) =>
+          expandOfferSizeChips(row.sizeValue)
+        ),
+      ]),
+    ];
 
     /* =====================================================
        DETECT STRUCTURED QUERY
@@ -1339,17 +1379,18 @@ export async function GET(
         where: {
           availability: { not: "OUT_OF_STOCK" },
 
-          /* Compatibility bridge (Phase-0 commerce): a product is
-             searchable when it has a valid AVAILABLE purchasing path
-             through EITHER the legacy ProductVariant (pre-Phase-0
-             catalog) OR the commerce chain Product -> ProductOffer ->
-             ProductOfferVariant (eBay and other Phase-0 sources). The
-             existing `availability != OUT_OF_STOCK` rule is unchanged,
-             and F1 real-product URL validation plus ranking run exactly
-             as before. Commerce variant size/color do NOT yet
-             participate in size/color filters or serialization (eBay
-             products simply carry no size/color data), documented rather
-             than inventing behavior. */
+          /* Compatibility (Phase-0 commerce): a product is searchable
+             when it has a valid AVAILABLE purchasing path through EITHER
+             the legacy ProductVariant (pre-Phase-0 catalog) OR the
+             commerce chain Product -> ProductOffer -> ProductOfferVariant
+             (eBay and other Phase-0 sources). ProductOfferVariant
+             color/size data SUPPLEMENTS the legacy dictionaries AND the
+             per-product color/size evidence (see colorNames/sizeValues
+             and the product-scoring merge below), so a Phase-0 catalog
+             gains real color/size detection and matching instead of
+             degrading to text-only. The existing `availability !=
+             OUT_OF_STOCK` rule and F1 real-product URL validation run
+             exactly as before. */
           OR: [
             {
               variants: {
@@ -1410,6 +1451,24 @@ export async function GET(
                 select: {
                   value: true,
                   system: true,
+                },
+              },
+            },
+          },
+
+          /* Phase-0 commerce variants carry the raw sellable color and
+             size strings; merged into the color/size evidence below. */
+          offers: {
+            select: {
+              variants: {
+                where: {
+                  availability: "AVAILABLE",
+                },
+                select: {
+                  color: true,
+                  sizeValue: true,
+                  sizeSystem: true,
+                  availability: true,
                 },
               },
             },
@@ -1886,23 +1945,50 @@ export async function GET(
         const purchasableVariants =
           availVariants(product);
 
-        const productColors =
-          purchasableVariants
-            .map((variant) =>
-              normalizeText(
-                variant.color?.name
-              )
-            )
-            .filter(Boolean);
+        /* Phase-0: the sellable offer variants add their real colors
+           and sizes to the same evidence sets. The canonical chips
+           come from the SAME helpers that build the questionnaire
+           options (/api/meta), so a picked chip round-trips. */
+        const offerColors: string[] = [];
+        const offerSizes: string[] = [];
+        for (const offer of product.offers ?? []) {
+          for (const variant of offer.variants) {
+            if (variant.availability !== "AVAILABLE") {
+              continue;
+            }
+            const color = canonicalColorFromOffer(
+              variant.color
+            );
+            if (color) offerColors.push(color);
+            for (const chip of expandOfferSizeChips(
+              variant.sizeValue
+            )) {
+              offerSizes.push(chip);
+            }
+          }
+        }
 
-        const productSizes =
-          purchasableVariants
-            .map((variant) =>
-              normalizeText(
-                variant.size?.value
-              )
-            )
-            .filter(Boolean);
+        const productColors = [
+          ...new Set([
+            ...purchasableVariants.map((variant) =>
+              normalizeText(variant.color?.name)
+            ),
+            ...offerColors.map((color) =>
+              normalizeText(color)
+            ),
+          ]),
+        ].filter(Boolean);
+
+        const productSizes = [
+          ...new Set([
+            ...purchasableVariants.map((variant) =>
+              normalizeText(variant.size?.value)
+            ),
+            ...offerSizes.map((size) =>
+              normalizeText(size)
+            ),
+          ]),
+        ].filter(Boolean);
 
         const searchableText =
           normalizeText(
@@ -1926,6 +2012,9 @@ export async function GET(
                   variant.size?.value ??
                   ""
               ),
+
+              ...offerColors,
+              ...offerSizes,
 
               ...product.attributes.map(
                 (attribute) =>
@@ -2046,6 +2135,16 @@ export async function GET(
                       detectedSize,
                       detectedSizeSystem.system
                     )
+                ) ||
+                /* Phase-0: an offer variant carries the value but no
+                   stored system column, so a bare canonical match
+                   satisfies a system-qualified request too (the
+                   questionnaire never surfaces a system chip it cannot
+                   honor for such rows). */
+                offerSizes.some(
+                  (size) =>
+                    normalizeText(size) ===
+                    normalizeText(detectedSize)
                 )
               : productSizes.includes(
                   normalizeText(

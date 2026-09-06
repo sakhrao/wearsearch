@@ -31,6 +31,10 @@ type Meta = {
     subgroup: string | null;
     source: "canonical" | "legacy";
     hasProducts: boolean;
+    /* gender compatibility derived by /api/meta from the import plan's
+       Men/Women tokens + the live Product.gender stock; the gender step
+       filters the category step on it */
+    genders: ("MEN" | "WOMEN" | "KIDS" | "UNISEX")[];
   }[];
   colors: string[];
   sizes: string[];
@@ -114,7 +118,21 @@ const GENDER_LABELS: Record<string, string> = {
   women: "Women",
   men: "Men",
   kids: "Kids",
+  unisex: "Unisex",
 };
+
+/* A category option is selectable for the picked gender only when its
+   meta-supplied genders contain that audience; null audience (no gender
+   picked yet) shows every category, exactly as before. */
+function categoryGendersCompatible(
+  category: Meta["categories"][number],
+  audience: ReturnType<typeof genderToAudience>
+): boolean {
+  return (
+    audience === null ||
+    category.genders.includes(audience)
+  );
+}
 
 function CheckIcon() {
   return (
@@ -327,7 +345,36 @@ export default function FindPage() {
         }
         return response.json();
       })
-      .then((data: Meta) => setMeta(data))
+      .then((data: Meta) => {
+        setMeta(data);
+        /* A restored edit-search draft can arrive with a category that
+           the restored gender no longer stocks (e.g. UNISEX + Bras).
+           Remove that invalid selection exactly once, when the options
+           land - without touching anything else the user staged. */
+        setAnswers((previous) => {
+          const audience = genderToAudience(
+            previous.gender
+          );
+          if (!audience || !previous.category) {
+            return previous;
+          }
+          const compatible = data.categories.some(
+            (category) =>
+              category.name === previous.category &&
+              categoryGendersCompatible(
+                category,
+                audience
+              )
+          );
+          return compatible
+            ? previous
+            : {
+                ...previous,
+                category: null,
+                size: null,
+              };
+        });
+      })
       .catch(() =>
         setMetaError(
           "Could not load options. Please refresh the page."
@@ -343,16 +390,31 @@ export default function FindPage() {
     );
   }, [answers, sessionReady]);
 
-  /* Build the hierarchical category tree for the "Pick a category" step.
-     Top level = canonical root (Clothing / Shoes / Accessories / Headwear);
-     within a root, leaves with a `subgroup` (e.g. Tops, Bags) are nested
-     under that sub-header, and leaves with no subgroup are offered directly
-     under the root. Every canonical leaf (IMPORTABLE and PLANNED alike) and
-     every preserved legacy DB-only category appears exactly once. */
-  const categoryTree = useMemo(() => {
+/* Build the hierarchical category tree for the "Pick a category" step.
+   Top level = canonical root (Clothing / Shoes / Accessories / Headwear);
+   within a root, leaves with a `subgroup` (e.g. Tops, Bags) are nested
+   under that sub-header, and leaves with no subgroup are offered directly
+   under the root. Every canonical leaf (IMPORTABLE and PLANNED alike) and
+   every preserved legacy DB-only category appears exactly once.
+
+   Gender awareness: once a gender is picked, only the categories whose
+   real gender compatibility (plan tokens + live stock) includes that
+   audience are offered, so Men never sees Bras/Skirts/Dresses and Women
+   always does; unisex shows the adult-shared leaves; kids shows only the
+   categories with actual kids stock. No gender -> every category. */
+  const genderAudience = genderToAudience(answers.gender);
+
+  const visibleCategories = useMemo(() => {
     if (!meta) return [];
+    if (genderAudience === null) return meta.categories;
+    return meta.categories.filter((category) =>
+      categoryGendersCompatible(category, genderAudience)
+    );
+  }, [meta, genderAudience]);
+
+  const categoryTree = useMemo(() => {
     const rootMap = new Map<string, { leaves: Meta["categories"]; subgroups: Map<string, Meta["categories"]> }>();
-    for (const category of meta.categories) {
+    for (const category of visibleCategories) {
       const root = category.root;
       const entry = rootMap.get(root) ?? {
         leaves: [],
@@ -371,7 +433,7 @@ export default function FindPage() {
       const entry = rootMap.get(root)!;
       return { root, leaves: entry.leaves, subgroups: [...entry.subgroups.entries()] };
     });
-  }, [meta]);
+  }, [visibleCategories]);
 
   const selectedCategoryGroup = useMemo(() => {
     if (!meta || !answers.category) {
@@ -471,12 +533,12 @@ export default function FindPage() {
     { ask: string; hint: string }
   > = {
     0: {
-      ask: "What are you shopping for?",
-      hint: "Pick a category to start — you can change it later.",
+      ask: "Who is it for?",
+      hint: "We'll tailor the options — categories, sizes and results — to the person you're shopping for.",
     },
     1: {
-      ask: "Who is it for?",
-      hint: "We'll tailor the options to the person you're shopping for.",
+      ask: "What are you shopping for?",
+      hint: "Pick a category tuned to your pick — you can change it later.",
     },
     2: {
       ask: "Which colors do you like?",
@@ -538,10 +600,35 @@ export default function FindPage() {
   function pickGender(value: string) {
     setAnswers((previous) => {
       const cleared = previous.gender === value;
+      const nextGender = cleared ? null : value;
+      const audience = genderToAudience(nextGender);
+      /* switching gender immediately re-filters the category options:
+         a category that no longer fits the new gender is cleared here,
+         never left half-selected behind a vanished option */
+      const categoryStillValid =
+        !previous.category ||
+        !audience ||
+        meta?.categories.some(
+          (category) =>
+            category.name === previous.category &&
+            categoryGendersCompatible(
+              category,
+              audience
+            )
+        );
+      const categoryCleared =
+        previous.category !== null &&
+        !categoryStillValid;
       return {
         ...previous,
-        gender: cleared ? null : value,
-        size: cleared ? previous.size : null,
+        gender: nextGender,
+        size:
+          cleared || categoryCleared
+            ? previous.size
+            : null,
+        category: categoryCleared
+          ? null
+          : previous.category,
       };
     });
   }
@@ -814,6 +901,34 @@ export default function FindPage() {
         {meta && (
           <div key={step} className="step-animate">
             {step === 0 && (
+              <div className="mx-auto grid max-w-md gap-3">
+                {GENDER_OPTIONS.map((value) => (
+                  <OptionCard
+                    key={value}
+                    label={
+                      GENDER_LABELS[value] ?? value
+                    }
+                    selected={
+                      answers.gender === value
+                    }
+                    onClick={() =>
+                      pickGender(value)
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            {step === 1 && (
+              categoryTree.length === 0 ? (
+                <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
+                  <p className="text-sm text-ink-soft">
+                    There are no categories in
+                    stock for that audience yet —
+                    go back and pick another.
+                  </p>
+                </div>
+              ) : (
               <div className="space-y-6">
                 {categoryTree.map((group) => (
                   <div key={group.root}>
@@ -836,9 +951,16 @@ export default function FindPage() {
                               )
                             }
                           />
-                        ))}
-                      </div>
-                    )}
+))}
+                {detailGroups.length === 0 && (
+                  <p className="rounded-2xl border border-line bg-surface px-5 py-4 text-center text-sm text-ink-soft">
+                    No detail options are available for
+                    this category yet — describe what
+                    matters in your own words above.
+                  </p>
+                )}
+              </div>
+            )}
                     {group.subgroups.map(
                       ([subgroup, items]) => (
                         <div
@@ -871,25 +993,7 @@ export default function FindPage() {
                   </div>
                 ))}
               </div>
-            )}
-
-            {step === 1 && (
-              <div className="mx-auto grid max-w-md gap-3">
-                {GENDER_OPTIONS.map((value) => (
-                  <OptionCard
-                    key={value}
-                    label={
-                      GENDER_LABELS[value] ?? value
-                    }
-                    selected={
-                      answers.gender === value
-                    }
-                    onClick={() =>
-                      pickGender(value)
-                    }
-                  />
-                ))}
-              </div>
+              )
             )}
 
             {step === 2 && (
@@ -946,6 +1050,13 @@ export default function FindPage() {
                       No colors match “{colorFilter}”.
                     </p>
                   )}
+                {meta.colors.length === 0 && (
+                  <p className="mt-4 text-center text-sm text-ink-faint">
+                    No colors are available from the
+                    current catalog right now — you
+                    can skip this step.
+                  </p>
+                )}
               </div>
             )}
 

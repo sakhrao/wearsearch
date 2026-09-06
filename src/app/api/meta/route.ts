@@ -11,11 +11,19 @@ import {
   categorizeSizeList,
   groupShoesBySystem,
   type ContextualSizeRow,
+  type SizeCandidate,
 } from "../../../lib/sizes";
 import { getFxRate } from "../../../lib/currency";
 import {
   buildQuestionnaireCategories,
+  mergeCategoryGenders,
+  planGendersForLeaf,
+  type CategoryGender,
 } from "../../../lib/catalog/category-display";
+import {
+  canonicalColorFromOffer,
+  expandOfferSizeChips,
+} from "../../../lib/catalog/offer-vocab";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +57,9 @@ export async function GET() {
           brands,
           productAttributes,
           sizeCatalogRows,
+          offerColorRows,
+          offerSizeRows,
+          productGenderRows,
         ] = await Promise.all([
           prisma.category.findMany({
             select: {
@@ -111,6 +122,55 @@ export async function GET() {
                   ordinal: true,
                 },
               },
+            },
+          }),
+
+          /* Phase-0: a Phase-0 catalog (eBay etc.) has NO Color/Size/
+             ProductVariant rows, but its ProductOfferVariant lines DO
+             carry the real sellable colors/sizes. Those values are the
+             questionnaire's source of truth for such catalogs, so the
+             option surfaces merge them instead of going empty. The
+             offer rows are never reinterpreted: colors collapse through
+             the shared canonical fold and sizes through the shared
+             size chip expander (same helpers /api/search uses). */
+          prisma.productOfferVariant.findMany({
+            where: {
+              availability: "AVAILABLE",
+              color: { not: null },
+            },
+            select: { color: true },
+          }),
+
+          prisma.productOfferVariant.findMany({
+            where: {
+              availability: "AVAILABLE",
+              sizeValue: { not: null },
+            },
+            select: {
+              sizeValue: true,
+              sizeSystem: true,
+              offer: {
+                select: {
+                  product: {
+                    select: {
+                      gender: true,
+                      category: {
+                        select: { slug: true, name: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+
+          /* Live Product.gender per category slug: the real stock
+             signal that fills KIDS and verifies UNISEX for the
+             gender-aware category filter. */
+          prisma.product.findMany({
+            select: {
+              gender: true,
+              category: { select: { slug: true } },
             },
           }),
         ]);
@@ -185,14 +245,8 @@ export async function GET() {
           category: size.category,
           value: size.value,
           system: size.system,
-        }));
+        })) as SizeCandidate[];
 
-        /* Questionnaire categories = CANONICAL taxonomy (import-plan,
-           via category-display) merged with any legacy DB-only categories
-           so that nothing currently offered disappears. Canonical wins on
-           slug overlap (no duplicates); legacy rows are tagged source
-           "legacy" with an additive root/subgroup so the client can render
-           the hierarchy while still labelling size/detail by `group`. */
         /* Questionnaire categories = canonical taxonomy (import-plan, via
            category-display) merged with any legacy DB-only categories so
            nothing currently offered disappears. Canonical wins on slug
@@ -208,23 +262,151 @@ export async function GET() {
           buildQuestionnaireCategories({
             dbRows,
             usedProductCategoryIds: usedIds,
-          }).map((category) => ({
-            name: category.name,
-            slug: category.slug,
-            group: category.group,
-            parent: category.subgroup,
-            root: category.root,
-            subgroup: category.subgroup,
-            source: category.source,
-            hasProducts: category.hasProducts,
-          }));
+          });
+
+        /* category root -> size discipline (Shoes -> footwear, the rest
+           -> clothing) comes from the SAME canonical display logic the
+           questionnaire renders, so the offer size options are labelled
+           by the taxonomy, never guessed. */
+        const rootSlugBySlug = new Map<string, string>();
+        for (const category of questionnaireCategories) {
+          rootSlugBySlug.set(category.slug, category.rootSlug);
+        }
+
+        const normalizeAudience = (
+          raw: string
+        ): CategoryGender | null => {
+          const value = raw.trim().toUpperCase();
+          return (
+            ["MEN", "WOMEN", "KIDS", "UNISEX"] as const
+          ).includes(value as CategoryGender)
+            ? (value as CategoryGender)
+            : null;
+        };
+
+        /* Live Product.gender per category slug: the real stock signal
+           that fills KIDS and verifies UNISEX for the gender filter. */
+        const productGendersBySlug = new Map<
+          string,
+          Set<CategoryGender>
+        >();
+        for (const row of productGenderRows) {
+          const slug = row.category?.slug;
+          if (!slug) continue;
+          const audience = normalizeAudience(
+            String(row.gender ?? "")
+          );
+          if (!audience) continue;
+          let set = productGendersBySlug.get(slug);
+          if (!set) {
+            set = new Set<CategoryGender>();
+            productGendersBySlug.set(slug, set);
+          }
+          set.add(audience);
+        }
+
+        /* Phase-0 offer colors: real sellable colors from
+           ProductOfferVariant collapse through the shared canonical
+           fold (same chips /api/search detects and matches). */
+        const offerColorCounts = new Map<string, number>();
+        for (const row of offerColorRows) {
+          const canonical = canonicalColorFromOffer(row.color);
+          if (!canonical) continue;
+          offerColorCounts.set(
+            canonical,
+            (offerColorCounts.get(canonical) ?? 0) + 1
+          );
+        }
+
+        const mergedColors = [
+          ...new Set([
+            ...colors.map((color) => color.name),
+            ...[...offerColorCounts.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([name]) => name),
+          ]),
+        ].sort((a, b) => a.localeCompare(b));
+
+        /* Phase-0 offer sizes: real sellable size chips, expanded to
+           their canonical members (M/L from "S/M L/XL 2XL/3XL", 6..12
+           from "6-12"), contextualised by the product's own gender and
+           the canonical root discipline. */
+        for (const row of offerSizeRows) {
+          const categorySlug = row.offer.product.category?.slug;
+          const categoryName =
+            row.offer.product.category?.name;
+          if (!categorySlug || !categoryName) continue;
+          const rootSlug = rootSlugBySlug.get(categorySlug);
+          if (!rootSlug) continue;
+          const isFootwear = rootSlug === "shoes";
+          const chips = expandOfferSizeChips(
+            String(row.sizeValue ?? "")
+          );
+          if (chips.length === 0) continue;
+
+          sizeCandidates.push(
+            ...chips.map((value) => ({
+              category: isFootwear ? "shoes" : "clothing",
+              value,
+              system: String(row.sizeSystem ?? "") || undefined,
+            }))
+          );
+
+          const audience = normalizeAudience(
+            String(row.offer.product.gender ?? "")
+          );
+          if (!audience) continue;
+          for (const chip of chips) {
+            contextualRows.push({
+              audience,
+              productType: isFootwear
+                ? "FOOTWEAR"
+                : "CLOTHING",
+              category: categoryName,
+              system: row.sizeSystem ?? null,
+              value: chip,
+              ordinal: null,
+            });
+          }
+        }
 
         return {
-          categories: questionnaireCategories,
-          colors: colors.map((color) => color.name),
+          categories: questionnaireCategories.map(
+            (category) => ({
+              name: category.name,
+              slug: category.slug,
+              group: category.group,
+              parent: category.subgroup,
+              root: category.root,
+              subgroup: category.subgroup,
+              source: category.source,
+              hasProducts: category.hasProducts,
+              genders: mergeCategoryGenders({
+                planGenders:
+                  category.source === "legacy"
+                    ? new Set<CategoryGender>()
+                    : planGendersForLeaf(category.slug),
+                productGenders:
+                  productGendersBySlug.get(category.slug) ??
+                  new Set<CategoryGender>(),
+                isLegacy: category.source === "legacy",
+              }),
+            })
+          ),
+          colors: mergedColors,
           sizes: [
-            ...new Set(sizes.map((size) => size.value)),
-          ],
+            ...new Set([
+              ...sizes.map((size) => size.value),
+              ...sizeCandidates.map((size) => size.value),
+            ]),
+          ].sort((a, b) => {
+            const na = parseFloat(a);
+            const nb = parseFloat(b);
+            if (Number.isFinite(na) && Number.isFinite(nb)) {
+              return na - nb || a.localeCompare(b);
+            }
+            return a.localeCompare(b);
+          }),
           sizeGroups: categorizeSizeList(
             sizeCandidates
           ),

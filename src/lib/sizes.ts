@@ -11,7 +11,7 @@ export type CatalogSizeGroups = {
   shoes: string[];
 };
 
-const ORDERED_ALPHA = [
+export const ORDERED_ALPHA = [
   "XXS",
   "XS",
   "S",
@@ -390,20 +390,42 @@ export function sizeSectionsFor(params: {
   }
 
   if (productType === "FOOTWEAR") {
-    const systems = [...mergedBySystem.keys()].sort(
-      systemNameOrder
+    const known = [...mergedBySystem.keys()]
+      .filter(
+        (system) =>
+          system.toLowerCase() !== "unknown"
+      )
+      .sort(systemNameOrder);
+    const unknown = mergedBySystem.get(
+      "UNKNOWN"
     );
-    return systems.map((system) => {
-      const values = sortValues([
-        ...mergedBySystem.get(system)!,
-      ]);
-      return {
-        label: rangeLabel(system, values),
-        system,
-        productType: "FOOTWEAR",
-        values,
-      };
-    });
+    const sections: SizeSection[] = known.map(
+      (system) => {
+        const values = sortValues([
+          ...mergedBySystem.get(system)!,
+        ]);
+        return {
+          label: rangeLabel(system, values),
+          system,
+          productType: "FOOTWEAR",
+          values,
+        };
+      }
+    );
+    /* A shoes row whose store system is missing (catalog rows carry
+       no system signal) renders as ONE generic value list, exactly
+       like clothing: no invented EU/US/US-band label ever appears. */
+    if (unknown && sections.length === 0) {
+      return [
+        {
+          label: null,
+          system: null,
+          productType: "FOOTWEAR",
+          values: sortValues([...unknown]),
+        },
+      ];
+    }
+    return sections;
   }
 
   const values = sortValues([

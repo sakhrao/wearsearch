@@ -281,7 +281,7 @@ const empty = {
   check("no-structure no budget", answers.budgetCurrency === null);
 }
 
-/* Extra: UNISEX gender is not restored into the answers. */
+/* Extra: UNISEX gender restores onto the Unisex questionnaire option. */
 {
   const answers = buildEditAnswers(
     "unisex hoodie",
@@ -292,7 +292,7 @@ const empty = {
     },
     null
   );
-  check("UNISEX gender skipped", answers.gender === null);
+  check("UNISEX gender restored", answers.gender === "unisex");
   check("UNISEX token still covered", answers.searchText === "");
 }
 

@@ -12,27 +12,29 @@ export type StepKey =
   | "details";
 
 export const STEP_KEYS: StepKey[] = [
-  "category",
   "gender",
+  "category",
   "colors",
   "size",
   "budget",
   "details",
 ];
 
-/* The What / Who steps are mandatory: they cannot be
-   skipped and Next only enables once answered. All other
-   steps are optional: Next requires an answer (otherwise
-   the only way forward is Skip). */
+/* The Who (gender) / What (category) steps are mandatory: they cannot
+   be skipped and Next only enables once answered. The category step
+   filters its options by the picked gender, so answering Who first
+   makes What genuinely gender-aware. All other steps are optional:
+   Next requires an answer (otherwise the only way forward is Skip). */
 export const REQUIRED_STEPS = new Set<StepKey>([
-  "category",
   "gender",
+  "category",
 ]);
 
 export const GENDER_OPTIONS = [
   "women",
   "men",
   "kids",
+  "unisex",
 ] as const;
 
 export function isValidGender(
@@ -49,6 +51,7 @@ export function genderToAudience(
   if (gender === "women") return "WOMEN";
   if (gender === "men") return "MEN";
   if (gender === "kids") return "KIDS";
+  if (gender === "unisex") return "UNISEX";
   return null;
 }
 

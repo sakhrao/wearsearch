@@ -17,6 +17,7 @@
    and offline tests alike. */
 
 import {
+  CATEGORY_PLANS,
   PLAN_PARENT_CATEGORIES,
   PLAN_LEAF_CATEGORIES,
 } from "./import-plan";
@@ -96,6 +97,100 @@ export function canonicalCategoryDisplay(): CategoryDisplay[] {
 }
 
 export const CATEGORY_ROOT_ORDER = ["Clothing", "Shoes", "Accessories", "Headwear"];
+
+/* ---- gender-aware category filtering ----
+
+   Category -> gender compatibility is NOT a hardcoded hide-list. It is
+   derived from the project's own real signals:
+
+     - the canonical import plan's eBay path tokens (Men/Women segments),
+       which classify a leaf by the genders its source listings target
+       (dresses/skirts/bras are Women-only in the plan; sneakers/T-shirts
+       carry both Men and Women tokens);
+     - the live Product.gender distribution when the DB actually stocks a
+       category (fills KIDS, confirms/mirrors UNISEX).
+
+   Rules:
+     - a category is MEN-compatible when a Men token exists (or its live
+       stock is MEN);
+     - WOMEN-compatible when a Women token exists (or live stock is WOMEN);
+     - UNISEX-compatible when BOTH the Men and Women token sets exist (a
+       genuinely shared catalog leaf) OR the live stock carries UNISEX;
+     - KIDS-compatible only from live KIDS stock - no token anywhere in
+       the plan encodes a kids audience, so KIDS is data-driven only and
+       never guessed.
+
+   The taxonomy itself is untouched: this list only tells the
+   questionnaire which options to show for a picked gender. */
+
+export type CategoryGender =
+  | "MEN"
+  | "WOMEN"
+  | "KIDS"
+  | "UNISEX";
+
+const GENDER_SEGMENT_PATTERN =
+  /^(Men|Women)(?:'s)?(?:(\s)|$)/i;
+
+export function planGendersForLeaf(
+  slug: string
+): Set<CategoryGender> {
+  const plan = CATEGORY_PLANS.find(
+    (entry) => entry.slug === slug
+  );
+  const genders = new Set<CategoryGender>();
+  if (!plan) return genders;
+
+  let hasMen = false;
+  let hasWomen = false;
+  for (const path of plan.sourceCategoryTokens) {
+    for (const segment of path.split("|")) {
+      const match = segment.match(GENDER_SEGMENT_PATTERN);
+      if (!match) continue;
+      if ((match[1] ?? "").toLowerCase() === "men") {
+        hasMen = true;
+      } else {
+        hasWomen = true;
+      }
+    }
+  }
+  if (hasMen) genders.add("MEN");
+  if (hasWomen) genders.add("WOMEN");
+  /* both Men AND Women listings -> an adult-shared (unisex) catalog leaf */
+  if (hasMen && hasWomen) genders.add("UNISEX");
+  return genders;
+}
+
+/* Merge the plan affinity with the live stock genders. Product data
+   supplies KIDS and can surface UNISEX for a leaf whose plan is
+   single-gender but whose actual stock crosses audiences. */
+export function mergeCategoryGenders(deps: {
+  planGenders: Set<CategoryGender>;
+  productGenders: Set<CategoryGender>;
+  isLegacy: boolean;
+}): CategoryGender[] {
+  const { planGenders, productGenders, isLegacy } = deps;
+  const merged = new Set<CategoryGender>();
+
+  for (const gender of planGenders) {
+    merged.add(gender);
+  }
+  for (const gender of productGenders) {
+    merged.add(gender);
+  }
+
+  if (isLegacy && merged.size === 0) {
+    /* a DB-only row we know nothing about keeps today's behaviour:
+       offered to every adult audience, never restricted. */
+    merged.add("MEN");
+    merged.add("WOMEN");
+    merged.add("UNISEX");
+  }
+
+  return (
+    ["MEN", "WOMEN", "KIDS", "UNISEX"] as const
+  ).filter((gender) => merged.has(gender));
+}
 
 /* ---- legacy merge helpers ---- */
 

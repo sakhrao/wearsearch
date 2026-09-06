@@ -63,6 +63,11 @@ export function buildEditAnswers(
     structuredQuery.gender !== "UNISEX"
   ) {
     answers.gender = structuredQuery.gender.toLowerCase();
+  } else if (structuredQuery?.gender === "UNISEX") {
+    /* The questionnaire now offers Unisex as a first-class gender
+       option, so a UNISEX-detected query restores it instead of
+       dropping the answer. */
+    answers.gender = "unisex";
   }
 
   if (structuredQuery?.category) {
