@@ -1,9 +1,14 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { isOnePieceTopSlug } from "@/lib/build/flow-rules";
+import {
+  buildGenderFromParam,
+  parseAccessories as parseAccessoriesShared,
+  parsePieces as parsePiecesShared,
+} from "@/lib/build/url-state";
 
 const SLOT_LABELS: Record<string, string> = {
   top: "Top",
@@ -82,43 +87,14 @@ type Piece = {
   color: string | null;
 };
 
-const buildGender = (g: string | null): Gender =>
-  g === "WOMEN" || g === "KIDS" ? g : "MEN";
+const buildGender = buildGenderFromParam;
 
 function parsePieces(raw: string | null): Record<string, Piece> {
-  if (!raw) return {};
-  try {
-    const v = JSON.parse(raw) as Record<string, unknown>;
-    if (typeof v !== "object" || v === null) return {};
-    const out: Record<string, Piece> = {};
-    for (const [key, value] of Object.entries(v)) {
-      const piece = (value ?? {}) as Partial<Piece>;
-      if (piece.product && typeof piece.product.id === "string") {
-        out[key] = {
-          product: piece.product as BuildProduct,
-          color: typeof piece.color === "string" ? piece.color : null,
-        };
-      }
-    }
-    return out;
-  } catch {
-    return {};
-  }
+  return parsePiecesShared(raw) as Record<string, Piece>;
 }
 
 function parseAccessories(raw: string | null): Piece[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw) as unknown;
-    if (!Array.isArray(v)) return [];
-    return v.filter(
-      (x): x is Piece =>
-        Boolean(x) &&
-        typeof (x as Piece).product?.id === "string"
-    );
-  } catch {
-    return [];
-  }
+  return parseAccessoriesShared(raw) as Piece[];
 }
 
 async function fetchBuild(
@@ -265,6 +241,7 @@ function ArrowIcon({ dir }: { dir: "left" | "right" }) {
 
 function BuildPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [response, setResponse] = useState<BuildResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -489,6 +466,16 @@ function BuildPageInner() {
 
   const atFinished = stepIndex >= flow.length;
   const completedCount = resolvedPieces.length;
+
+  /* Hand the finished look over to the dedicated Review page. The URL
+     already carries gender / selected / accs, so the review opens with
+     the exact pieces that were picked — no state to recompute. */
+  const openReview = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.pathname = "/outfit/review";
+    url.searchParams.delete("category");
+    router.push(url.toString());
+  }, [router]);
 
   return (
     <main className="min-h-screen bg-paper text-ink">
@@ -948,7 +935,7 @@ function BuildPageInner() {
 
                 <button
                   type="button"
-                  onClick={() => setStepIndex(flow.length)}
+                  onClick={openReview}
                   className="mt-4 w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-paper transition hover:bg-ink-soft"
                 >
                   Review outfit
@@ -967,14 +954,14 @@ function BuildPageInner() {
           </div>
         )}
 
-        {/* REVIEW */}
+        {/* READY — hand the finished look over to the dedicated Review page */}
         {atFinished && (
           <div className="grid gap-8 lg:grid-cols-[1fr_340px] step-animate">
             <div>
               <h2 className="text-2xl font-semibold text-ink">
-                Review your outfit
+                Your look is ready
               </h2>
-              {completedCount === 0 && (
+              {completedCount === 0 ? (
                 <div className="mt-6 rounded-2xl border border-dashed border-line bg-surface p-10 text-center">
                   <p className="text-sm text-ink-faint">
                     You haven&apos;t added any pieces yet. Start by picking a Top.
@@ -987,165 +974,46 @@ function BuildPageInner() {
                     Start over
                   </button>
                 </div>
-              )}
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {resolvedPieces.map((p) => (
-                  <div
-                    key={`${p.slot}-${p.product.id}`}
-                    className="overflow-hidden rounded-2xl border border-line bg-surface"
-                  >
-                    <ProductImage src={p.product.imageUrl} alt={p.product.name} />
-                    <div className="p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-                        {SLOT_LABELS[p.slot] ?? p.slot}
-                      </p>
-                      <h4 className="mt-1 text-base font-semibold text-ink">
-                        {p.product.name}
-                      </h4>
-                      <p className="mt-1 text-sm text-ink-soft">
-                        {p.product.brand ? `${p.product.brand} · ` : ""}
-                        {p.color ?? ""}
-                      </p>
-                      <p className="mt-2 text-base font-semibold text-ink">
-                        {money(p.product.price)} {p.product.currency}
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <a
-                          href={p.product.productUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-paper transition hover:bg-ink-soft"
-                        >
-                          Buy / View product
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (p.slot === "accessory") {
-                              setAccessories((prev) => prev.filter((x) => x.product.id !== p.product.id));
-                            } else {
-                              replaceAt(p.slot);
-                            }
-                          }}
-                          className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-soft transition hover:border-accent-deep hover:text-ink"
-                        >
-                          Replace
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (p.slot === "accessory") {
-                              setAccessories((prev) => prev.filter((x) => x.product.id !== p.product.id));
-                            } else {
-                              setPieces((prev) => {
-                                const next = { ...prev };
-                                delete next[p.slot];
-                                return next;
-                              });
-                            }
-                          }}
-                          className="rounded-full border border-line px-4 py-2 text-xs font-medium text-red-500 transition hover:bg-red-50"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
+              ) : (
+                <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
+                  <div className="border-b border-line bg-paper-soft px-5 py-4">
+                    <p className="text-xs text-ink-soft">
+                      {resolvedPieces.length} piece
+                      {resolvedPieces.length === 1 ? "" : "s"} picked
+                      {topPick
+                        ? ` · starts with your ${
+                            topPick.product.categoryName ?? "Top"
+                          }`
+                        : ""}
+                      .
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <div className="p-5">
+                    <p className="text-sm text-ink-soft">
+                      Open the full Review to see this look on your 3D model —
+                      rotate and zoom it, swap or remove pieces, and buy each
+                      real product.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openReview}
+                      className="mt-4 w-full rounded-full bg-ink py-3 text-sm font-semibold text-paper transition hover:bg-ink-soft"
+                    >
+                      Open Review your outfit
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <aside className="lg:sticky lg:top-6 lg:self-start">
               <div className="rounded-2xl border border-line bg-surface p-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  Summary
+                  Quick summary
                 </p>
-                <ul className="mt-3 space-y-2">
-                  {flow.map((s) => {
-                    const picked =
-                      s.slot === "accessory"
-                        ? accessories.length > 0
-                        : pieces[s.slot] != null;
-                    const missing = s.required && !picked;
-                    return (
-                      <li
-                        key={s.slot}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <span className="text-ink-soft">{s.label}</span>
-                        <span
-                          className={
-                            picked
-                              ? "font-medium text-accent-deep"
-                              : missing
-                                ? "font-medium text-amber-700"
-                                : "text-ink-faint"
-                          }
-                        >
-                          {picked
-                            ? "Done"
-                            : missing
-                              ? `Missing: ${s.label}`
-                              : "Skipped"}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                {completedCount > 0 && (
-                  <div className="mt-4 border-t border-line pt-4">
-                    {(() => {
-                      let total = 0;
-                      for (const p of resolvedPieces) {
-                        const n = Number(p.product.price);
-                        if (Number.isFinite(n)) total += n;
-                      }
-                      const currency = resolvedPieces[0]?.product.currency ?? "";
-                      return (
-                        <p className="flex items-center justify-between">
-                          <span className="text-sm text-ink-soft">Total</span>
-                          <span className="text-lg font-semibold text-ink">
-                            {money(String(Math.round(total * 100) / 100))} {currency}
-                          </span>
-                        </p>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {(() => {
-                  const missingRequired = flow
-                    .filter((f) => f.required)
-                    .filter((f) =>
-                      f.slot === "accessory"
-                        ? accessories.length === 0
-                        : pieces[f.slot] == null
-                    )
-                    .map((f) => f.label);
-                  if (missingRequired.length === 0) return null;
-                  return (
-                    <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      Almost complete — missing: {missingRequired.join(", ")}.
-                      You can still finish without them.
-                    </p>
-                  );
-                })()}
-
-                {accessories.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const idx = flow.findIndex((f) => f.slot === "accessory");
-                      setStepIndex(idx < 0 ? flow.length - 1 : idx);
-                      setMode("recommend");
-                    }}
-                    className="mt-4 w-full rounded-full border border-dashed border-accent/50 py-2 text-sm font-medium text-accent-deep transition hover:bg-accent-tint"
-                  >
-                    + Add another accessory
-                  </button>
-                )}
-
+                <p className="mt-2 text-sm text-ink-soft">
+                  Chosen pieces — {resolvedPieces.length}
+                </p>
                 <div className="mt-4 flex gap-2">
                   <button
                     type="button"
