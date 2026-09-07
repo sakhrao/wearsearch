@@ -53,11 +53,11 @@ function PillarIcon({ name }: { name: string }) {
 
 export function ValuePromise() {
   return (
-    <div role="region" aria-label="Why WearSearch" className="py-16 sm:py-20">
+    <div role="region" aria-label="Why FitWear" className="py-16 sm:py-20">
       <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-3">
         {PILLARS.map((pillar) => (
           <div key={pillar.title} className="text-center sm:text-left">
-            <span className="inline-grid size-11 place-items-center rounded-xl border border-line bg-surface text-accent">
+            <span className="inline-grid size-11 place-items-center rounded-xl border border-line bg-surface text-accent-deep">
               <PillarIcon name={pillar.icon} />
             </span>
             <h3 className="mt-4 text-base font-semibold text-ink">

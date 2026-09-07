@@ -47,7 +47,7 @@ export function SiteNav() {
 
         <Link
           href="/find"
-          className="ml-3 rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent-deep"
+          className="ml-3 rounded-full bg-ink px-5 py-2 text-sm font-medium text-paper transition hover:bg-ink-soft"
         >
           Find your match
         </Link>

@@ -30,7 +30,7 @@ export function DiscoveryCategories({
       className="scroll-mt-24 py-16 sm:py-20"
     >
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-deep">
           Explore by style
         </p>
         <h2
@@ -79,7 +79,7 @@ export function DiscoveryCategories({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     aria-hidden="true"
-                    className="size-5 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-accent"
+                    className="size-5 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-accent-deep"
                   >
                     <path d="M5 12h14" />
                     <path d="m13 6 6 6-6 6" />

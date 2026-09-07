@@ -8,7 +8,7 @@ export default function NotFound() {
   return (
     <main className="flex flex-1 items-center bg-paper text-ink">
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent-deep">
           404
         </p>
         <h1 className="mt-4 font-display text-4xl font-medium tracking-tight">
@@ -21,13 +21,13 @@ export default function NotFound() {
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link
             href="/"
-            className="rounded-full bg-accent px-7 py-3 text-sm font-medium text-white transition hover:bg-accent-deep"
+            className="rounded-full bg-ink px-7 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
           >
             Back to search
           </Link>
           <Link
             href="/outfit"
-            className="rounded-full border border-line bg-surface px-7 py-3 text-sm font-medium text-ink-soft transition hover:border-accent/50 hover:text-accent"
+            className="rounded-full border border-line bg-surface px-7 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
           >
             Build an outfit
           </Link>

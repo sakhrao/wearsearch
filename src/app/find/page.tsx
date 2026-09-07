@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -19,6 +19,10 @@ import {
   type SizeCatalog,
   type SizeSection,
 } from "@/lib/sizes";
+import {
+  detailOptionGroupsFor,
+  type DetailOptionGroup,
+} from "@/lib/catalog/detail-options";
 
 type Meta = {
   success: boolean;
@@ -78,47 +82,10 @@ const GROUP_ORDER = [
   "Headwear",
 ];
 
-const CONTEXT_ATTRIBUTE_GROUPS: Record<
-  string,
-  string[]
-> = {
-  Tops: ["Sleeve", "Collar", "Fit", "Material", "Style", "Pattern"],
-  Bottoms: ["Fit", "Material", "Style", "Pattern"],
-  Shoes: ["Style", "Material"],
-};
-
-/* The catalog stocks products only in Tops / Bottoms / Shoes (the
-   Accessories and Headwear categories are still empty), so no
-   accessory/headwear attribute rows exist to derive option groups
-   from; these present the recognized attribute groups only. Size
-   options are never fabricated (Stage 3-A): when the contextual
-   size catalog yields nothing for a category the step reports "No
-   sizes available" instead of inventing belt/watch/cap sizes. */
-const ACCESSORY_DETAIL_GROUPS: {
-  name: string;
-  values: string[];
-}[] = [
-  { name: "Type", values: ["Classic", "Modern", "Sport", "Formal"] },
-  { name: "Shape", values: ["Slim", "Standard", "Compact"] },
-  { name: "Material", values: ["Leather", "Metal", "Fabric", "Synthetic"] },
-  { name: "Use", values: ["Everyday", "Formal", "Outdoor", "Gift"] },
-];
-
-const HEADWEAR_DETAIL_GROUPS: {
-  name: string;
-  values: string[];
-}[] = [
-  { name: "Type", values: ["Snapback", "Bucket", "Fedora", "Wide-Brim"] },
-  { name: "Shape", values: ["Fitted", "Adjustable", "Stretch"] },
-  { name: "Material", values: ["Wool", "Cotton", "Polyester", "Straw"] },
-  { name: "Coverage", values: ["Full", "Partial", "None"] },
-];
-
 const GENDER_LABELS: Record<string, string> = {
   women: "Women",
   men: "Men",
   kids: "Kids",
-  unisex: "Unisex",
 };
 
 /* A category option is selectable for the picked gender only when its
@@ -173,13 +140,13 @@ function ArrowIcon({ dir }: { dir: "left" | "right" }) {
 }
 
 const PRIMARY_BTN =
-  "inline-flex h-12 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-accent-deep hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none";
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full bg-ink px-7 text-sm font-semibold text-paper shadow-sm transition-all duration-200 hover:bg-ink-soft hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none";
 
 const SECONDARY_BTN =
-  "inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 text-sm font-medium text-ink-soft transition-all duration-200 hover:border-accent/50 hover:text-ink active:scale-[0.98] disabled:invisible";
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 text-sm font-medium text-ink-soft transition-all duration-200 hover:border-accent-deep hover:text-ink active:scale-[0.98] disabled:invisible";
 
 const TERTIARY_BTN =
-  "inline-flex h-12 items-center justify-center gap-1 rounded-full px-4 text-sm font-medium text-ink-faint transition-colors hover:text-accent";
+  "inline-flex h-12 items-center justify-center gap-1 rounded-full px-4 text-sm font-medium text-ink-faint transition-colors hover:text-accent-deep";
 
 function OptionCard({
   label,
@@ -197,13 +164,13 @@ function OptionCard({
       onClick={onClick}
       className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
         selected
-          ? "border-accent bg-accent-tint text-ink"
+          ? "border-accent-deep bg-accent-tint text-ink"
           : "border-line bg-surface text-ink-soft hover:-translate-y-px hover:border-accent/60 hover:text-ink hover:shadow-md"
       }`}
     >
       <span>{label}</span>
       {selected && (
-        <span className="text-accent">
+        <span className="text-accent-deep">
           <CheckIcon />
         </span>
       )}
@@ -227,12 +194,12 @@ function OptionPill({
       onClick={onClick}
       className={`flex min-h-11 items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-150 ${
         selected
-          ? "border-accent bg-accent-tint text-ink"
+          ? "border-accent-deep bg-accent-tint text-ink"
           : "border-line bg-surface text-ink-soft hover:border-accent/50 hover:text-ink"
       }`}
     >
       {selected && (
-        <span className="text-accent">
+        <span className="text-accent-deep">
           <CheckIcon />
         </span>
       )}
@@ -486,35 +453,49 @@ export default function FindPage() {
     return "Clothing size";
   }, [selectedCategoryGroup]);
 
-  /* Detail chips. Accessories and Headwear get their own recognized
-     option groups; Tops/Bottoms/Shoes keep the catalog-driven
-     attribute groups (only groups present in the catalog). */
-  const detailGroups = useMemo<
-    { name: string; values: string[] }[]
-  >(() => {
-    if (!meta) {
+  /* Detail chips are context-aware structured options for the picked
+     category's product type (shoes/headwear/accessories/general
+     clothing each have their own vocabulary). Every option maps to
+     real search behaviour: when its group matches an attribute group
+     the catalog actually exposes the pick is a soft attribute filter,
+     otherwise the value becomes a real query token on submit. Only
+     attribute-backed groups render their catalog values (deduped),
+     so nothing offered can silently produce zero results. */
+  const detailGroups = useMemo<DetailOptionGroup[]>(() => {
+    if (!meta || !answers.category) {
       return [];
     }
-    if (selectedCategoryGroup === "Accessories") {
-      return ACCESSORY_DETAIL_GROUPS;
-    }
-    if (selectedCategoryGroup === "Headwear") {
-      return HEADWEAR_DETAIL_GROUPS;
-    }
-    const preferred =
-      CONTEXT_ATTRIBUTE_GROUPS[
-        selectedCategoryGroup ?? "Tops"
-      ] ?? CONTEXT_ATTRIBUTE_GROUPS.Tops;
-    const available = new Set(
-      Object.keys(meta.attributeGroups)
+    const category = meta.categories.find(
+      (c) => c.name === answers.category
     );
-    return preferred
-      .filter((key) => available.has(key))
-      .map((group) => ({
-        name: group,
-        values: meta.attributeGroups[group],
-      }));
-  }, [meta, selectedCategoryGroup]);
+    if (!category) {
+      return [];
+    }
+    return detailOptionGroupsFor({
+      root: category.root,
+      group: category.group,
+      slug: category.slug,
+    }).map((optionGroup) => {
+      const attributeValues =
+        optionGroup.attributeKey != null
+          ? meta.attributeGroups[
+              optionGroup.attributeKey
+            ]
+          : undefined;
+      return {
+        name: optionGroup.name,
+        attributeKey: optionGroup.attributeKey,
+        values: attributeValues
+          ? [
+              ...new Set([
+                ...attributeValues,
+                ...optionGroup.values,
+              ]),
+            ]
+          : optionGroup.values,
+      };
+    });
+  }, [meta, answers.category]);
 
   const totalSteps = STEP_KEYS.length;
 
@@ -534,27 +515,27 @@ export default function FindPage() {
   > = {
     0: {
       ask: "Who is it for?",
-      hint: "We'll tailor the options — categories, sizes and results — to the person you're shopping for.",
+      hint: "For Women, Men or Kids â€” we'll tailor the categories, sizes and results to the person you're shopping for.",
     },
     1: {
       ask: "What are you shopping for?",
-      hint: "Pick a category tuned to your pick — you can change it later.",
+      hint: "Pick a category tuned to your pick â€” you can change it later.",
     },
     2: {
-      ask: "Which colors do you like?",
-      hint: "Optional · pick as many as you like, tap again to remove.",
+      ask: "What size do you need?",
+      hint: `Optional Â· ${sizeStepLabel} options that fit your picks.`,
     },
     3: {
-      ask: "What size do you need?",
-      hint: `Optional · ${sizeStepLabel} options that fit your picks.`,
+      ask: "Which colors do you like?",
+      hint: "Optional Â· pick as many as you like, tap again to remove.",
     },
     4: {
       ask: "What's your budget?",
-      hint: `Optional · set a range in ${budgetCurrencyLabel}.`,
+      hint: `Optional Â· set a range in ${budgetCurrencyLabel}.`,
     },
     5: {
       ask: "Anything else that matters?",
-      hint: "Optional · tell us in your own words or pick a detail.",
+      hint: "Optional Â· tell us in your own words or pick a detail.",
     },
   };
 
@@ -580,6 +561,54 @@ export default function FindPage() {
           )
         : [...previous[key], value],
     }));
+  }
+
+  /* A detail chip is attribute-backed only when its group maps to an
+     attribute group the catalog ACTUALLY exposes; such picks become
+     soft filters. Every other chip is added to detailTokens and turns
+     into a real query token on submit â€” never a UI-only filter. */
+  function toggleDetail(
+    optionGroup: DetailOptionGroup,
+    value: string
+  ) {
+    const attributeBacked =
+      optionGroup.attributeKey != null &&
+      meta?.attributeGroups[
+        optionGroup.attributeKey
+      ] != null;
+    setAnswers((previous) => {
+      if (attributeBacked) {
+        const inAttrs =
+          previous.attributes.includes(value);
+        return {
+          ...previous,
+          attributes: inAttrs
+            ? previous.attributes.filter(
+                (item) => item !== value
+              )
+            : [...previous.attributes, value],
+        };
+      }
+      const inTokens =
+        previous.detailTokens.includes(value);
+      return {
+        ...previous,
+        detailTokens: inTokens
+          ? previous.detailTokens.filter(
+              (item) => item !== value
+            )
+          : [...previous.detailTokens, value],
+      };
+    });
+  }
+
+  function isDetailSelected(
+    value: string
+  ): boolean {
+    return (
+      answers.attributes.includes(value) ||
+      answers.detailTokens.includes(value)
+    );
   }
 
   /* Changing What/Who invalidates the size context, so the size
@@ -622,10 +651,12 @@ export default function FindPage() {
       return {
         ...previous,
         gender: nextGender,
+        /* Only toggling the same gender OFF keeps the size context
+           (gender-less but otherwise intact). A real gender switch or
+           a category invalidation makes the audience/category context
+           of the size answer stale, so the size is cleared with it. */
         size:
-          cleared || categoryCleared
-            ? previous.size
-            : null,
+          cleared ? previous.size : null,
         category: categoryCleared
           ? null
           : previous.category,
@@ -734,6 +765,13 @@ export default function FindPage() {
           : answers.size.value
       );
     }
+    /* Structured detail chips that are not attribute-backed become
+       REAL query tokens, exactly as if the user typed them. */
+    for (const token of answers.detailTokens) {
+      if (token.trim()) {
+        parts.push(token.trim());
+      }
+    }
     if (answers.searchText.trim()) {
       parts.push(answers.searchText.trim());
     }
@@ -830,7 +868,7 @@ export default function FindPage() {
         </p>
         <Link
           href="/"
-          className="text-sm font-medium text-accent underline-offset-4 hover:underline"
+          className="text-sm font-medium text-accent-deep underline-offset-4 hover:underline"
         >
           Back to search
         </Link>
@@ -850,7 +888,7 @@ export default function FindPage() {
       <div className="flex items-center justify-between gap-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-sm font-medium text-ink-faint transition-colors hover:text-accent"
+          className="inline-flex items-center gap-1 text-sm font-medium text-ink-faint transition-colors hover:text-accent-deep"
         >
           <ArrowIcon dir="left" />
           Search
@@ -874,7 +912,7 @@ export default function FindPage() {
           aria-label={`Step ${step + 1} of ${totalSteps}`}
         >
           <div
-            className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+            className="h-full rounded-full bg-accent-deep transition-all duration-500 ease-out"
             style={{
               width:
                 ((step + 1) / totalSteps) * 100 +
@@ -924,7 +962,7 @@ export default function FindPage() {
                 <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
                   <p className="text-sm text-ink-soft">
                     There are no categories in
-                    stock for that audience yet —
+                    stock for that audience yet â€”
                     go back and pick another.
                   </p>
                 </div>
@@ -955,7 +993,7 @@ export default function FindPage() {
                 {detailGroups.length === 0 && (
                   <p className="rounded-2xl border border-line bg-surface px-5 py-4 text-center text-sm text-ink-soft">
                     No detail options are available for
-                    this category yet — describe what
+                    this category yet â€” describe what
                     matters in your own words above.
                   </p>
                 )}
@@ -996,14 +1034,14 @@ export default function FindPage() {
               )
             )}
 
-            {step === 2 && (
+            {step === 3 && (
               <div>
                 <div className="mx-auto mb-6 max-w-sm">
                   <FieldInput
                     id="find-color-filter"
                     value={colorFilter}
                     onChange={setColorFilter}
-                    placeholder="Search colors…"
+                    placeholder="Search colorsâ€¦"
                     icon
                   />
                 </div>
@@ -1047,20 +1085,20 @@ export default function FindPage() {
                       )
                   ).length === 0 && (
                     <p className="mt-4 text-center text-sm text-ink-faint">
-                      No colors match “{colorFilter}”.
+                      No colors match â€œ{colorFilter}â€.
                     </p>
                   )}
                 {meta.colors.length === 0 && (
                   <p className="mt-4 text-center text-sm text-ink-faint">
                     No colors are available from the
-                    current catalog right now — you
+                    current catalog right now â€” you
                     can skip this step.
                   </p>
                 )}
               </div>
             )}
 
-            {step === 3 && (
+            {step === 2 && (
               <div>
                 {sizeSections.length > 0 ? (
                   <div className="space-y-6">
@@ -1118,7 +1156,7 @@ export default function FindPage() {
                   <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       No sizes are available for your
-                      picks right now — you can skip
+                      picks right now â€” you can skip
                       this step.
                     </p>
                   </div>
@@ -1227,21 +1265,21 @@ export default function FindPage() {
                 <p className="text-center text-xs leading-relaxed text-ink-faint">
                   {budgetCurrencyLabel === "USD"
                     ? `Your budget is compared fairly across currencies
-                       using the ECB reference rate (1 EUR ≈
-                       ${fxRate?.toFixed(4) ?? "—"} USD,
+                       using the ECB reference rate (1 EUR â‰ˆ
+                       ${fxRate?.toFixed(4) ?? "â€”"} USD,
                        ${meta?.fx?.asOf ?? "latest"}). Cards
                        always show each product's original price.
                        Matches just outside your range appear under
                        Similar.`
                     : `Prices are matched at their listed value. No
                        rate is needed for ${budgetCurrencyLabel}{" "}
-                       budgets — nothing is invented or converted.`}
+                       budgets â€” nothing is invented or converted.`}
                 </p>
                 {!fxRate && budgetCurrencyLabel === "USD" && (
                   <p className="text-center text-xs text-amber-700">
                     No reliable USD rate is available right now, so
                     your budget is matched at its listed value. Nothing
-                    is invented — conversion applies automatically once
+                    is invented â€” conversion applies automatically once
                     a rate is reachable.
                   </p>
                 )}
@@ -1251,7 +1289,7 @@ export default function FindPage() {
             {step === 5 && (
               <div className="space-y-8">
                 <div className="mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-accent/20 bg-accent-tint px-5 py-4">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-white">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-deep text-paper">
                     <CheckIcon />
                   </span>
                   <p className="text-sm leading-snug">
@@ -1298,12 +1336,12 @@ export default function FindPage() {
                           <OptionPill
                             key={value}
                             label={value}
-                            selected={answers.attributes.includes(
+                            selected={isDetailSelected(
                               value
                             )}
                             onClick={() =>
-                              toggleInList(
-                                "attributes",
+                              toggleDetail(
+                                group,
                                 value
                               )
                             }
@@ -1327,7 +1365,7 @@ export default function FindPage() {
               aria-hidden="true"
             />
             <p className="text-sm text-ink-soft">
-              Finding your options…
+              Finding your optionsâ€¦
             </p>
           </div>
         )}

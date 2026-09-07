@@ -11,13 +11,13 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("WearSearch error boundary:", error);
+    console.error("FitWear error boundary:", error);
   }, [error]);
 
   return (
     <main className="flex flex-1 items-center bg-paper text-ink">
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent-deep">
           Something went wrong
         </p>
         <h1 className="mt-4 font-display text-4xl font-medium tracking-tight">
@@ -31,13 +31,13 @@ export default function Error({
           <button
             type="button"
             onClick={reset}
-            className="rounded-full bg-accent px-7 py-3 text-sm font-medium text-white transition hover:bg-accent-deep"
+            className="rounded-full bg-ink px-7 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
           >
             Try again
           </button>
           <Link
             href="/"
-            className="rounded-full border border-line bg-surface px-7 py-3 text-sm font-medium text-ink-soft transition hover:border-accent/50 hover:text-accent"
+            className="rounded-full border border-line bg-surface px-7 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
           >
             Back to search
           </Link>

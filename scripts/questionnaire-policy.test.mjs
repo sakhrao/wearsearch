@@ -30,13 +30,15 @@ function fillAnswers(overrides) {
 
 /* 1. Step structure: six steps in the fixed order - Who (gender)
       first, then What (category), so the category step can filter
-      its options by the picked audience. */
+      its options by the picked audience. Size comes BEFORE colors so
+      the fit step follows the category, and Budget stays a separate
+      step right before Anything else. */
 {
   check(
     "STEP_KEYS has 6 steps in order",
     STEP_KEYS.length === 6 &&
       STEP_KEYS.join(",") ===
-        "gender,category,colors,size,budget,details",
+        "gender,category,size,colors,budget,details",
     STEP_KEYS.join(",")
   );
   check(
@@ -142,31 +144,30 @@ function fillAnswers(overrides) {
   );
 }
 
-/* 5. Gender options: four audiences — Men / Women / Kids / Unisex.
-      Unisex is a first-class user choice (it maps to the engine's
-      UNISEX query gender for search). */
+/* 5. Gender options: three audiences — Women / Men / Kids. Unisex is
+      deliberately NOT a user choice: shared items are found by the
+      audience the shopper actually wears them for (the engine still
+      admits UNISEX products for Men and Women). */
 {
   check(
-    "GENDER_OPTIONS are exactly women/men/kids/unisex",
-    GENDER_OPTIONS.length === 4 &&
+    "GENDER_OPTIONS are exactly women/men/kids",
+    GENDER_OPTIONS.length === 3 &&
       GENDER_OPTIONS.includes("women") &&
       GENDER_OPTIONS.includes("men") &&
-      GENDER_OPTIONS.includes("kids") &&
-      GENDER_OPTIONS.includes("unisex"),
+      GENDER_OPTIONS.includes("kids"),
     GENDER_OPTIONS.join(",")
   );
   check(
-    "unisex is offered as a user choice",
-    GENDER_OPTIONS.includes("unisex") === true &&
-      isValidGender("unisex") === true,
+    "unisex is NOT offered as a user choice",
+    GENDER_OPTIONS.includes("unisex") === false,
     `GENDER_OPTIONS=${GENDER_OPTIONS.join(",")}`
   );
   check(
-    "all four gender answers are valid",
+    "all three gender answers are valid, unisex is not",
     isValidGender("men") &&
       isValidGender("women") &&
       isValidGender("kids") &&
-      isValidGender("unisex"),
+      isValidGender("unisex") === false,
     "expected true"
   );
 }

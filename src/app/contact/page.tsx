@@ -3,7 +3,7 @@ import { StaticPage } from "@/components/static-page";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "How to reach the WearSearch project.",
+  description: "How to reach the FitWear project.",
 };
 
 export default function ContactPage() {
@@ -14,13 +14,13 @@ export default function ContactPage() {
           Get in touch
         </h2>
         <p className="mt-2">
-          WearSearch is an independent project. For feedback, catalog
+          FitWear is an independent project. For feedback, catalog
           corrections, or store inquiries, email{" "}
           <a
-            href="mailto:hi@wearsearch.example"
-            className="font-medium text-accent underline underline-offset-4"
+            href="mailto:hello@fitwear.example"
+            className="font-medium text-accent-deep underline underline-offset-4"
           >
-            hi@wearsearch.example
+            hello@fitwear.example
           </a>
           .
         </p>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#211d19"/>
+  <g fill="none" stroke="#faf6f0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- hanger hook -->
+    <circle cx="32" cy="13" r="3.4"/>
+    <path d="M32 16.4v9.6"/>
+    <!-- hanger shoulders -->
+    <path d="M17.5 34.5 32 25l14.5 9.5"/>
+    <!-- hanger bar -->
+    <path d="M23.5 50c3-2.2 6.8-3.2 8.5-3.2s5.5 1 8.5 3.2"/>
+  </g>
+  <!-- measuring tape -->
+  <path d="M44.6 38.5a9 9 0 1 0 2 6" fill="none" stroke="#c8a475" stroke-width="3.5" stroke-linecap="round"/>
+  <g fill="none" stroke="#c8a475" stroke-width="2.4" stroke-linecap="round">
+    <path d="M45 39.6v4.3M47 39v4.3M49 39v4.3"/>
+  </g>
+</svg>

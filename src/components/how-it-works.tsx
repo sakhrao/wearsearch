@@ -25,7 +25,7 @@ export function HowItWorks() {
       className="scroll-mt-24 py-16 sm:py-20"
     >
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-deep">
           How it works
         </p>
         <h2
@@ -46,7 +46,7 @@ export function HowItWorks() {
             key={step.number}
             className="rounded-2xl border border-line bg-surface p-6 transition hover:border-accent/40 hover:shadow-sm"
           >
-            <p className="font-display text-2xl font-medium text-accent">
+            <p className="font-display text-2xl font-medium text-accent-deep">
               {step.number}
             </p>
             <h3 className="mt-3 text-base font-semibold text-ink">

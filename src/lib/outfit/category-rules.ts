@@ -1,9 +1,29 @@
-/* Category rules — real catalog categories only.
-   The engine runs on the actual purchasable leaf categories that
-   exist in the live catalog. No invented categories (no dresses,
-   skirts, blazers, jackets, accessories unless they actually stock
-   purchasable products). */
+/* Category rules — taxonomy-driven outfit slots.
 
+   The slot vocabulary (footwear / bottoms / tops / layering /
+   accessory) is derived from the SHARED canonical taxonomy
+   (category-display + import-plan), never from a hand-maintained
+   category list, so a new category leaf automatically lands in the
+   right slot the moment the taxonomy declares it. Rules:
+
+     - Shoes root                 -> footwear
+     - Bottoms sub-group          -> bottoms  (Socks is accessory)
+     - Tops sub-group             -> tops     (hoodie/sweatshirt/
+                                      jumper/cardigan/sweater/jacket
+                                      are layering)
+     - Outerwear sub-group        -> layering
+     - Accessories / Headwear root-> accessory
+     - one-pieces + underwear     -> never fill a slot (they are
+                                      anchors only)
+     - legacy DB-only rows keep a sensible group
+
+   The compatibility matrix is GENERATED from the slot templates +
+   this grouping (group members per slot with a stable rank), so there
+   is no hand-written anchor-by-anchor matrix to drift out of sync.
+   Only real purchased categories can ever appear in a look, because
+   candidate pools only contain products that exist in the snapshot. */
+
+import { canonicalCategoryDisplay } from "@/lib/catalog/category-display";
 import type { SlotName, SlotTemplate } from "./types";
 
 export type CategoryGroup =
@@ -13,16 +33,96 @@ export type CategoryGroup =
   | "layering"
   | "accessory";
 
-/* The real, product-bearing leaf category slugs found in the catalog
-   (verified by DB probe). Listed explicitly so nothing invented can
-   leak in. */
-export const REAL_CATEGORIES: Record<CategoryGroup, string[]> = {
-  footwear: ["sneakers", "loafers", "heels", "sandals", "boots"],
-  bottoms: ["trousers", "jeans", "joggers", "leggings", "chinos", "shorts", "cargo"],
-  tops: ["t-shirts", "blouses", "button-ups", "tank-tops", "polos"],
-  layering: ["cardigans", "hoodies", "sweatshirts", "jumpers", "jackets"],
-  accessory: ["belts", "caps", "hats", "beanies", "sunglasses", "watches", "ties", "socks"],
+/* Slugs whose canonical sub-group says "Tops" but that function as
+   layering pieces in a look. */
+const LAYERING_OVERRIDE = new Set([
+  "hoodies",
+  "sweatshirts",
+  "jumpers",
+  "cardigans",
+  "sweaters",
+  "jackets",
+]);
+
+/* One-piece / underwear categories are never FILLERS (you don't slot a
+   dress into a "top" set), but they can still be anchors. */
+const ONEPIECE = new Set([
+  "dresses",
+  "jumpsuits",
+  "bodysuits",
+  "swimwear",
+  "swimming-trunks",
+  "bikinis",
+  "bras",
+  "sports-bras",
+  "underwear",
+  "boxers",
+  "briefs",
+]);
+
+/* Socks are categorised under Bottoms by the taxonomy but dress as an
+   accessory in a look. */
+const ACCESSORY_OVERRIDE = new Set(["socks"]);
+
+/* Legacy DB-only rows (not canonical leaves) keep a sensible group. */
+const LEGACY_GROUP: Record<string, CategoryGroup> = {
+  beanies: "accessory",
+  caps: "accessory",
+  hats: "accessory",
+  belts: "accessory",
+  sunglasses: "accessory",
+  ties: "accessory",
+  watches: "accessory",
+  "running-trainers": "footwear",
+  "button-ups": "tops", /* legacy top (was under the Tops sub-group) */
 };
+
+let cachedMap: Map<string, CategoryGroup | null> | null = null;
+let cachedMembers: Record<CategoryGroup, string[]> | null = null;
+
+function taxonomyMap(): Map<string, CategoryGroup | null> {
+  if (cachedMap) return cachedMap;
+  const map = new Map<string, CategoryGroup | null>();
+  for (const c of canonicalCategoryDisplay()) {
+    let group: CategoryGroup | null = null;
+    if (c.rootSlug === "shoes") {
+      group = "footwear";
+    } else if (
+      c.rootSlug === "accessories" ||
+      c.rootSlug === "headwear"
+    ) {
+      group = "accessory";
+    } else if (c.subgroup === "Bottoms") {
+      group = "bottoms";
+    } else if (c.subgroup === "Outerwear") {
+      group = "layering";
+    } else if (
+      c.subgroup === "Tops" ||
+      c.subgroup === "Dresses & Jumpsuits"
+    ) {
+      group = "tops";
+    }
+    map.set(c.slug, group);
+  }
+  for (const [slug, group] of Object.entries(LEGACY_GROUP)) {
+    map.set(slug, group);
+  }
+  for (const slug of LAYERING_OVERRIDE) {
+    map.set(slug, "layering");
+  }
+  for (const slug of ACCESSORY_OVERRIDE) {
+    map.set(slug, "accessory");
+  }
+  cachedMap = map;
+  return map;
+}
+
+function membersOf(group: CategoryGroup): string[] {
+  const map = taxonomyMap();
+  return [...map.entries()]
+    .filter(([, g]) => g === group)
+    .map(([slug]) => slug);
+}
 
 export const GROUP_OF_SLOT: Record<SlotName, CategoryGroup> = {
   bottom: "bottoms",
@@ -32,11 +132,18 @@ export const GROUP_OF_SLOT: Record<SlotName, CategoryGroup> = {
   accessory: "accessory",
 };
 
-/* The natural slot a product's category occupies (used to place the
-   anchor in the outfit's item list). */
+/* Filler categories for a slot: the group's members minus one-pieces,
+   so a real look only ever combines separates. */
+function fillerFor(slot: SlotName): string[] {
+  return membersOf(
+    GROUP_OF_SLOT[slot]
+  ).filter((slug) => !ONEPIECE.has(slug));
+}
+
+/* The slot a product's category occupies (used to place the anchor in
+   the outfit's item list and to place locked/share items). */
 export function slotOfCategory(slug: string): SlotName {
-  const group = groupOfCategory(slug);
-  switch (group) {
+  switch (groupOfCategory(slug)) {
     case "bottoms":
       return "bottom";
     case "tops":
@@ -53,15 +160,13 @@ export function slotOfCategory(slug: string): SlotName {
 }
 
 export function groupOfCategory(slug: string): CategoryGroup | null {
-  for (const [group, cats] of Object.entries(REAL_CATEGORIES)) {
-    if (cats.includes(slug)) return group as CategoryGroup;
-  }
-  return null;
+  return taxonomyMap().get(slug) ?? null;
 }
 
-/* Slot templates per anchor category GROUP. Only real groups that
-   can hold an anchor are supported; accessory anchors are weak but
-   allowed (fill top+bottom around them). */
+/* Slot templates per anchor category GROUP. One-piece anchors (dress,
+   swimsuit, bodysuit ...) get the neutral full look: a base top and
+   bottom with optional footwear/accessory, so an outfit is always
+   buildable around them. */
 const SLOT_TEMPLATES: Record<CategoryGroup, SlotTemplate[]> = {
   footwear: [
     { slot: "bottom", required: true },
@@ -93,235 +198,64 @@ const SLOT_TEMPLATES: Record<CategoryGroup, SlotTemplate[]> = {
   ],
 };
 
+const NEUTRAL_TEMPLATE: SlotTemplate[] = [
+  { slot: "top", required: true },
+  { slot: "bottom", required: true },
+  { slot: "footwear", required: false },
+  { slot: "accessory", required: false },
+];
+
 export function slotTemplatesForCategory(slug: string): SlotTemplate[] {
-  const group = groupOfCategory(slug) ?? "footwear";
+  if (ONEPIECE.has(slug)) {
+    return NEUTRAL_TEMPLATE;
+  }
+  const group = groupOfCategory(slug);
+  if (!group) {
+    return NEUTRAL_TEMPLATE;
+  }
   return SLOT_TEMPLATES[group];
 }
 
-/* Which category SLOT each category can fill for a given anchor slug.
-   Returns allowed (slot, category, preference) tuples. */
+/* Which category SLOT each slot accepts for a given anchor slug.
+   Generated from the templates + grouping: every member of the slot's
+   group is a valid candidate with a stable rank. Returns
+   (slot, category, preference) tuples. */
 
-type AllowedSlot = { slot: SlotName; category: string; preference: number };
-
-/* Compatibility matrix: anchor category -> allowed (slot, category).
-   preference is a lower-is-better rank used as a stable fill order. */
-const COMPAT: Record<string, AllowedSlot[]> = {
-  /* --- FOOTWEAR anchors --- */
-  sneakers: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "joggers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "chinos", preference: 4 },
-    { slot: "bottom", category: "leggings", preference: 5 },
-    { slot: "top", category: "t-shirts", preference: 1 },
-    { slot: "top", category: "blouses", preference: 2 },
-    { slot: "top", category: "button-ups", preference: 3 },
-    { slot: "top", category: "tank-tops", preference: 4 },
-    { slot: "layer", category: "hoodies", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "cardigans", preference: 3 },
-  ],
-  joggers: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "joggers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "chinos", preference: 4 },
-    { slot: "top", category: "t-shirts", preference: 1 },
-    { slot: "top", category: "tank-tops", preference: 2 },
-    { slot: "top", category: "blouses", preference: 3 },
-    { slot: "layer", category: "hoodies", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-  ],
-  leggings: [
-    { slot: "bottom", category: "leggings", preference: 1 },
-    { slot: "bottom", category: "trousers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "joggers", preference: 4 },
-    { slot: "top", category: "t-shirts", preference: 1 },
-    { slot: "top", category: "tank-tops", preference: 2 },
-    { slot: "top", category: "blouses", preference: 3 },
-    { slot: "top", category: "button-ups", preference: 4 },
-    { slot: "layer", category: "hoodies", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "cardigans", preference: 3 },
-  ],
-  jeans: [
-    { slot: "bottom", category: "jeans", preference: 1 },
-    { slot: "bottom", category: "trousers", preference: 2 },
-    { slot: "bottom", category: "chinos", preference: 3 },
-    { slot: "top", category: "t-shirts", preference: 1 },
-    { slot: "top", category: "blouses", preference: 2 },
-    { slot: "top", category: "button-ups", preference: 3 },
-    { slot: "top", category: "tank-tops", preference: 4 },
-    { slot: "layer", category: "hoodies", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "cardigans", preference: 3 },
-  ],
-  trousers: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "jeans", preference: 2 },
-    { slot: "bottom", category: "chinos", preference: 3 },
-    { slot: "top", category: "blouses", preference: 1 },
-    { slot: "top", category: "button-ups", preference: 2 },
-    { slot: "top", category: "t-shirts", preference: 3 },
-    { slot: "top", category: "tank-tops", preference: 4 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "hoodies", preference: 3 },
-    { slot: "footwear", category: "loafers", preference: 1 },
-    { slot: "footwear", category: "sneakers", preference: 2 },
-    { slot: "footwear", category: "heels", preference: 3 },
-  ],
-  chinos: [
-    { slot: "bottom", category: "chinos", preference: 1 },
-    { slot: "bottom", category: "trousers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "top", category: "button-ups", preference: 1 },
-    { slot: "top", category: "blouses", preference: 2 },
-    { slot: "top", category: "t-shirts", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "hoodies", preference: 3 },
-    { slot: "footwear", category: "loafers", preference: 1 },
-    { slot: "footwear", category: "sneakers", preference: 2 },
-  ],
-  /* --- TOPS anchors --- */
-  "t-shirts": [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "joggers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "chinos", preference: 4 },
-    { slot: "bottom", category: "leggings", preference: 5 },
-    { slot: "layer", category: "hoodies", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "cardigans", preference: 3 },
-    { slot: "footwear", category: "sneakers", preference: 1 },
-    { slot: "footwear", category: "sandals", preference: 2 },
-  ],
-  "tank-tops": [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "leggings", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "chinos", preference: 4 },
-    { slot: "bottom", category: "joggers", preference: 5 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "hoodies", preference: 2 },
-    { slot: "layer", category: "sweatshirts", preference: 3 },
-    { slot: "footwear", category: "sandals", preference: 1 },
-    { slot: "footwear", category: "sneakers", preference: 2 },
-  ],
-  blouses: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "jeans", preference: 2 },
-    { slot: "bottom", category: "chinos", preference: 3 },
-    { slot: "bottom", category: "leggings", preference: 4 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "layer", category: "hoodies", preference: 3 },
-    { slot: "footwear", category: "loafers", preference: 1 },
-    { slot: "footwear", category: "heels", preference: 2 },
-    { slot: "footwear", category: "sneakers", preference: 3 },
-  ],
-  "button-ups": [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "chinos", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "footwear", category: "loafers", preference: 1 },
-    { slot: "footwear", category: "sneakers", preference: 2 },
-    { slot: "footwear", category: "heels", preference: 3 },
-  ],
-  polos: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "chinos", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-    { slot: "footwear", category: "loafers", preference: 1 },
-    { slot: "footwear", category: "sneakers", preference: 2 },
-  ],
-  /* --- LAYERING anchors --- */
-  hoodies: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "joggers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "chinos", preference: 4 },
-    { slot: "bottom", category: "leggings", preference: 5 },
-    { slot: "top", category: "t-shirts", preference: 1 },
-    { slot: "top", category: "tank-tops", preference: 2 },
-    { slot: "footwear", category: "sneakers", preference: 1 },
-    { slot: "footwear", category: "sandals", preference: 2 },
-  ],
-  sweatshirts: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "joggers", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "bottom", category: "chinos", preference: 4 },
-    { slot: "bottom", category: "leggings", preference: 5 },
-    { slot: "top", category: "t-shirts", preference: 1 },
-    { slot: "top", category: "tank-tops", preference: 2 },
-    { slot: "top", category: "button-ups", preference: 3 },
-    { slot: "footwear", category: "sneakers", preference: 1 },
-    { slot: "footwear", category: "sandals", preference: 2 },
-  ],
-  cardigans: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "jeans", preference: 2 },
-    { slot: "bottom", category: "chinos", preference: 3 },
-    { slot: "bottom", category: "leggings", preference: 4 },
-    { slot: "top", category: "blouses", preference: 1 },
-    { slot: "top", category: "tank-tops", preference: 2 },
-    { slot: "top", category: "t-shirts", preference: 3 },
-    { slot: "top", category: "button-ups", preference: 4 },
-    { slot: "footwear", category: "loafers", preference: 1 },
-    { slot: "footwear", category: "heels", preference: 2 },
-    { slot: "footwear", category: "sneakers", preference: 3 },
-  ],
-  /* --- Footwear anchors (dressier) --- */
-  loafers: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "chinos", preference: 2 },
-    { slot: "bottom", category: "jeans", preference: 3 },
-    { slot: "top", category: "button-ups", preference: 1 },
-    { slot: "top", category: "blouses", preference: 2 },
-    { slot: "top", category: "t-shirts", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-    { slot: "layer", category: "sweatshirts", preference: 2 },
-  ],
-  heels: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "jeans", preference: 2 },
-    { slot: "bottom", category: "leggings", preference: 3 },
-    { slot: "top", category: "blouses", preference: 1 },
-    { slot: "top", category: "button-ups", preference: 2 },
-    { slot: "top", category: "tank-tops", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-  ],
-  sandals: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "jeans", preference: 2 },
-    { slot: "bottom", category: "leggings", preference: 3 },
-    { slot: "bottom", category: "joggers", preference: 4 },
-    { slot: "top", category: "tank-tops", preference: 1 },
-    { slot: "top", category: "blouses", preference: 2 },
-    { slot: "top", category: "t-shirts", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-  ],
-  boots: [
-    { slot: "bottom", category: "trousers", preference: 1 },
-    { slot: "bottom", category: "jeans", preference: 2 },
-    { slot: "top", category: "blouses", preference: 1 },
-    { slot: "top", category: "button-ups", preference: 2 },
-    { slot: "top", category: "t-shirts", preference: 3 },
-    { slot: "layer", category: "cardigans", preference: 1 },
-  ],
+export type AllowedSlot = {
+  slot: SlotName;
+  category: string;
+  preference: number;
 };
+
+const GENERATED: Record<string, AllowedSlot[]> = {};
 
 export function allowedCategoriesForAnchor(
   anchorSlug: string
 ): AllowedSlot[] {
-  return COMPAT[anchorSlug] ?? [];
+  if (GENERATED[anchorSlug]) {
+    return GENERATED[anchorSlug];
+  }
+  const templates = slotTemplatesForCategory(anchorSlug);
+  const allowed: AllowedSlot[] = [];
+  for (const tmpl of templates) {
+    const members = fillerFor(tmpl.slot);
+    /* The anchor's own group is never a candidate for its own slot
+       (a sneakers anchor doesn't pair with another shoe), and a
+       layering anchor's base top is not the anchor itself. */
+    const group = groupOfCategory(anchorSlug);
+    for (const [idx, category] of members.entries()) {
+      if (group !== null && group === GROUP_OF_SLOT[tmpl.slot]) {
+        if (category === anchorSlug) continue;
+      }
+      allowed.push({
+        slot: tmpl.slot,
+        category,
+        preference: idx + 1,
+      });
+    }
+  }
+  GENERATED[anchorSlug] = allowed;
+  return allowed;
 }
 
 export function isAllowed(
@@ -329,7 +263,7 @@ export function isAllowed(
   slot: SlotName,
   categorySlug: string
 ): boolean {
-  const list = COMPAT[anchorSlug] ?? [];
+  const list = GENERATED[anchorSlug] ?? allowedCategoriesForAnchor(anchorSlug);
   return list.some(
     (a) => a.slot === slot && a.category === categorySlug
   );
@@ -340,9 +274,23 @@ export function preferenceFor(
   slot: SlotName,
   categorySlug: string
 ): number {
-  const list = COMPAT[anchorSlug] ?? [];
+  const list = GENERATED[anchorSlug] ?? allowedCategoriesForAnchor(anchorSlug);
   const hit = list.find(
     (a) => a.slot === slot && a.category === categorySlug
   );
   return hit?.preference ?? 99;
 }
+
+/* The full taxonomy-driven vocabulary per group (kept exported for
+   callers/tests that enumerate the known universe). */
+export const REAL_CATEGORIES: Record<CategoryGroup, string[]> = (() => {
+  if (cachedMembers) return cachedMembers;
+  cachedMembers = {
+    footwear: membersOf("footwear"),
+    bottoms: membersOf("bottoms"),
+    tops: membersOf("tops"),
+    layering: membersOf("layering"),
+    accessory: membersOf("accessory"),
+  };
+  return cachedMembers;
+})();

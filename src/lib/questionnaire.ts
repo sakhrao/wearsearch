@@ -14,8 +14,8 @@ export type StepKey =
 export const STEP_KEYS: StepKey[] = [
   "gender",
   "category",
-  "colors",
   "size",
+  "colors",
   "budget",
   "details",
 ];
@@ -34,7 +34,6 @@ export const GENDER_OPTIONS = [
   "women",
   "men",
   "kids",
-  "unisex",
 ] as const;
 
 export function isValidGender(
@@ -65,6 +64,11 @@ export type QuestionnaireAnswers = {
   budgetMax: string;
   budgetCurrency: "USD" | "EUR" | null;
   attributes: string[];
+  /* Structured detail picks that the current catalog cannot match via
+     its attribute groups: every value is appended to the query as a
+     real text token on submit (never a UI-only filter). Attribute
+     groups the catalog DOES expose keep their picks in `attributes`. */
+  detailTokens: string[];
 };
 
 /* The size answer is contextual (Stage 3-A): the questionnaire
@@ -89,6 +93,7 @@ export const EMPTY_ANSWERS: QuestionnaireAnswers = {
   budgetMax: "",
   budgetCurrency: null,
   attributes: [],
+  detailTokens: [],
 };
 
 export function hasStepAnswer(
@@ -112,6 +117,7 @@ export function hasStepAnswer(
     case "details":
       return (
         answers.attributes.length > 0 ||
+        answers.detailTokens.length > 0 ||
         answers.searchText.trim() !== ""
       );
   }

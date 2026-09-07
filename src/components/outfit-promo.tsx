@@ -13,7 +13,7 @@ export function OutfitPromo() {
           className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-accent/10"
         />
         <div className="relative mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-deep">
             Outfit Engine
           </p>
           <h2
@@ -29,13 +29,13 @@ export function OutfitPromo() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/outfit"
-              className="rounded-full bg-accent px-8 py-3.5 text-sm font-semibold text-white shadow transition hover:bg-accent-deep"
+              className="rounded-full bg-ink px-8 py-3.5 text-sm font-semibold text-paper shadow transition hover:bg-ink-soft"
             >
               Build an outfit
             </Link>
             <Link
               href="/find"
-              className="rounded-full border border-accent/30 bg-surface px-7 py-3.5 text-sm font-medium text-accent transition hover:bg-accent/5"
+              className="rounded-full border border-accent-deep/40 bg-surface px-7 py-3.5 text-sm font-medium text-accent-deep transition hover:bg-accent-tint"
             >
               Answer a few questions
             </Link>

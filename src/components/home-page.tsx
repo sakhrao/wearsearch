@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Suspense,
@@ -18,6 +18,7 @@ import {
   searchIntentKey,
 } from "@/lib/search-url";
 import { hasRealProductPage } from "@/lib/product-url";
+import { CANVAS_SIZE, computeZoomFit } from "@/lib/zoom-fitting";
 import {
   FACET_KEYS,
   buildWindowFacetCounts,
@@ -445,7 +446,7 @@ function Home({
      button push: while a search is in flight, router.push /
      useSearchParams can re-commit the pre-push urlSearchKey (here
      populated, or an empty "/") several times. Those re-commits are
-     that search's own churn — urlSearchKey === searchStartUrlKeyRef —
+     that search's own churn â€” urlSearchKey === searchStartUrlKeyRef â€”
      and must not bump the F11 epoch, or the bar search would discard
      its own response while the previous results stayed under the new
      URL. A urlSearchKey that actually differs from it is a genuine
@@ -460,7 +461,7 @@ function Home({
      to run and re-execute the previous query. The arm is set on launch
      and cleared the moment a urlSearchKey other than the start key is
      acted on; while armed, the effect treats the start key itself as
-     non-actionable — it belongs to the search just launched. */
+     non-actionable â€” it belongs to the search just launched. */
   const searchLaunchArmedRef = useRef(false);
 
   /* F14-C1: is the current URL stuck waiting for the fx rate?
@@ -529,7 +530,7 @@ function Home({
     }
 
     /* F15-C2: a URL change while a search is in flight must not
-       be recorded as resolved — handleSearch would bail on
+       be recorded as resolved â€” handleSearch would bail on
        `loading` and the old response would then paint under the
        new URL. Defer instead: mark the in-flight response stale
        through the F11 epoch and let this effect re-run once the
@@ -540,8 +541,8 @@ function Home({
        (searchStartUrlKeyRef) AND the parsed intent is not the
        search already in flight. The Search button / Enter launches
        a search directly and pushes its own URL; the router settling
-       that push re-commits the pre-push urlSearchKey — never a new
-       navigation — and bumping the epoch there (or on the key-match
+       that push re-commits the pre-push urlSearchKey â€” never a new
+       navigation â€” and bumping the epoch there (or on the key-match
        early-return) would reject the search it launched and keep
        the previous results under the new query. */
     if (
@@ -910,7 +911,7 @@ function Home({
       return null;
     }
 
-    return parts.join(" • ");
+    return parts.join(" â€¢ ");
   }
 
   const searchDescription = getSearchDescription();
@@ -1124,7 +1125,7 @@ function Home({
             aria-labelledby="hero-title"
             className="hero-animate mx-auto max-w-3xl pb-12 text-center"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent-deep">
               Search fashion your way
             </p>
             <h1
@@ -1134,8 +1135,8 @@ function Home({
               Find exactly what you&apos;re looking for.
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">
-              Describe the perfect piece in your own words — style,
-              color, size or budget — and discover products that
+              Describe the perfect piece in your own words â€” style,
+              color, size or budget â€” and discover products that
               match.
             </p>
           </div>
@@ -1202,7 +1203,7 @@ function Home({
               }
               disabled={loading || !query.trim()}
               aria-label="Run search"
-              className="h-14 rounded-full bg-accent px-9 text-base font-semibold text-white shadow-sm transition hover:bg-accent-deep hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
+              className="h-14 rounded-full bg-ink px-9 text-base font-semibold text-paper shadow-sm transition hover:bg-ink-soft hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
             >
               {loading ? "Searching..." : "Search"}
             </button>
@@ -1219,7 +1220,7 @@ function Home({
                 <Link
                   key={example}
                   href={`/?q=${encodeURIComponent(example)}`}
-                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft transition hover:border-accent/40 hover:text-accent"
+                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
                 >
                   {example}
                 </Link>
@@ -1232,7 +1233,7 @@ function Home({
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/find"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-accent/30 bg-surface px-5 text-sm font-medium text-accent transition-all duration-200 hover:border-accent/60 hover:bg-accent/5 active:scale-[0.98]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-accent-deep/50 bg-surface px-5 text-sm font-medium text-accent-deep transition-all duration-200 hover:border-accent-deep hover:bg-accent-tint active:scale-[0.98]"
             >
               Find your match
               <svg
@@ -1264,7 +1265,7 @@ function Home({
             of a silent, stuck page. */}
         {waitFxActive && !fxError && (
           <div className="mx-auto mt-4 max-w-3xl text-center text-sm text-gray-400">
-            Looking up the exchange rate…
+            Looking up the exchange rateâ€¦
           </div>
         )}
 
@@ -1277,7 +1278,7 @@ function Home({
             <p className="mt-2 text-sm text-red-600">
               Your budget is set in USD, so we need today&apos;s
               exchange rate to search within it. The rate service
-              is unavailable right now — please try again.
+              is unavailable right now â€” please try again.
             </p>
 
             <button
@@ -1346,7 +1347,7 @@ function Home({
                 aria-live="polite"
                 className="mt-2 text-sm text-ink-soft"
               >
-                Finding your matches…
+                Finding your matchesâ€¦
               </p>
             )}
 
@@ -1665,7 +1666,7 @@ function Home({
                           className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60"
                         >
                           {loadingMore
-                            ? "Loading more…"
+                            ? "Loading moreâ€¦"
                             : "Load more exact matches"}
                         </button>
                       </div>
@@ -1699,7 +1700,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-white transition hover:bg-accent-deep"
+                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1707,7 +1708,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent/40 hover:text-accent"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
                         >
                           Start a new search
                         </button>
@@ -1737,7 +1738,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-white transition hover:bg-accent-deep"
+                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1745,7 +1746,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent/40 hover:text-accent"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
                         >
                           Start a new search
                         </button>
@@ -1829,7 +1830,7 @@ function Home({
                           className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60"
                         >
                           {loadingMore
-                            ? "Loading more…"
+                            ? "Loading moreâ€¦"
                             : "Load more similar products"}
                         </button>
                       </div>
@@ -1855,7 +1856,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-white transition hover:bg-accent-deep"
+                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1863,7 +1864,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent/40 hover:text-accent"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
                         >
                           Start a new search
                         </button>
@@ -1928,7 +1929,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-white transition hover:bg-accent-deep"
+                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1936,7 +1937,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent/40 hover:text-accent"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
                         >
                           Start a new search
                         </button>
@@ -1984,6 +1985,80 @@ function EmptyStateIcon() {
 /* ============================================================
    PRODUCT CARD
 ============================================================ */
+
+/* Content-aware product image.
+
+   Some images (eBay product shots in particular) carry large amounts of
+   empty/background padding around the actual product or sit off-centre, so
+   two images with identical frame dimensions can show products at very
+   different visual sizes. object-contain / frame aspect alone cannot fix
+   this. We read the loaded image's pixels (Ebay images are served with
+   Access-Control-Allow-Origin: *, so canvas readback is safe) and, when a
+   product is confidently detected with real whitespace on every side, we
+   scale it about ITS OWN centre (not the frame centre, which could crop an
+   off-centre product) so it fills the frame consistently.
+
+   Conservative by design: if content detection is uncertain or the product
+   touches the frame edge, we do NOT zoom (scale 1) â€” it is better for a
+   product to stay slightly smaller than to risk cropping it. Scale is
+   bounded so the detected content always stays inside the frame, and the
+   transform is a uniform scale so it never distorts. Non-eBay hosts that do
+   not expose CORS, and any decode/security failure, keep the 1:1 fallback
+   and render unchanged. */
+function ProductCardImage({ src, alt }: { src: string; alt: string }) {
+  const [scale, setScale] = useState(1);
+  const [origin, setOrigin] = useState("50% 50%");
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const nw = img.naturalWidth;
+    const nh = img.naturalHeight;
+    if (!nw || !nh) return;
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const N = CANVAS_SIZE;
+      canvas.width = N;
+      canvas.height = N;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return;
+      /* render object-contain into the square canvas so the letterbox is
+         transparent, matching the diagnostic used for validation */
+      const ar = nw / nh;
+      const dw = ar >= 1 ? N : N * ar;
+      const dh = ar >= 1 ? N / ar : N;
+      ctx.drawImage(img, (N - dw) / 2, (N - dh) / 2, dw, dh);
+      const fit = computeZoomFit(ctx.getImageData(0, 0, N, N).data, N);
+      setScale(fit.scale);
+      setOrigin(`${(fit.originX * 100).toFixed(1)}% ${(fit.originY * 100).toFixed(1)}%`);
+    } catch {
+      /* security/decode failure -> keep 1:1 (safe fallback) */
+    }
+  }, []);
+
+  const isEbay = src.includes("i.ebayimg.com");
+
+  return (
+    <>
+      <div
+        className="absolute inset-0 will-change-transform transition-transform duration-500"
+        style={{ transform: `scale(${scale})`, transformOrigin: origin }}
+      >
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          crossOrigin={isEbay ? "anonymous" : undefined}
+          onLoad={handleLoad}
+          className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.04]"
+        />
+      </div>
+      <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
+    </>
+  );
+}
 
 function ProductCard({
   product,
@@ -2053,15 +2128,9 @@ function ProductCard({
 
       {/* IMAGE */}
 
-      <div className="relative aspect-[4/5] overflow-hidden bg-paper-soft">
+      <div className="relative aspect-square overflow-hidden bg-paper-soft">
         {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.04]"
-          />
+          <ProductCardImage src={product.imageUrl} alt={product.name} />
         ) : (
           <div className="grid h-full w-full place-items-center text-sm text-ink-faint">
             No image
@@ -2072,7 +2141,7 @@ function ProductCard({
       {/* AVAILABILITY BADGE */}
 
       {outOfStock && (
-        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-accent shadow">
+        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-accent-deep shadow">
           Out of stock
         </span>
       )}
@@ -2193,7 +2262,7 @@ function ProductCard({
                 href={product.productUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 rounded-full bg-accent px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-accent-deep"
+                className="flex-1 rounded-full bg-ink px-4 py-2.5 text-center text-sm font-medium text-paper transition hover:bg-ink-soft"
               >
                 View product
               </a>
@@ -2206,7 +2275,7 @@ function ProductCard({
             {hasProductPage && !outOfStock && (
               <a
                 href={`/outfit?anchor=${encodeURIComponent(product.id)}`}
-                className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-accent/40 hover:text-accent"
+                className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
               >
                 Style this item
               </a>

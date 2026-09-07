@@ -101,7 +101,7 @@ export const CATEGORY_ROOT_ORDER = ["Clothing", "Shoes", "Accessories", "Headwea
 /* ---- gender-aware category filtering ----
 
    Category -> gender compatibility is NOT a hardcoded hide-list. It is
-   derived from the project's own real signals:
+   derived SEMANTIC-FIRST from the project's own real signals:
 
      - the canonical import plan's eBay path tokens (Men/Women segments),
        which classify a leaf by the genders its source listings target
@@ -116,6 +116,10 @@ export const CATEGORY_ROOT_ORDER = ["Clothing", "Shoes", "Accessories", "Headwea
      - WOMEN-compatible when a Women token exists (or live stock is WOMEN);
      - UNISEX-compatible when BOTH the Men and Women token sets exist (a
        genuinely shared catalog leaf) OR the live stock carries UNISEX;
+     - a leaf with no gendered signal at all defaults to the adult-shared
+       set (Men + Women + Unisex), and a UNISEX-only leaf is expanded so
+       both Men and Women can reach it — shared categories are never
+       hidden by empty inventory;
      - KIDS-compatible only from live KIDS stock - no token anywhere in
        the plan encodes a kids audience, so KIDS is data-driven only and
        never guessed.
@@ -163,7 +167,23 @@ export function planGendersForLeaf(
 
 /* Merge the plan affinity with the live stock genders. Product data
    supplies KIDS and can surface UNISEX for a leaf whose plan is
-   single-gender but whose actual stock crosses audiences. */
+   single-gender but whose actual stock crosses audiences.
+
+   SEMANTIC-FIRST: a category's budget starts from what we KNOW it is
+   for (the plan's Men/Women listings). It is narrowed only by that
+   knowledge and by live stock — never by inventory emptiness:
+
+     - a canonical leaf with no gendered signal is a shared adult
+       catalog leaf (Men + Women + Unisex): data absence never hides
+       a semantically-shared category (e.g. Watches shows for both
+       even with zero stock);
+     - a UNISEX-only leaf still reaches both adult audiences: a
+       shared category (e.g. Backpacks) is never locked behind one
+       gender pick;
+     - KIDS is data-driven only: no plan token anywhere encodes a
+       kids audience, so Kids compatibility never comes from the
+       semantic default — only from live KIDS stock;
+     - legacy DB-only rows keep today's conservative behaviour. */
 export function mergeCategoryGenders(deps: {
   planGenders: Set<CategoryGender>;
   productGenders: Set<CategoryGender>;
@@ -179,12 +199,21 @@ export function mergeCategoryGenders(deps: {
     merged.add(gender);
   }
 
-  if (isLegacy && merged.size === 0) {
-    /* a DB-only row we know nothing about keeps today's behaviour:
-       offered to every adult audience, never restricted. */
+  if (merged.size === 0) {
+    /* Neither the plan nor the stock says anything gendered: offer the
+       category to every adult audience (semantic shared default for
+       canonical leaves, conservative default for legacy rows). */
+    void isLegacy;
     merged.add("MEN");
     merged.add("WOMEN");
     merged.add("UNISEX");
+  }
+
+  /* A shared (unisex) leaf reaches both adult audiences: when the
+     merged set is UNISEX-only, ensure Men and Women can still see it. */
+  if (merged.has("UNISEX")) {
+    merged.add("MEN");
+    merged.add("WOMEN");
   }
 
   return (

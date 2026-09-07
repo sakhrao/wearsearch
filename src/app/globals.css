@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 /*
-   WearSearch design tokens.
-   The palette is intentionally restrained: a warm paper base, a
-   near-black ink, a single muted burgundy accent and hairline
-   neutrals. Components must use these tokens (or the @theme
+   FitWear design tokens.
+   The palette is intentionally restrained: a warm off-white paper
+   base, a near-black charcoal ink, a warm beige accent family and
+   hairline neutrals. Components must use these tokens (or the @theme
    utilities they generate) instead of ad-hoc colors.
 */
 :root {
@@ -15,9 +15,9 @@
   --ink-soft: #4f4a44;
   --ink-faint: #857c6f;
   --line: #e6ded0;
-  --accent: #833338;
-  --accent-deep: #5f242a;
-  --accent-tint: #f4e9e6;
+  --accent: #c8a475;
+  --accent-deep: #8a6234;
+  --accent-tint: #f4ead8;
 }
 
 @theme inline {
@@ -54,7 +54,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-deep);
   outline-offset: 2px;
   border-radius: 4px;
 }

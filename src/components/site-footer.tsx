@@ -19,7 +19,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 sm:grid-cols-3">
         <div>
           <p className="font-display text-lg font-medium tracking-tight text-ink">
-            WearSearch
+            FitWear
           </p>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-soft">
             Find what fits your style.
@@ -35,7 +35,7 @@ export function SiteFooter() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="text-ink-soft transition hover:text-accent"
+                  className="text-ink-soft transition hover:text-accent-deep"
                 >
                   {link.label}
                 </Link>
@@ -53,7 +53,7 @@ export function SiteFooter() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="text-ink-soft transition hover:text-accent"
+                  className="text-ink-soft transition hover:text-accent-deep"
                 >
                   {link.label}
                 </Link>
@@ -65,7 +65,7 @@ export function SiteFooter() {
 
       <div className="border-t border-line">
         <div className="mx-auto max-w-6xl px-6 py-6 text-xs text-ink-faint">
-          © {new Date().getFullYear()} WearSearch.{" "}
+          © {new Date().getFullYear()} FitWear.{" "}
           Find the pieces that feel like you.
         </div>
       </div>

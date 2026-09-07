@@ -24,6 +24,7 @@ import {
   canonicalColorFromOffer,
   expandOfferSizeChips,
 } from "../../../lib/catalog/offer-vocab";
+import { semanticSizeRowsFor } from "../../../lib/catalog/size-vocabulary";
 
 export const dynamic = "force-dynamic";
 
@@ -305,6 +306,30 @@ export async function GET() {
           set.add(audience);
         }
 
+        /* Merged gender compatibility per category (semantic-first,
+           shared default + UNISEX expansion + live-stock KIDS), reused
+           by the response and by the semantic size rows below. */
+        const gendersBySlug = new Map<
+          string,
+          CategoryGender[]
+        >();
+        for (const category of questionnaireCategories) {
+          gendersBySlug.set(
+            category.slug,
+            mergeCategoryGenders({
+              planGenders:
+                category.source === "legacy"
+                  ? new Set<CategoryGender>()
+                  : planGendersForLeaf(category.slug),
+              productGenders:
+                productGendersBySlug.get(category.slug) ??
+                new Set<CategoryGender>(),
+              isLegacy:
+                category.source === "legacy",
+            })
+          );
+        }
+
         /* Phase-0 offer colors: real sellable colors from
            ProductOfferVariant collapse through the shared canonical
            fold (same chips /api/search detects and matches). */
@@ -370,6 +395,39 @@ export async function GET() {
           }
         }
 
+        /* Semantic size vocabulary: the questionnaire size step covers
+           EVERY category with its standard sizes, independent of live
+           stock (Bras -> bra sizes, shoes -> EU/US/UK, accessories ->
+           One Size, clothing -> letters). Rows come from the shared
+           taxonomy shape + merged gender compatibility, never from
+           inventory emptiness. Picking a size with no matching product
+           is honest: the search matches real inventory and the results
+           surface a zero-match state instead of inventing availability.
+           KIDS rows are deliberately data-driven only (no invented
+           kids scale), so kids contexts keep working off real stock. */
+        for (const category of questionnaireCategories) {
+          const genders = gendersBySlug.get(
+            category.slug
+          ) ?? [];
+          if (genders.length === 0) continue;
+          const viewableGenders = genders.filter(
+            (gender) =>
+              gender === "MEN" || gender === "WOMEN"
+          );
+          if (viewableGenders.length === 0) continue;
+          contextualRows.push(
+            ...semanticSizeRowsFor(
+              {
+                slug: category.slug,
+                name: category.name,
+                rootSlug: category.rootSlug,
+                group: category.group,
+              },
+              viewableGenders
+            )
+          );
+        }
+
         return {
           categories: questionnaireCategories.map(
             (category) => ({
@@ -381,16 +439,7 @@ export async function GET() {
               subgroup: category.subgroup,
               source: category.source,
               hasProducts: category.hasProducts,
-              genders: mergeCategoryGenders({
-                planGenders:
-                  category.source === "legacy"
-                    ? new Set<CategoryGender>()
-                    : planGendersForLeaf(category.slug),
-                productGenders:
-                  productGendersBySlug.get(category.slug) ??
-                  new Set<CategoryGender>(),
-                isLegacy: category.source === "legacy",
-              }),
+              genders: gendersBySlug.get(category.slug) ?? [],
             })
           ),
           colors: mergedColors,

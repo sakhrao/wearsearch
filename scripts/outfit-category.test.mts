@@ -19,15 +19,12 @@ function check(name: string, cond: boolean, extra?: string): void {
   }
 }
 
-// The set of real, product-bearing leaf categories (from DB probe).
-const REAL = new Set([
-  "blouses", "boots", "button-ups", "cardigans", "chinos", "jeans",
-  "joggers", "leggings", "loafers", "heels", "sneakers", "sandals",
-  "sweatshirts", "t-shirts", "tank-tops", "trousers",
-]);
+/* The vocabulary is now DERIVED from the shared canonical taxonomy, so
+   every allowed category must (a) live in the derived group vocabulary
+   and (b) belong to the slot's own group. */
 const ALL_KNOWN = new Set(Object.values(REAL_CATEGORIES).flat());
 
-/* --- every matrix category must be a REAL category --- */
+/* --- every matrix category must be a known taxonomy category --- */
 const anchorSlugs = [
   "sneakers", "loafers", "heels", "sandals", "boots",
   "trousers", "jeans", "joggers", "leggings", "chinos",
@@ -44,31 +41,40 @@ for (const anchor of anchorSlugs) {
   check(`anchor=${anchor} has a template`, slotTemplatesForCategory(anchor).length > 0);
 }
 
-/* --- no invented categories appear anywhere in the matrix --- */
-const INVENTED = ["dresses", "skirts", "blazers", "jackets-for-women", "cardigan-jackets"];
+/* --- one-piece categories never fill a slot (they are anchors only) --- */
+const ONEPIECE = ["dresses", "jumpsuits", "bodysuits", "swimwear", "bras", "underwear"];
 for (const anchor of anchorSlugs) {
   const categories = allowedCategoriesForAnchor(anchor).map((a) => a.category);
-  for (const bad of INVENTED) {
-    check(`anchor=${anchor} does NOT use invented category ${bad}`,
+  for (const bad of ONEPIECE) {
+    check(`anchor=${anchor} does NOT use one-piece ${bad} as a filler`,
       !categories.includes(bad));
   }
 }
 
-/* --- sanity: sneakers allows bottoms+top+layer, not accessory --- */
+/* --- sanity: sneakers allows bottoms+top+layer+accessory (all real
+   groups the footwear template declares) --- */
 check("sneakers allows trousers as bottom",
   isAllowed("sneakers", "bottom", "trousers"));
 check("sneakers allows t-shirts as top",
   isAllowed("sneakers", "top", "t-shirts"));
+check("sneakers allows cardigans as layer",
+  isAllowed("sneakers", "layer", "cardigans"));
+check("sneakers allows belts as accessory",
+  isAllowed("sneakers", "accessory", "belts"));
 check("sneakers does NOT allow jeans as top",
   !isAllowed("sneakers", "top", "jeans"));
 check("sneakers does NOT allow belts as bottom",
   !isAllowed("sneakers", "bottom", "belts"));
+check("sneakers does NOT pair with another shoe",
+  !isAllowed("sneakers", "footwear", "boots"));
 
-/* --- preference is stable and bounded --- */
-check("sneakers trousers preference=1",
-  preferenceFor("sneakers", "bottom", "trousers") === 1);
+/* --- preference is stable and bounded (rank within the group list) --- */
+check("sneakers trousers bottom preference is bounded",
+  preferenceFor("sneakers", "bottom", "trousers") >= 1 && preferenceFor("sneakers", "bottom", "trousers") < 99);
 check("unrelated category preference=99 (not allowed)",
-  preferenceFor("sneakers", "accessory", "belts") === 99);
+  preferenceFor("sneakers", "bottom", "belts") === 99);
+check("belts preference is a finite rank, not 99",
+  preferenceFor("sneakers", "accessory", "belts") < 99);
 
 /* --- slotOfCategory mapping is consistent --- */
 check("sneakers -> footwear slot", slotOfCategory("sneakers") === "footwear");

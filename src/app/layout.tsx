@@ -21,8 +21,8 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    default: "WearSearch",
-    template: "%s · WearSearch",
+    default: "FitWear",
+    template: "%s · FitWear",
   },
   description:
     "Find the clothes you are looking for — search a real catalog by category, color, brand, size or budget and open genuine product pages.",

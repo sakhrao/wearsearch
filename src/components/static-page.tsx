@@ -1,6 +1,6 @@
 /* Shared layout for lightweight, honest static pages
    (Privacy / Terms / Contact). No fabrication: copy stays
-   factual about what WearSearch actually is and does. */
+   factual about what FitWear actually is and does. */
 
 export function StaticPage({
   eyebrow,
@@ -14,7 +14,7 @@ export function StaticPage({
   return (
     <main className="flex-1 bg-paper text-ink">
       <article className="mx-auto max-w-2xl px-6 py-16 sm:py-20">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent-deep">
           {eyebrow}
         </p>
         <h1 className="mt-3 font-display text-4xl font-medium tracking-tight">

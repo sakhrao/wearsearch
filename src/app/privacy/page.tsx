@@ -3,7 +3,7 @@ import { StaticPage } from "@/components/static-page";
 
 export const metadata: Metadata = {
   title: "Privacy",
-  description: "How WearSearch handles your data.",
+  description: "How FitWear handles your data.",
 };
 
 export default function PrivacyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPage() {
           What we collect
         </h2>
         <p className="mt-2">
-          WearSearch is a clothing search tool. It does not require an
+          FitWear is a clothing search tool. It does not require an
           account, and it does not collect or store personally
           identifiable information about its visitors.
         </p>

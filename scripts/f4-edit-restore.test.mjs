@@ -281,7 +281,10 @@ const empty = {
   check("no-structure no budget", answers.budgetCurrency === null);
 }
 
-/* Extra: UNISEX gender restores onto the Unisex questionnaire option. */
+/* Extra: UNISEX gender restores NO questionnaire gender. Unisex is
+   not offered as a user choice anymore, so a shared item's audience
+   is picked by the shopper; the gender token is covered (never leaks
+   into free text). */
 {
   const answers = buildEditAnswers(
     "unisex hoodie",
@@ -292,7 +295,7 @@ const empty = {
     },
     null
   );
-  check("UNISEX gender restored", answers.gender === "unisex");
+  check("UNISEX gender restores null", answers.gender === null);
   check("UNISEX token still covered", answers.searchText === "");
 }
 

@@ -17,7 +17,7 @@ export function FeaturedProducts({
       className="py-16 sm:py-20"
     >
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-deep">
           Trending finds
         </p>
         <h2
@@ -78,13 +78,13 @@ export function FeaturedProducts({
                   href={product.productUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-deep"
+                  className="flex-1 rounded-full bg-ink px-4 py-2.5 text-sm font-medium text-paper transition hover:bg-ink-soft"
                 >
                   View product
                 </a>
                 <Link
                   href={`/outfit?anchor=${encodeURIComponent(product.id)}`}
-                  className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-accent/50 hover:text-accent"
+                  className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
                 >
                   Style this item
                 </Link>

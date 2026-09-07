@@ -64,10 +64,12 @@ export function buildEditAnswers(
   ) {
     answers.gender = structuredQuery.gender.toLowerCase();
   } else if (structuredQuery?.gender === "UNISEX") {
-    /* The questionnaire now offers Unisex as a first-class gender
-       option, so a UNISEX-detected query restores it instead of
-       dropping the answer. */
-    answers.gender = "unisex";
+    /* Unisex is no longer offered as a questionnaire gender option
+       (the gender step is Women / Men / Kids), so a UNISEX-detected
+       query restores no gender: the user picks the audience the
+       shared item is actually worn by. The gender token is still
+       covered so it never leaks into free text. */
+    answers.gender = null;
   }
 
   if (structuredQuery?.category) {
