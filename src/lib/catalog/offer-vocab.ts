@@ -10,7 +10,7 @@
    projection matching) share these helpers so a chip always round-trips:
    meta.colors -> chip -> query token -> detected color -> offer match. */
 
-import { cleanText, normalizeColorName } from "./normalize";
+import { cleanText, foldToken, knownColorChip } from "./normalize";
 import { ORDERED_ALPHA } from "../sizes";
 
 /* ==== Colors ==== */
@@ -25,10 +25,22 @@ const MULTI_COLOR_FOLDS = new Set([
 const singleWord = (word: string): string =>
   word.endsWith("s") ? word.slice(0, -1) : word;
 
-/* Raw offer color -> canonical chip. Real plural spellings ("Blacks",
-   "Beiges") and brand colorways ("Dark Brown") collapse onto a single
-   capitalised chip; the KNOWN fold table drives the common colours so
-   "Gray" and "Denim" land on the same chips search already knows. */
+const COLORWAY_SPLIT = /[\s/,|&–—-]+/;
+
+/* Raw offer color -> ONE canonical chip the search engine recognizes.
+
+   The chips are DRIVEN by the known-color table: plurals fold ("Blacks" ->
+   "Black"), brand colorways ("Black - Medium", "Black / Powder Teal /
+   Blue") collapse onto their FIRST known base colour ("Black"), and
+   anything with no known colour word (typos like "Biege", unhelpful
+   values like "Buyer Choice") yields null so it is never surfaced as a
+   chip that gets picked but cannot be honoured.
+
+   Crucially this does NOT fall back to a verbatim title-case string for
+   unknown values (normalizeColorName does, for legacy flash-callbacks):
+   a passthrough like "Blacks" would enter meta.colors as a chip that
+   search detection would find ("Blacks") while no product carries that
+   exact evidence, silently breaking the pick -> search round trip. */
 export function canonicalColorFromOffer(
   color: string | null | undefined
 ): string | null {
@@ -36,16 +48,28 @@ export function canonicalColorFromOffer(
   const trimmed = cleanText(color);
   if (!trimmed) return null;
 
-  const direct = normalizeColorName(trimmed);
-  if (direct) return direct;
-
-  const folded = trimmed.toLowerCase().replace(/\s+/g, " ");
+  const folded = foldToken(trimmed);
+  if (!folded) return null;
   if (MULTI_COLOR_FOLDS.has(folded)) return "Multi";
 
-  /* Plural fallback: "Blacks" -> "Black", "Dark Browns" -> "Dark Brown". */
-  const stripped = singleWord(folded);
-  const viaSingular = normalizeColorName(stripped);
-  if (viaSingular && stripped.length >= 3) return viaSingular;
+  /* a single plain known colour first ("Black", "navy blue", "Denim"); */
+  const knownWhole = knownColorChip(folded);
+  if (knownWhole) return knownWhole;
+
+  /* plurals collapse: "Blacks" -> "Black", "Beiges" -> "Beige" */
+  if (!/\s/.test(folded)) {
+    const singular = knownColorChip(singleWord(folded));
+    if (singular) return singular;
+  }
+
+  /* a colourway: first known base word wins ("Black / White" -> "Black") */
+  for (const word of trimmed.toLowerCase().split(COLORWAY_SPLIT)) {
+    if (!word) continue;
+    const base =
+      knownColorChip(word) ??
+      knownColorChip(singleWord(word));
+    if (base) return base;
+  }
 
   return null;
 }

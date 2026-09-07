@@ -95,6 +95,13 @@ export function normalizeColorName(color: string | null | undefined): string | n
   return toTitleCase(cleanText(color));
 }
 
+/* Known-table lookup by folded token (see KNOWN_COLOR_BY_FOLD). Search
+   reaches its canonical chips through here so the offer-vocab shared
+   folds and detection/legacy naming can never drift apart. */
+export function knownColorChip(fold: string): string | null {
+  return KNOWN_COLOR_BY_FOLD[fold] ?? null;
+}
+
 function toTitleCase(value: string): string {
   return cleanText(value)
     .toLowerCase()
