@@ -15,7 +15,7 @@
        the canonical taxonomy (groupOfCategory), so a new leaf lands in
        the right step automatically. No hardcoded gender/category
        lists live here; gender compatibility is supplied by the caller
-       (the same mergeCategoryGenders signal /api/meta computes) and
+       (the declared canonical audience /api/meta computes) and
        applied through genderCompatible().
 
    Everything in this module is pure (no DB / network / I-O). */
@@ -175,9 +175,10 @@ export function categoryInSlot(
   return groupOfCategory(slug) === GROUP_OF_SLOT[slot];
 }
 
-/* Gender compatibility for the builder, over the merged per-category
-   gender signal /api/meta computes (planGendersForLeaf + live stock,
-   UNISEX expanded to both adult audiences). */
+/* Gender compatibility for the builder, over the per-category gender
+   signal /api/meta computes (declared canonical audience - inventory
+   independent - plus data-driven KIDS for canonical leaves; legacy
+   rows stay inventory-first). */
 export function genderCompatible(
   categoryGenders: ReadonlyArray<
     "MEN" | "WOMEN" | "KIDS" | "UNISEX"

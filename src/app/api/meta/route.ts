@@ -16,8 +16,7 @@ import {
 import { getFxRate } from "../../../lib/currency";
 import {
   buildQuestionnaireCategories,
-  mergeCategoryGenders,
-  planGendersForLeaf,
+  genderCompatibilityFor,
   type CategoryGender,
 } from "../../../lib/catalog/category-display";
 import {
@@ -306,9 +305,10 @@ export async function GET() {
           set.add(audience);
         }
 
-        /* Merged gender compatibility per category (semantic-first,
-           shared default + UNISEX expansion + live-stock KIDS), reused
-           by the response and by the semantic size rows below. */
+        /* Merged gender compatibility per category: the declared
+           canonical audience (inventory-independent) + data-driven
+           KIDS; legacy rows stay inventory-first. Reused by the
+           response and by the semantic size rows below. */
         const gendersBySlug = new Map<
           string,
           CategoryGender[]
@@ -316,16 +316,12 @@ export async function GET() {
         for (const category of questionnaireCategories) {
           gendersBySlug.set(
             category.slug,
-            mergeCategoryGenders({
-              planGenders:
-                category.source === "legacy"
-                  ? new Set<CategoryGender>()
-                  : planGendersForLeaf(category.slug),
+            genderCompatibilityFor({
+              slug: category.slug,
+              source: category.source,
               productGenders:
                 productGendersBySlug.get(category.slug) ??
                 new Set<CategoryGender>(),
-              isLegacy:
-                category.source === "legacy",
             })
           );
         }

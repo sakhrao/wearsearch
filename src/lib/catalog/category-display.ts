@@ -100,31 +100,34 @@ export const CATEGORY_ROOT_ORDER = ["Clothing", "Shoes", "Accessories", "Headwea
 
 /* ---- gender-aware category filtering ----
 
-   Category -> gender compatibility is NOT a hardcoded hide-list. It is
-   derived SEMANTIC-FIRST from the project's own real signals:
-
-     - the canonical import plan's eBay path tokens (Men/Women segments),
-       which classify a leaf by the genders its source listings target
-       (dresses/skirts/bras are Women-only in the plan; sneakers/T-shirts
-       carry both Men and Women tokens);
-     - the live Product.gender distribution when the DB actually stocks a
-       category (fills KIDS, confirms/mirrors UNISEX).
+   Category -> gender compatibility is CATEGORY METADATA, declared once
+   in the canonical taxonomy. It is NOT a hardcoded hide-list, and it is
+   deliberately neither derived from the import plan's listing-path
+   tokens nor from which products happen to stock a category: a single
+   mis-tagged or UNISEX product must never flip a Women's-only category
+   (e.g. Scarves & Hijabs) visible for Men, and a category with only Men
+   stock is still a shared category (e.g. Trousers) offered to both
+   audiences — the results, not the category options, are what reflect
+   the real inventory.
 
    Rules:
-     - a category is MEN-compatible when a Men token exists (or its live
-       stock is MEN);
-     - WOMEN-compatible when a Women token exists (or live stock is WOMEN);
-     - UNISEX-compatible when BOTH the Men and Women token sets exist (a
-       genuinely shared catalog leaf) OR the live stock carries UNISEX;
-     - a leaf with no gendered signal at all defaults to the adult-shared
-       set (Men + Women + Unisex), and a UNISEX-only leaf is expanded so
-       both Men and Women can reach it — shared categories are never
-       hidden by empty inventory;
-     - KIDS-compatible only from live KIDS stock - no token anywhere in
-       the plan encodes a kids audience, so KIDS is data-driven only and
-       never guessed.
+     - every canonical leaf inherits the adult-shared default
+       (Men + Women + Unisex): shared categories can never be hidden
+       by empty or single-gender inventory (Watches, Ties, Shirts,
+       Cardigans, Trousers, Chinos, Vests, Formal Shoes, ...);
+     - a leaf declares an adult-exclusive audience only when its
+       semantics are genuinely single-gender (Bras, Dresses, Skirts,
+       Heels, Blouses, ... are Women-only). New leaves under a shared
+       root inherit the shared default automatically;
+     - KIDS compatibility is never declared: it stays purely
+       data-driven, coming only from live Product.gender == KIDS stock;
+     - legacy DB-only rows keep today's conservative (inventory-driven)
+       behaviour — nothing currently offered disappears;
+     - live Product.gender can only ADD KIDS to a canonical leaf; it can
+       never widen or narrow the declared adult audience (inventory
+       never re-genders a category).
 
-   The taxonomy itself is untouched: this list only tells the
+   The taxonomy itself is untouched: this declaration only tells the
    questionnaire which options to show for a picked gender. */
 
 export type CategoryGender =
@@ -132,6 +135,90 @@ export type CategoryGender =
   | "WOMEN"
   | "KIDS"
   | "UNISEX";
+
+/* Canonical leaves that are semantically exclusive to one adult
+   audience. Everything else inherits the adult-shared default below,
+   so adding a new leaf to the taxonomy never needs a gender edit
+   unless it is genuinely single-gender. */
+const WOMEN_ONLY_CANONICAL_LEAVES = new Set<string>([
+  /* Shoes */
+  "heels",
+  "flats",
+  /* Tops */
+  "blouses",
+  "bodysuits",
+  /* Bottoms */
+  "skirts",
+  "leggings",
+  /* Dresses & Jumpsuits */
+  "dresses",
+  "jumpsuits",
+  /* Sportswear */
+  "sports-bras",
+  /* Swimwear & Basics */
+  "bras",
+  /* Accessories */
+  "scarves-hijabs",
+  /* Bags (ladies) */
+  "handbags",
+  "shoulder-bags",
+  "crossbody-bags",
+  "tote-bags",
+]);
+
+/* The declared adult compatibility for a canonical leaf. Root-inherited
+   adult-shared default, or the leaf's declared exclusive audience. */
+export function canonicalGendersForLeaf(category: {
+  slug: string;
+}): CategoryGender[] {
+  if (WOMEN_ONLY_CANONICAL_LEAVES.has(category.slug)) {
+    return ["WOMEN"];
+  }
+  return ["MEN", "WOMEN", "UNISEX"];
+}
+
+/* Final gender compatibility for a questionnaire category option.
+
+   - canonical leaves: the declared adult audience (never modified by
+     inventory), plus KIDS only from live KIDS stock;
+   - legacy DB-only rows: inventory-first conservative merge with the
+     semantic shared default + UNISEX expansion, exactly as before. */
+export function genderCompatibilityFor(deps: {
+  slug: string;
+  source: "canonical" | "legacy";
+  productGenders: Set<CategoryGender>;
+}): CategoryGender[] {
+  const { slug, source, productGenders } = deps;
+  const out = new Set<CategoryGender>();
+
+  if (source === "canonical") {
+    for (const gender of canonicalGendersForLeaf({ slug })) {
+      out.add(gender);
+    }
+    /* KIDS stays data-driven only: live kids stock can widen a
+       canonical leaf, adult inventory can never re-gender it. */
+    for (const gender of productGenders) {
+      if (gender === "KIDS") out.add("KIDS");
+    }
+  } else {
+    for (const gender of productGenders) {
+      out.add(gender);
+    }
+    if (out.size === 0) {
+      out.add("MEN");
+      out.add("WOMEN");
+      out.add("UNISEX");
+    }
+    if (out.has("UNISEX")) {
+      out.add("MEN");
+      out.add("WOMEN");
+    }
+  }
+
+  return (
+    ["MEN", "WOMEN", "KIDS", "UNISEX"] as const
+  ).filter((gender) => out.has(gender));
+}
 
 const GENDER_SEGMENT_PATTERN =
   /^(Men|Women)(?:'s)?(?:(\s)|$)/i;

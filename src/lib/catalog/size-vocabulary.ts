@@ -98,6 +98,45 @@ const HEADWEAR =
    so they never get an invented one. */
 const ACCESSORY_ONE_SIZE = ["One Size"] as const;
 
+/* Socks are usually sold in a range pair (the shoe sizes they cover,
+   EU-style) or a loose S/M/L walk; the range pairs are real, common
+   listing sizes - not an invented scale. */
+const SOCKS_LETTERS = [
+  "S",
+  "M",
+  "L",
+  "XL",
+  "One Size",
+] as const;
+
+const SOCKS_EU_RANGES = [
+  "35-38",
+  "39-42",
+  "43-46",
+] as const;
+
+/* Belts are sized by waist (numeric inches or S/M/L/XL); both are
+   real sizing languages for belts and never One Size. */
+const BELT_LETTERS = [
+  "S",
+  "M",
+  "L",
+  "XL",
+  "One Size",
+] as const;
+
+const BELT_WAIST_IN = [
+  "28",
+  "30",
+  "32",
+  "34",
+  "36",
+  "38",
+  "40",
+  "42",
+  "44",
+] as const;
+
 /* Numeric shoe scales per system, per gendered ring. The ranges are
    the standard adult walk of each system (not a per-catalog guess). */
 const SHOES_EU_MEN = [
@@ -170,6 +209,22 @@ function isBras(category: SizeVocabularyProduct): boolean {
   );
 }
 
+function isSocks(category: SizeVocabularyProduct): boolean {
+  return (
+    category.slug === "socks" ||
+    /sock/i.test(category.slug) ||
+    /sock/i.test(category.name)
+  );
+}
+
+function isBelts(category: SizeVocabularyProduct): boolean {
+  return (
+    category.slug === "belts" ||
+    /belt/i.test(category.slug) ||
+    /belt/i.test(category.name)
+  );
+}
+
 export function vocabularyForCategory(
   category: SizeVocabularyProduct
 ): SizeVocabulary {
@@ -189,6 +244,38 @@ export function vocabularyForCategory(
       productType: "CLOTHING",
       systems: [
         { system: null, values: [...BRA_SIZES] },
+      ],
+    };
+  }
+
+  if (isSocks(category)) {
+    return {
+      productType: "CLOTHING",
+      systems: [
+        {
+          system: "Letters",
+          values: [...SOCKS_LETTERS],
+        },
+        {
+          system: "EU range",
+          values: [...SOCKS_EU_RANGES],
+        },
+      ],
+    };
+  }
+
+  if (isBelts(category)) {
+    return {
+      productType: "CLOTHING",
+      systems: [
+        {
+          system: "Letters",
+          values: [...BELT_LETTERS],
+        },
+        {
+          system: "Waist (in)",
+          values: [...BELT_WAIST_IN],
+        },
       ],
     };
   }

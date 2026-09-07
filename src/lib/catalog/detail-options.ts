@@ -80,6 +80,36 @@ const PATTERN = group("Pattern", "Pattern", [
   "Camo",
 ]);
 
+const SLEEVE = group("Sleeve", "Sleeve", [
+  "Short",
+  "Long",
+  "Cap",
+  "3/4",
+]);
+
+const COLLAR = group("Collar", "Collar", [
+  "Crew",
+  "Polo",
+  "Button-Down",
+  "Spread",
+  "Collarless",
+]);
+
+const LENGTH = group("Length", "Length", [
+  "Cropped",
+  "Regular",
+  "Ankle",
+  "Full",
+]);
+
+const WASH = group("Wash", "Wash", [
+  "Light",
+  "Dark",
+  "Raw",
+  "Distressed",
+  "Stonewash",
+]);
+
 const USE = group("Use", "Use", [
   "Everyday",
   "Running",
@@ -143,15 +173,45 @@ function isScarves(context: DetailContext): boolean {
   return /scarves|hijab|hijabs/i.test(slug);
 }
 
+function isTrousers(context: DetailContext): boolean {
+  const slug = context.slug ?? "";
+  return /trousers|chinos/i.test(slug);
+}
+
+function isJeans(context: DetailContext): boolean {
+  const slug = context.slug ?? "";
+  return /^jeans$/i.test(slug);
+}
+
+function isShirts(context: DetailContext): boolean {
+  const slug = context.slug ?? "";
+  return slug === "shirts";
+}
+
 function profileFor(
   context: DetailContext
 ): DetailOptionGroup[] {
+  if (isScarves(context)) {
+    return [SCARF_TYPE, MATERIAL, PATTERN];
+  }
+
   if (isBras(context)) {
     return [STYLE, MATERIAL, SUPPORT];
   }
 
-  if (isScarves(context)) {
-    return [SCARF_TYPE, MATERIAL, PATTERN];
+  if (isShirts(context)) {
+    /* Shirts are sized like general tops but their fit lives in the
+       cut + sleeve + collar: Fit/Style/Sleeve/Collar/Material is the
+       vocabulary clothing shoppers actually use for a shirt. */
+    return [FIT, STYLE, SLEEVE, COLLAR, MATERIAL];
+  }
+
+  if (isJeans(context)) {
+    return [FIT, LENGTH, WASH, MATERIAL];
+  }
+
+  if (isTrousers(context)) {
+    return [FIT, LENGTH, PATTERN, MATERIAL];
   }
 
   switch (context.root) {

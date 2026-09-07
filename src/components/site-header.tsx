@@ -27,9 +27,9 @@ export function SiteHeader() {
               <path d="M12 6v4.4" />
               <path d="M7.5 20.2c1.2-1 3.1-1.5 4.5-1.5s3.3.5 4.5 1.5" />
               <path d="M4.3 12.4 12 6.6l7.7 5.8" />
-              {/* Measuring tape */}
-              <path d="M14.6 15.4a5.4 5.4 0 1 0 1.4 3.4" opacity="0.85" />
-              <path d="M14.8 16.2v2.6M16 15.6v2.6M17.2 15.6v2.6" opacity="0.85" />
+              {/* Integrated measuring tape, folded along the right arm */}
+              <path d="M16.7 14.1 14.2 17.9" opacity="0.9" />
+              <path d="M16.5 15.2h1.1M16.1 16.3h1.1M15.7 17.4h1" opacity="0.9" />
             </svg>
           </span>
           <span className="font-display text-xl font-medium tracking-tight text-ink">

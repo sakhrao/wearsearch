@@ -305,5 +305,96 @@ const eq = (a: unknown, b: unknown): boolean =>
   );
 }
 
+/* ---------- 5. size vocabularies: socks ranges + belt sizes ---------- */
+{
+  const cat = (slug: string, name: string, rootSlug: string, group: string) =>
+    ({ slug, name, rootSlug, group });
+
+  const sockRows = semanticSizeRowsFor(
+    cat("socks", "Socks", "clothing", "Swimwear & Basics"),
+    ["MEN", "WOMEN"]
+  );
+  check(
+    "socks carry EU range sizes (35-38/39-42/43-46)",
+    ["35-38", "39-42", "43-46"].every((v) =>
+      sockRows.some((r) => r.value === v)
+    ),
+    JSON.stringify(sockRows.map((r) => r.value))
+  );
+  check(
+    "socks also carry letter sizes + One Size",
+    sockRows.some((r) => r.value === "M") &&
+      sockRows.some((r) => r.value === "One Size")
+  );
+
+  const beltRows = semanticSizeRowsFor(
+    cat("belts", "Belts", "accessories", "Accessories"),
+    ["MEN", "WOMEN"]
+  );
+  check(
+    "belts carry numeric waist sizes",
+    ["32", "36", "40"].every((v) =>
+      beltRows.some((r) => r.value === v)
+    ),
+    JSON.stringify(beltRows.map((r) => r.value))
+  );
+  check(
+    "belts are never one-size only",
+    beltRows.some((r) => r.value === "M") &&
+      beltRows.some((r) => r.value === "L")
+  );
+}
+
+/* ---------- 6. detail-options: shirts + bottoms profiles ---------- */
+{
+  const names = (ctx: Parameters<typeof detailOptionGroupsFor>[0]) =>
+    detailOptionGroupsFor(ctx).map((g) => g.name);
+
+  check(
+    "shirts profile: Fit/Style/Sleeve/Collar/Material",
+    eq(names({ root: "Clothing", group: "Tops", slug: "shirts" }), [
+      "Fit",
+      "Style",
+      "Sleeve",
+      "Collar",
+      "Material",
+    ]),
+    JSON.stringify(names({ root: "Clothing", group: "Tops", slug: "shirts" }))
+  );
+  check(
+    "shirts sleeve options are real (Short/Long)",
+    detailOptionGroupsFor({ root: "Clothing", group: "Tops", slug: "shirts" })
+      .find((g) => g.name === "Sleeve")
+      ?.values?.some((v) => /short|long/i.test(v)) === true
+  );
+  check(
+    "trousers profile: Fit/Length/Pattern/Material",
+    eq(names({ root: "Clothing", group: "Bottoms", slug: "trousers" }), [
+      "Fit",
+      "Length",
+      "Pattern",
+      "Material",
+    ])
+  );
+  check(
+    "jeans profile: Fit/Length/Wash/Material",
+    eq(names({ root: "Clothing", group: "Bottoms", slug: "jeans" }), [
+      "Fit",
+      "Length",
+      "Wash",
+      "Material",
+    ])
+  );
+  check(
+    "general tops keep the shared clothing profile",
+    eq(names({ root: "Clothing", group: "Tops", slug: "t-shirts" }), [
+      "Fit",
+      "Style",
+      "Material",
+      "Pattern",
+    ])
+  );
+}
+
 console.log(`\nfitness-semantics: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

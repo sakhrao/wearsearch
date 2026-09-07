@@ -515,27 +515,27 @@ export default function FindPage() {
   > = {
     0: {
       ask: "Who is it for?",
-      hint: "For Women, Men or Kids â€” we'll tailor the categories, sizes and results to the person you're shopping for.",
+      hint: "For Women, Men or Kids — we'll tailor the categories, sizes and results to the person you're shopping for.",
     },
     1: {
       ask: "What are you shopping for?",
-      hint: "Pick a category tuned to your pick â€” you can change it later.",
+      hint: "Pick a category tuned to your pick — you can change it later.",
     },
     2: {
       ask: "What size do you need?",
-      hint: `Optional Â· ${sizeStepLabel} options that fit your picks.`,
+      hint: `Optional · ${sizeStepLabel} options that fit your picks.`,
     },
     3: {
       ask: "Which colors do you like?",
-      hint: "Optional Â· pick as many as you like, tap again to remove.",
+      hint: "Optional · pick as many as you like, tap again to remove.",
     },
     4: {
       ask: "What's your budget?",
-      hint: `Optional Â· set a range in ${budgetCurrencyLabel}.`,
+      hint: `Optional · set a range in ${budgetCurrencyLabel}.`,
     },
     5: {
       ask: "Anything else that matters?",
-      hint: "Optional Â· tell us in your own words or pick a detail.",
+      hint: "Optional · tell us in your own words or pick a detail.",
     },
   };
 
@@ -566,7 +566,7 @@ export default function FindPage() {
   /* A detail chip is attribute-backed only when its group maps to an
      attribute group the catalog ACTUALLY exposes; such picks become
      soft filters. Every other chip is added to detailTokens and turns
-     into a real query token on submit â€” never a UI-only filter. */
+     into a real query token on submit — never a UI-only filter. */
   function toggleDetail(
     optionGroup: DetailOptionGroup,
     value: string
@@ -962,7 +962,7 @@ export default function FindPage() {
                 <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
                   <p className="text-sm text-ink-soft">
                     There are no categories in
-                    stock for that audience yet â€”
+                    stock for that audience yet —
                     go back and pick another.
                   </p>
                 </div>
@@ -990,15 +990,8 @@ export default function FindPage() {
                             }
                           />
 ))}
-                {detailGroups.length === 0 && (
-                  <p className="rounded-2xl border border-line bg-surface px-5 py-4 text-center text-sm text-ink-soft">
-                    No detail options are available for
-                    this category yet â€” describe what
-                    matters in your own words above.
-                  </p>
-                )}
-              </div>
-            )}
+                      </div>
+                    )}
                     {group.subgroups.map(
                       ([subgroup, items]) => (
                         <div
@@ -1041,7 +1034,7 @@ export default function FindPage() {
                     id="find-color-filter"
                     value={colorFilter}
                     onChange={setColorFilter}
-                    placeholder="Search colorsâ€¦"
+                    placeholder="Search colors…"
                     icon
                   />
                 </div>
@@ -1085,13 +1078,13 @@ export default function FindPage() {
                       )
                   ).length === 0 && (
                     <p className="mt-4 text-center text-sm text-ink-faint">
-                      No colors match â€œ{colorFilter}â€.
+                      No colors match “{colorFilter}”.
                     </p>
                   )}
                 {meta.colors.length === 0 && (
                   <p className="mt-4 text-center text-sm text-ink-faint">
                     No colors are available from the
-                    current catalog right now â€” you
+                    current catalog right now — you
                     can skip this step.
                   </p>
                 )}
@@ -1156,7 +1149,7 @@ export default function FindPage() {
                   <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       No sizes are available for your
-                      picks right now â€” you can skip
+                      picks right now — you can skip
                       this step.
                     </p>
                   </div>
@@ -1266,20 +1259,20 @@ export default function FindPage() {
                   {budgetCurrencyLabel === "USD"
                     ? `Your budget is compared fairly across currencies
                        using the ECB reference rate (1 EUR â‰ˆ
-                       ${fxRate?.toFixed(4) ?? "â€”"} USD,
+                       ${fxRate?.toFixed(4) ?? "—"} USD,
                        ${meta?.fx?.asOf ?? "latest"}). Cards
                        always show each product's original price.
                        Matches just outside your range appear under
                        Similar.`
                     : `Prices are matched at their listed value. No
                        rate is needed for ${budgetCurrencyLabel}{" "}
-                       budgets â€” nothing is invented or converted.`}
+                       budgets — nothing is invented or converted.`}
                 </p>
                 {!fxRate && budgetCurrencyLabel === "USD" && (
                   <p className="text-center text-xs text-amber-700">
                     No reliable USD rate is available right now, so
                     your budget is matched at its listed value. Nothing
-                    is invented â€” conversion applies automatically once
+                    is invented — conversion applies automatically once
                     a rate is reachable.
                   </p>
                 )}
@@ -1350,6 +1343,13 @@ export default function FindPage() {
                     </div>
                   </div>
                 ))}
+                {detailGroups.length === 0 && (
+                  <p className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-4 text-center text-sm text-ink-soft">
+                    This category has no structured details
+                    yet — describe what matters in your own
+                    words above.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -1365,7 +1365,7 @@ export default function FindPage() {
               aria-hidden="true"
             />
             <p className="text-sm text-ink-soft">
-              Finding your optionsâ€¦
+              Finding your options…
             </p>
           </div>
         )}

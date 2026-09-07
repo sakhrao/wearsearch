@@ -18,9 +18,10 @@
        inventory) plus the real sizes/colours/brands in stock.
 
    Gender compatibility per category mirrors /api/meta exactly
-   (planGendersForLeaf + live Product.gender, UNISEX expanded to both
-   adult audiences). The category lists are derived from the shared
-   canonical taxonomy + real catalog leaves — never hardcoded. */
+   (the declared canonical audience - inventory-independent - plus
+   data-driven KIDS; legacy rows stay inventory-first). The category
+   lists are derived from the shared canonical taxonomy + real catalog
+   leaves - never hardcoded. */
 
 import { prisma } from "@/lib/prisma";
 import { getFxRate, priceWithinBudget } from "@/lib/currency";
@@ -38,8 +39,7 @@ import { GROUP_OF_SLOT, groupOfCategory } from "@/lib/outfit/category-rules";
 import type { OutfitProduct, SlotName } from "@/lib/outfit/types";
 import {
   buildQuestionnaireCategories,
-  mergeCategoryGenders,
-  planGendersForLeaf,
+  genderCompatibilityFor,
   type CategoryGender,
 } from "@/lib/catalog/category-display";
 import { vocabularyForCategory } from "@/lib/catalog/size-vocabulary";
@@ -271,15 +271,12 @@ export async function POST(request: Request) {
     for (const c of questionnaireCategories) {
       gendersBySlug.set(
         c.slug,
-        mergeCategoryGenders({
-          planGenders:
-            c.source === "legacy"
-              ? new Set<CategoryGender>()
-              : planGendersForLeaf(c.slug),
+        genderCompatibilityFor({
+          slug: c.slug,
+          source: c.source,
           productGenders:
             productGendersBySlug.get(c.slug) ??
             new Set<CategoryGender>(),
-          isLegacy: c.source === "legacy",
         })
       );
     }
