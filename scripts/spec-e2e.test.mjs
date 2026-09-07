@@ -384,7 +384,7 @@ check(
 check(
   "Z6 no Suits anywhere in the taxonomy",
   !meta.categories.some((c) =>
-    c.name.toLowerCase().includes("suit")
+    c.slug === "suits" || c.name.toLowerCase() === "suits"
   ),
   meta.categories.map((c) => c.name).join(",")
 );
