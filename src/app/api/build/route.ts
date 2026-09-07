@@ -111,14 +111,17 @@ function parseFilters(body: Record<string, unknown> | null): FilterState {
     ? f.brands.filter((x): x is string => typeof x === "string")
     : [];
   const size = typeof f.size === "string" ? f.size.trim() : "";
-  const min = Number(f.priceMin);
-  const max = Number(f.priceMax);
+  const coerceBound = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
   return {
     colors,
     size,
     brands,
-    priceMin: Number.isFinite(min) ? min : null,
-    priceMax: Number.isFinite(max) ? max : null,
+    priceMin: coerceBound(f.priceMin),
+    priceMax: coerceBound(f.priceMax),
   };
 }
 

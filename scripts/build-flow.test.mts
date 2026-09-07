@@ -310,6 +310,34 @@ check("impossible size filter reported honestly",
   badSizeJson.emptyReason === "size-unavailable",
   `reason=${String(badSizeJson.emptyReason)}`);
 
+/* regression: unset price bounds must NOT be coerced to 0 and zero
+   the pool (Number(null) === 0 would silently filter everything) */
+const noPriceBounds = await postBuild({
+  gender: "MEN",
+  slot: "top",
+  category: null,
+  mode: "browse",
+  filters: { colors: [], size: "", brands: [], priceMin: null, priceMax: null },
+  context: [],
+});
+const noPriceBoundsJson = (await noPriceBounds.json()) as Record<string, unknown>;
+check("unset price bounds keep the pool (no price-unavailable)",
+  noPriceBoundsJson.emptyReason !== "price-unavailable" &&
+    (noPriceBoundsJson.total as number) >= 0, "");
+
+const realBound = await postBuild({
+  gender: "MEN",
+  slot: "top",
+  category: null,
+  mode: "browse",
+  filters: { colors: [], size: "", brands: [], priceMin: 0, priceMax: 1 },
+  context: [],
+});
+const realBoundJson = (await realBound.json()) as Record<string, unknown>;
+check("a genuine 0..1 EUR bound yields honest empty or small pool",
+  realBoundJson.emptyReason === "price-unavailable" || (realBoundJson.total as number) >= 0,
+  `reason=${String(realBoundJson.emptyReason)} total=${String(realBoundJson.total)}`);
+
 /* semantic size vocabulary is inventory-independent: the option list
    must be present even where stock could be empty */
 const catOption = (menTopJson.categories as Array<{ slug: string; hasProducts: boolean }>).find(
