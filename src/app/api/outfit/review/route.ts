@@ -31,6 +31,7 @@ import {
   reviewSlotOrder,
   reviewStatusFor,
 } from "@/lib/outfit/review-state";
+import { fashionCompatibility } from "@/lib/outfit/fashion-compatibility";
 import type {
   OutfitProduct,
   SlotName,
@@ -170,6 +171,9 @@ export async function POST(request: Request) {
       items: items.map((it) => ({ slot: it.slot, product: it.product })),
       rate: rate.rate,
     });
+    /* fashion compatibility: independent engine over the generic garment
+       visuals — decision + explainable breakdown for the review panel. */
+    const fashion = fashionCompatibility(items.map((it) => it.garment));
 
     return Response.json({
       catalogVersion: fingerprint,
@@ -184,6 +188,7 @@ export async function POST(request: Request) {
       status,
       price,
       score,
+      fashion,
       missingIds,
       invalidPieces: invalid,
       fx: { rate: rate.rate, source: rate.source, asOf: rate.asOf },

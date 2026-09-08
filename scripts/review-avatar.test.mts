@@ -16,7 +16,7 @@
 
 import "dotenv/config";
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -58,6 +58,7 @@ import {
   orderedReviewPieces,
   reviewApiPiecesFor,
 } from "../src/lib/outfit/review-display";
+import type { GarmentVisual, GarmentType } from "../src/lib/outfit/garment";
 import {
   parseAccessories,
   parsePieces,
@@ -65,6 +66,21 @@ import {
 } from "../src/lib/build/url-state";
 import type { UrlBuildProduct, UrlPiece } from "../src/lib/build/url-state";
 import type { OutfitProduct } from "../src/lib/outfit/types";
+import {
+  avatarModelFor,
+  bodyMorphsFor,
+  silentProfileFields,
+} from "../src/lib/avatar/avatar-model";
+import {
+  fashionCompatibility,
+  colorPairFactor,
+  layeringFactor,
+  paletteFactor,
+  patternFactor,
+  silhouetteFactor,
+  verdictFor,
+} from "../src/lib/outfit/fashion-compatibility";
+import { garmentAssetFor } from "../src/lib/outfit/garment-assets";
 
 let passed = 0;
 let failed = 0;
@@ -99,6 +115,25 @@ function shimProduct(overrides: Partial<OutfitProduct> & { id: string; categoryS
     attributes: overrides.attributes ?? [],
   };
 }
+
+/* a raw GarmentVisual ghost for pure-logic tests (shape/color rules,
+   classification, silhouette scoring) */
+const ghost = (type: GarmentType, over: Partial<GarmentVisual> = {}): GarmentVisual => ({
+  slot: "top",
+  type,
+  label: type,
+  color: { name: "Black", hex: "#111111" },
+  fit: "regular",
+  sleeve: "short",
+  collar: "crew",
+  length: "regular",
+  pattern: "solid",
+  layerOrder: 1,
+  coverage: "structured",
+  assetUri: null,
+  note: null,
+  ...over,
+});
 
 /* ------------------------------------------------------------------ */
 /* PART A — AvatarProfile                                             */
@@ -223,6 +258,104 @@ check("asset hook flips coverage", asset.coverage === "asset" && asset.assetUri 
 check("asset hook is additive (same garments)", asset.type === tee.type && asset.fit === tee.fit);
 
 check("garment label is human", garmentLabel("formal-shoes") === "Formal Shoes");
+
+/* ------------------------------------------------------------------ */
+/* PART A — avatar model (profile -> morphs)                          */
+/* ------------------------------------------------------------------ */
+
+const femaleCurvy = avatarModelFor(normalizeAvatarProfile({ gender: "WOMEN", bodyShape: "curvy" }));
+check("women drive genderToFemale morph", femaleCurvy.morphs.genderToFemale === 1);
+check("curvy shapes bust the chest (feminine scale 1)", femaleCurvy.morphs.bustUp >= 0.45);
+check("curvy shapes cinch the waist", femaleCurvy.morphs.waistDown > 0.2);
+check("curvy shapes widen hips", femaleCurvy.morphs.hipsUp >= 0.5);
+check("curvy shapes lift glutes", femaleCurvy.morphs.glutesUp >= 0.55);
+
+const maleAthletic = avatarModelFor(normalizeAvatarProfile({ gender: "MEN", bodyShape: "athletic" }));
+check("men drive genderToMale morph", maleAthletic.morphs.genderToMale === 1);
+check("athletic adds muscle", maleAthletic.morphs.muscleUp > 0);
+check("athletic tones the stomach", maleAthletic.morphs.stomachToned > 0.6);
+check("bust strength is feminine-scaled down for men", maleAthletic.morphs.bustUp <= 0.2);
+
+const kid = avatarModelFor(normalizeAvatarProfile({ gender: "KIDS", bodyShape: "curvy" }));
+check("kids drive no gender composite", kid.morphs.genderToFemale === 0 && kid.morphs.genderToMale === 0);
+check("kids bust scaling caps at 0.4", kid.morphs.bustUp <= 0.21);
+
+const base = normalizeAvatarProfile({ gender: "MEN", heightCm: 174 });
+check("height scale maps cm onto the base human", Math.abs(avatarModelFor({ ...base, bodyShape: "regular" }).heightScale - 174 / 169.4) < 0.001);
+
+const morphs = bodyMorphsFor(base);
+for (const [k, v] of Object.entries(morphs)) {
+  check(`morph ${k} is clamped 0..1`, Number(v) >= 0 && Number(v) <= 1);
+}
+check("every profile field visibly drives the model", silentProfileFields(base).length === 0);
+
+/* ------------------------------------------------------------------ */
+/* PART A — GarmentSystem classification                              */
+/* ------------------------------------------------------------------ */
+
+check("tee -> top layer mid", garmentAssetFor(ghost("tee")).category === "top" && garmentAssetFor(ghost("tee")).layer === "mid");
+check("jeans -> bottom", garmentAssetFor(ghost("jeans")).category === "bottom");
+check("dress -> one-piece", garmentAssetFor(ghost("dress")).category === "one-piece");
+check("sneakers -> footwear", garmentAssetFor(ghost("sneakers")).category === "footwear");
+check("belt -> accessory", garmentAssetFor(ghost("belt")).category === "accessory");
+check("coat -> layer outer", garmentAssetFor(ghost("coat")).layer === "outer");
+check("garment asset passes through a future model URI", garmentAssetFor(ghost("tee", { assetUri: "fitwear://a/1" })).assetUri === "fitwear://a/1");
+
+/* ------------------------------------------------------------------ */
+/* PART A — FashionCompatibility (independent of contextFitScore)     */
+/* ------------------------------------------------------------------ */
+
+const empty = fashionCompatibility([]);
+check("empty look scores 0 and stays soft-mismatch, never invalid", empty.score === 0 && empty.verdict === "soft-mismatch" && empty.factors.length === 0);
+
+const singleTee = fashionCompatibility([ghost("tee", { color: { name: "Red", hex: "#c00" } })]);
+check("single piece reads as a strong clean look", singleTee.verdict === "strong" || singleTee.verdict === "valid");
+
+const twoTees = fashionCompatibility([ghost("tee"), ghost("shirt")]);
+check("two torso pieces is hard-invalid", twoTees.verdict === "hard-invalid" && twoTees.issues.length > 0);
+
+const dressAndJeans = fashionCompatibility([ghost("dress"), ghost("jeans")]);
+check("dress + jeans is hard-invalid (one-piece covers the legs)", dressAndJeans.verdict === "hard-invalid");
+
+const twoShoes = fashionCompatibility([ghost("sneakers"), ghost("boots")]);
+check("two pairs of shoes is hard-invalid", twoShoes.verdict === "hard-invalid");
+
+const classic = fashionCompatibility([
+  ghost("tee", { color: { name: "White", hex: "#fff" } }),
+  ghost("jeans", { color: { name: "Blue", hex: "#356" } }),
+  ghost("sneakers", { color: { name: "White", hex: "#fff" } }),
+]);
+check("classic look is valid or strong", classic.verdict === "valid" || classic.verdict === "strong");
+check("classic look reports a color factor", classic.factors.some((f) => f.key === "color"));
+
+const overload = fashionCompatibility([
+  ghost("tee", { pattern: "striped", color: { name: "White", hex: "#fff" } }),
+  ghost("jeans", { pattern: "checked", color: { name: "Black", hex: "#111" } }),
+]);
+check("pattern overload reports low pattern score", (overload.factors.find((f) => f.key === "pattern")?.score ?? 1) <= 0.2);
+check("two no-clash-neutral colors are excellent", colorPairFactor([
+  ghost("tee", { color: { name: "White", hex: "#fff" } }),
+  ghost("jeans", { color: { name: "Black", hex: "#111" } }),
+]) === 1);
+check("red+blue are poor, never auto-good", colorPairFactor([
+  ghost("tee", { color: { name: "Red", hex: "#c00" } }),
+  ghost("jeans", { color: { name: "Blue", hex: "#356" } }),
+]) === 0);
+check("single-pattern palette stays disciplined", patternFactor([
+  ghost("tee", { pattern: "striped" }),
+  ghost("jeans"),
+]) >= 0.8);
+check("balance: big coat + leggings scores 1", silhouetteFactor([
+  ghost("coat", { fit: "oversized" }),
+  ghost("leggings"),
+]) === 1);
+check("slab: big coat + relaxed jeans scores low", silhouetteFactor([
+  ghost("coat", { fit: "oversized" }),
+  ghost("jeans", { fit: "relaxed" }),
+]) <= 0.4);
+check("single outer layers cleanly", layeringFactor([ghost("coat")]) === 1);
+check("coat over blazer conflicts", layeringFactor([ghost("coat"), ghost("blazer")]) === 0.55);
+check("verdict thresholds", verdictFor(0.8, []) === "strong" && verdictFor(0.6, []) === "valid" && verdictFor(0.3, []) === "soft-mismatch" && verdictFor(0.9, ["x"]) === "hard-invalid");
 
 /* ------------------------------------------------------------------ */
 /* PART A — review state                                              */
@@ -365,7 +498,11 @@ const SOURCE_TOKENS =
 const CLIENT_MODULES = [
   "src/lib/avatar/profile.ts",
   "src/lib/avatar/webgl.ts",
+  "src/lib/avatar/avatar-model.ts",
+  "src/lib/avatar/human-model.ts",
   "src/lib/outfit/garment.ts",
+  "src/lib/outfit/garment-assets.ts",
+  "src/lib/outfit/fashion-compatibility.ts",
   "src/lib/outfit/review-state.ts",
   "src/lib/outfit/review-display.ts",
   "src/app/outfit/review/page.tsx",
@@ -391,6 +528,19 @@ for (const mod of CLIENT_MODULES) {
   const body = readFileSync(join(process.cwd(), mod), "utf8");
   check(`${mod} imports no prisma`, !/from\s+["']@\/lib\/prisma["']/.test(body));
 }
+
+/* ------------------------------------------------------------------ */
+/* PART A — baked avatar base GLB (contract shape, cheap static gate) */
+/* ------------------------------------------------------------------ */
+
+const baseGlb = join(process.cwd(), "public/models/avatar/base.glb");
+const manifest = join(process.cwd(), "public/models/avatar/avatar-manifest.json");
+check("baked avatar GLB exists (runtime asset)", existsSync(baseGlb));
+check("baked avatar GLB is a real file (>1MB)", existsSync(baseGlb) && readFileSync(baseGlb).byteLength > 1024 * 1024);
+const manifestOk = existsSync(manifest) ? JSON.parse(readFileSync(manifest, "utf8")) : null;
+check("avatar manifest exists with the CC0 bill of provenance", manifestOk?.license?.toLowerCase().includes("cc0"));
+check("avatar base is the expected body (13380 verts, 26756 tris, 52 bones)", manifestOk?.scene?.vertexCount === 13380 && manifestOk?.scene?.triangleCount === 26756 && manifestOk?.scene?.boneCount === 52);
+check("every runtime morph name exists in the baked base", Array.isArray(manifestOk?.morphs) && manifestOk.morphs.length === 30);
 
 /* ------------------------------------------------------------------ */
 /* PART B — honest API (needs live local catalog; skips cleanly)      */
@@ -458,6 +608,9 @@ async function partB(): Promise<void> {
     check("API reliable total equals sum of stored prices", Math.abs(json.price.totalEur - pieces.reduce((sum: number, p) => sum + Number(catalog.find((c) => c.id === p.productId)?.price ?? 0), 0)) < 0.01);
   }
   check("API score is finite or null", json.score === null || Number.isFinite(json.score));
+  check("API fashion verdict is one of the contract classes", ["hard-invalid", "soft-mismatch", "valid", "strong"].includes(json.fashion?.verdict));
+  check("API fashion carries an explainable breakdown", Array.isArray(json.fashion?.factors) && json.fashion.factors.length > 0);
+  check("API fashion refuses to invent occasion/season (no such factor without context)", json.fashion.factors.every((f: { key: string }) => f.key !== "context"));
   check("API no missing products for a fresh look", Array.isArray(json.missingIds) && json.missingIds.length === 0);
 }
 

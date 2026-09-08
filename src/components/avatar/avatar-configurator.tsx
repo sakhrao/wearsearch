@@ -1,10 +1,11 @@
 /* AvatarConfigurator — "Customize your model" panel.
 
-   Lets the user build the AvatarProfile WITHOUT forcing the
-   questionnaire: they pick what they want, hit Apply, and the avatar
-   updates everywhere (stored + carried in the URL). Visual-appearance
-   properties only (body, skin tone, hair) — never a demographic
-   category. */
+   Lets the user build the AvatarProfile and see it reflected on the
+   3D avatar LIVE — every pick updates the profile immediately (no Apply
+   button, no fake/localStorage-only preview). The outer page owns the
+   avatar state; this panel simply reports each normalized draft up via
+   onChange so the scene rebuilds in place. Visual-appearance properties
+   only (body, skin tone, hair) — never a demographic category. */
 
 "use client";
 
@@ -25,8 +26,9 @@ import {
 
 type Props = {
   profile: AvatarProfile;
-  onApply: (profile: AvatarProfile) => void;
-  onCancel: () => void;
+  onChange: (profile: AvatarProfile) => void;
+  onReset: (profile: AvatarProfile) => void;
+  onClose: () => void;
 };
 
 type OptionRowProps = {
@@ -75,10 +77,20 @@ function OptionRow({ title, options, current, onPick, swatch }: OptionRowProps) 
   );
 }
 
-function AvatarConfiguratorInner({ profile, onApply, onCancel }: Props) {
+function AvatarConfiguratorInner({
+  profile,
+  onChange,
+  onReset,
+  onClose,
+}: Props) {
+  /* the panel mirrors the applied profile so controls reflect the avatar;
+     every pick is normalized and pushed up immediately (live). */
   const [draft, setDraft] = useState<AvatarProfile>({ ...profile });
-  const patch = (p: Partial<AvatarProfile>) =>
-    setDraft((prev) => normalizeAvatarProfile({ ...prev, ...p }));
+  const live = (p: Partial<AvatarProfile>) => {
+    const next = normalizeAvatarProfile({ ...draft, ...p });
+    setDraft(next);
+    onChange(next);
+  };
 
   return (
     <div
@@ -87,24 +99,24 @@ function AvatarConfiguratorInner({ profile, onApply, onCancel }: Props) {
       aria-modal="true"
       aria-label="Customize your model"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
+        if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="max-h-[86vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-paper p-5 shadow-2xl">
+      <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-paper p-5 shadow-2xl">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-ink">Customize your model</h2>
             <p className="text-xs text-ink-soft">
-              Only visual properties — height, body, skin tone, hair. Applied to
-              the review avatar right away.
+              Every pick updates your 3D model live. Visual properties only —
+              height, body, skin tone, hair.
             </p>
           </div>
           <button
             type="button"
-            onClick={onCancel}
+            onClick={onClose}
             className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-soft transition hover:border-accent-deep hover:text-ink"
           >
-            Close
+            Done
           </button>
         </div>
 
@@ -113,13 +125,13 @@ function AvatarConfiguratorInner({ profile, onApply, onCancel }: Props) {
             title="Gender"
             options={AVATAR_GENDERS}
             current={draft.gender}
-            onPick={(v) => patch({ gender: v as AvatarProfile["gender"] })}
+            onPick={(v) => live({ gender: v as AvatarProfile["gender"] })}
           />
           <OptionRow
             title="Body shape"
             options={BODY_SHAPES}
             current={draft.bodyShape}
-            onPick={(v) => patch({ bodyShape: v as AvatarProfile["bodyShape"] })}
+            onPick={(v) => live({ bodyShape: v as AvatarProfile["bodyShape"] })}
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -132,7 +144,7 @@ function AvatarConfiguratorInner({ profile, onApply, onCancel }: Props) {
                 min={80}
                 max={250}
                 value={draft.heightCm}
-                onChange={(e) => patch({ heightCm: Number(e.target.value) })}
+                onChange={(e) => live({ heightCm: Number(e.target.value) })}
                 className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-deep"
               />
             </label>
@@ -145,7 +157,7 @@ function AvatarConfiguratorInner({ profile, onApply, onCancel }: Props) {
                 min={25}
                 max={300}
                 value={draft.weightKg}
-                onChange={(e) => patch({ weightKg: Number(e.target.value) })}
+                onChange={(e) => live({ weightKg: Number(e.target.value) })}
                 className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-deep"
               />
             </label>
@@ -155,49 +167,53 @@ function AvatarConfiguratorInner({ profile, onApply, onCancel }: Props) {
             title="Skin tone"
             options={SKIN_TONES}
             current={draft.skinTone}
-            onPick={(v) => patch({ skinTone: v as AvatarProfile["skinTone"] })}
+            onPick={(v) => live({ skinTone: v as AvatarProfile["skinTone"] })}
             swatch={(v) => SKIN_TONE_HEX[v as keyof typeof SKIN_TONE_HEX]}
           />
           <OptionRow
             title="Hair style"
             options={HAIR_STYLES}
             current={draft.hairStyle}
-            onPick={(v) => patch({ hairStyle: v as AvatarProfile["hairStyle"] })}
+            onPick={(v) => live({ hairStyle: v as AvatarProfile["hairStyle"] })}
           />
           <OptionRow
             title="Hair length"
             options={HAIR_LENGTHS}
             current={draft.hairLength}
-            onPick={(v) => patch({ hairLength: v as AvatarProfile["hairLength"] })}
+            onPick={(v) => live({ hairLength: v as AvatarProfile["hairLength"] })}
           />
           <OptionRow
             title="Hair color"
             options={HAIR_COLORS}
             current={draft.hairColor}
-            onPick={(v) => patch({ hairColor: v as AvatarProfile["hairColor"] })}
+            onPick={(v) => live({ hairColor: v as AvatarProfile["hairColor"] })}
           />
           <OptionRow
             title="Hair texture"
             options={HAIR_TEXTURES}
             current={draft.hairTexture}
-            onPick={(v) => patch({ hairTexture: v as AvatarProfile["hairTexture"] })}
+            onPick={(v) => live({ hairTexture: v as AvatarProfile["hairTexture"] })}
           />
         </div>
 
         <div className="mt-6 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => onApply(draft)}
-            className="flex-1 rounded-full bg-ink py-2.5 text-sm font-semibold text-paper transition hover:bg-ink-soft"
+            onClick={() => {
+              const def = normalizeAvatarProfile(DEFAULT_AVATAR_PROFILE);
+              setDraft(def);
+              onReset(def);
+            }}
+            className="flex-1 rounded-full border border-line py-2.5 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-ink"
           >
-            Apply
+            Reset to default
           </button>
           <button
             type="button"
-            onClick={() => onApply(DEFAULT_AVATAR_PROFILE)}
-            className="rounded-full border border-line px-4 py-2.5 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-ink"
+            onClick={onClose}
+            className="flex-1 rounded-full bg-ink py-2.5 text-sm font-semibold text-paper transition hover:bg-ink-soft"
           >
-            Reset
+            Done
           </button>
         </div>
       </div>

@@ -52,6 +52,7 @@ import {
   type AvatarProfile,
 } from "@/lib/avatar/profile";
 import { SLOT_LABELS } from "@/lib/build/flow-rules";
+import type { FashionCompatibilityResult } from "@/lib/outfit/fashion-compatibility";
 
 type ReviewItem = {
   slot: string;
@@ -87,6 +88,7 @@ type ReviewServer = {
     hasOtherCurrency: boolean;
   };
   score: number | null;
+  fashion: FashionCompatibilityResult | null;
   missingIds: string[];
   fx: { rate: number | null; source: string; asOf: string | null } | null;
 };
@@ -312,9 +314,10 @@ function ReviewInner() {
     }
   }, []);
 
-  const applyAvatar = useCallback((p: AvatarProfile) => {
+  /* live customize: every configurator pick updates the avatar in place
+     (no Apply, no refresh) so the 3D scene rebuilds immediately. */
+  const changeAvatar = useCallback((p: AvatarProfile) => {
     setAvatar(normalizeAvatarProfile(p));
-    setShowConfig(false);
   }, []);
 
   const scorePct =
@@ -512,9 +515,111 @@ function ReviewInner() {
                 </div>
 
                 <div className="rounded-2xl border border-line bg-surface p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                    Outfit summary
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                      Look verdict
+                    </p>
+                    {review?.fashion && (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                          review.fashion.verdict === "strong"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : review.fashion.verdict === "valid"
+                              ? "bg-blue-50 text-blue-700"
+                              : review.fashion.verdict === "soft-mismatch"
+                                ? "bg-amber-50 text-amber-800"
+                                : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {review.fashion.verdict === "hard-invalid"
+                          ? "Needs fixing"
+                          : review.fashion.verdict === "soft-mismatch"
+                            ? "Soft mismatch"
+                            : review.fashion.verdict === "valid"
+                              ? "Valid"
+                              : "Strong"}
+                      </span>
+                    )}
+                  </div>
+
+                  {review?.fashion ? (
+                    <>
+                      <div className="mt-3">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-paper-soft">
+                          <div
+                            className="h-full rounded-full bg-accent-deep transition-all"
+                            style={{ width: `${Math.round(review.fashion.score * 100)}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-right text-xs font-semibold text-ink">
+                          {Math.round(review.fashion.score * 100)}%
+                        </p>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {review.fashion.factors.map((f) => (
+                          <div key={f.key} className="text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-ink-soft">{f.label}</span>
+                              <span
+                                className={`font-semibold ${
+                                  f.score >= 0.8
+                                    ? "text-emerald-700"
+                                    : f.score >= 0.5
+                                      ? "text-amber-700"
+                                      : "text-red-600"
+                                }`}
+                              >
+                                {Math.round(f.score * 100)}%
+                              </span>
+                            </div>
+                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-paper-soft">
+                              <div
+                                className="h-full rounded-full bg-accent-deep"
+                                style={{ width: `${Math.round(f.score * 100)}%` }}
+                              />
+                            </div>
+                            <p className="mt-1 text-[11px] text-ink-faint">{f.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {review.fashion.issues.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {review.fashion.issues.map((i) => (
+                            <p
+                              key={i}
+                              className="flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-[11px] leading-snug text-red-700"
+                            >
+                              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                              {i}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      {review.fashion.highlights.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {review.fashion.highlights.map((h) => (
+                            <p
+                              key={h}
+                              className="flex items-start gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] leading-snug text-emerald-700"
+                            >
+                              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                              {h}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-3 text-xs text-ink-faint">
+                      Verdict appears once the server checks the look.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-line bg-surface p-5">
                   <dl className="mt-3 space-y-2.5 text-sm">
                     <div className="flex items-center justify-between">
                       <dt className="text-ink-soft">Pieces</dt>
@@ -570,8 +675,9 @@ function ReviewInner() {
       {showConfig && (
         <AvatarConfigurator
           profile={avatar}
-          onApply={applyAvatar}
-          onCancel={() => setShowConfig(false)}
+          onChange={changeAvatar}
+          onReset={changeAvatar}
+          onClose={() => setShowConfig(false)}
         />
       )}
     </main>
