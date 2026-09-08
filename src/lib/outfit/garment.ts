@@ -1,29 +1,29 @@
-/* Garment layer — the generic representation between an Avatar and a
-   product, built from CANONICAL data only.
+/* Garment layer — the generic representation of a product as
+   something "worn", built from CANONICAL data only.
 
    WHY THIS LAYER EXISTS
-   Review renders a look on a 3D avatar. The products are real, but the
-   avatar is made of generic garments (a tee, a shirt, a coat, ...).
-   This module is the single place that decides what a product "wears":
+   Review's fashion Look verdict reasons over generic garments
+   (a tee, a shirt, a coat, ...). This module is the single place
+   that decides what a product "wears":
      - category slug (canonical taxonomy) -> GarmentType
      - normalized attributes (Fit / Sleeve / Collar / Pattern) -> shape
      - product/variant color -> the garment's color
    It deliberately NEVER reads source, sourceId, eBay listing fields,
-   or provider names. Removing a source must not change Review/Build/
-   Avatar behavior at all.
+   or provider names. Removing a source must not change Review/Build
+   behavior at all.
 
-   COVERAGE LEVELS (honest rendering)
+   COVERAGE LEVELS (honest representation)
    - "structured": built from real canonical data. Exact enough to
      represent type / silhouette / color; NOT an exact fit.
-   - "asset": a future 3D asset (photo-scanned / designer model) has
+   - "asset": a future asset (image-based Virtual Try-On garment) has
      replaced the primitive. attachGarmentAsset() is the pure hook.
    - "estimate": unknown category fell back to the slot's generic
      garment. Never a lie on screen: the UI shows the known facts.
 
-   FUTURE TRY-ON
-   A future AI reconstruction (Level 3) replaces the whole GarmentVisual
-   set, not this module's API — the avatar renders visuals, never raw
-   products. Nothing here couples to today's data source.
+   FUTURE VIRTUAL TRY-ON
+   A future image-based VTON consumes these visuals as the try-on
+   garment — a generic GarmentVisual, never raw products or source
+   fields. Nothing here couples to today's data source.
 
    Pure module: no DB / network / I-O. Safe for server + offline tests. */
 
@@ -84,7 +84,7 @@ export type GarmentVisual = {
   /* drawing order: higher = worn further out / on top */
   layerOrder: number;
   coverage: GarmentCoverage;
-  /* Level-2 hook: future 3D asset URI that replaces the primitive. */
+  /* VTON hook: future image-based try-on garment URI that replaces the primitive. */
   assetUri: string | null;
   /* what we actually knew (for the UI's "preview" disclosure) */
   note: string | null;
@@ -164,7 +164,7 @@ const SLUG_GARMENT_TYPE: Record<string, GarmentType> = {
 };
 
 /* Generic garment per builder slot when the slug is unknown: the
-   avatar always gets a plausible, honest generic piece. */
+   review always gets a plausible, honest generic piece. */
 const SLOT_FALLBACK_TYPE: Record<SlotName, GarmentType> = {
   top: "solid-torso",
   layer: "solid-torso",
@@ -365,8 +365,8 @@ export function garmentVisualFor(args: {
   return visual;
 }
 
-/* Level-2 hook: swap the primitive for a real 3D asset. Pure; the
-   caller validates the URI source. */
+/* VTON hook: swap the primitive for a future try-on garment. Pure; the
+   caller validates the asset source. */
 export function attachGarmentAsset(
   visual: GarmentVisual,
   assetUri: string

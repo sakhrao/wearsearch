@@ -1,9 +1,6 @@
 /* Review your outfit — the professional final page.
 
    A real, honest review of the look the builder handed over:
-     - Outfit Preview: the SAME avatar wearing the look on a live 3D
-       scene (drag rotate, pinch/scroll zoom, Front/Sides/Back presets),
-       with a graceful 2D fallback when WebGL is unavailable;
      - Selected items: real products only — image, name, brand, price
        in the original currency, and a real productUrl for Buy/View;
        Change takes you back to that builder slot; Remove updates the
@@ -13,22 +10,20 @@
        review-state module;
      - Outfit summary: item count, compatibility from the outfit
        engine's own scorer, and the TOTAL in EUR only when it is truly
-       reliable (real prices + real fx for USD);
-     - the avatar is a source-independent AvatarProfile, persisted and
-       carried in the URL, so it survives reloads and sharing.
+       reliable (real prices + real fx for USD).
 
    The products are read from the canonical catalog via
-   /api/outfit/review — nothing here is invented or eBay-coupled. */
+   /api/outfit/review — nothing here is invented or eBay-coupled.
+
+   (The 3D Avatar and AvatarProfile were retired from FitWear. A future
+   image-based Virtual Try-On will add the model preview back purely
+   as a provider-pluggable surface, never via a 3D scene.) */
 
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import AvatarPreview from "@/components/avatar/avatar-preview";
-import AvatarConfigurator from "@/components/avatar/avatar-configurator";
-import { garmentVisualFor } from "@/lib/outfit/garment";
-import type { GarmentVisual } from "@/lib/outfit/garment";
 import {
   reviewStatusFor,
   reviewStepsFor,
@@ -42,15 +37,6 @@ import {
   parseUrlState,
   type UrlPiece,
 } from "@/lib/build/url-state";
-import {
-  DEFAULT_AVATAR_PROFILE,
-  createLocalStorageAvatarStore,
-  describeAvatar,
-  hydrateAvatarProfile,
-  serializeAvatarProfile,
-  normalizeAvatarProfile,
-  type AvatarProfile,
-} from "@/lib/avatar/profile";
 import { SLOT_LABELS } from "@/lib/build/flow-rules";
 import type { FashionCompatibilityResult } from "@/lib/outfit/fashion-compatibility";
 
@@ -68,7 +54,6 @@ type ReviewItem = {
     categoryName: string | null;
   };
   color: { name: string; hex: string | null } | null;
-  garment: GarmentVisual;
 };
 
 type ReviewServer = {
@@ -136,33 +121,22 @@ function ReviewInner() {
     [] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  const avatarStore = useMemo(
-    () => createLocalStorageAvatarStore(),
-    []
-  );
-
   const [selected, setSelected] = useState<Record<string, UrlPiece>>(init.selected);
   const [accessories, setAccessories] = useState<UrlPiece[]>(init.accessories);
-  const [avatar, setAvatar] = useState<AvatarProfile>(() =>
-    normalizeAvatarProfile(
-      hydrateAvatarProfile(searchParams.get("avatar") ?? undefined),
-      DEFAULT_AVATAR_PROFILE
-    )
-  );
-  const [showConfig, setShowConfig] = useState(false);
   const [review, setReview] = useState<ReviewServer | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const aborterRef = useRef<AbortController | null>(null);
 
-  /* persist avatar + pieces in the URL so Refresh/Back/Share keep state */
+  /* persist pieces in the URL so Refresh/Back/Share keep state */
   useEffect(() => {
-    avatarStore.set(avatar);
     const url = new URL(window.location.href);
     url.searchParams.set("selected", JSON.stringify(selected));
     url.searchParams.set("accs", JSON.stringify(accessories));
-    url.searchParams.set("avatar", serializeAvatarProfile(avatar));
+    /* retired 3D Avatar: never keep its URL params around */
+    url.searchParams.delete("avatar");
+    url.searchParams.delete("avatarDebug");
     window.history.replaceState({}, "", url.toString());
-  }, [selected, accessories, avatar, avatarStore]);
+  }, [selected, accessories]);
 
   const topSlug = selected.top?.product.categorySlug ?? null;
 
@@ -170,39 +144,6 @@ function ReviewInner() {
   const ordered = useMemo(
     () => orderedReviewPieces(selected, accessories),
     [selected, accessories]
-  );
-
-  /* instant client garments (slug + color only) so the scene renders
-     before the server's attribute-rich visuals arrive */
-  const instantGarments = useMemo(
-    () =>
-      ordered.map((p) =>
-        garmentVisualFor({
-          product: {
-            id: p.product.id,
-            name: p.product.name,
-            price: p.product.price,
-            currency: p.product.currency,
-            productUrl: p.product.productUrl,
-            imageUrl: p.product.imageUrl,
-            availability: null,
-            gender: p.product.gender as "MEN" | "WOMEN" | "KIDS" | "UNISEX" | null,
-            brand: null,
-            category: {
-              id: `cat-${p.product.categorySlug}`,
-              slug: p.product.categorySlug,
-              name: p.product.categoryName ?? p.product.categorySlug,
-            },
-            variants: [],
-            attributes: [],
-          },
-          slot: p.slot as "top" | "bottom" | "footwear" | "layer" | "accessory",
-          color: p.color
-            ? { name: p.color, hex: null }
-            : null,
-        })
-      ),
-    [ordered]
   );
 
   /* authoritative review from the canonical catalog */
@@ -233,14 +174,6 @@ function ReviewInner() {
 
     return () => controller.abort();
   }, [selected, accessories, topSlug]);
-
-  /* server garments are authoritative when they arrive */
-  const sceneGarments = useMemo(() => {
-    if (review?.items && review.items.length > 0) {
-      return review.items.map((it) => it.garment);
-    }
-    return instantGarments;
-  }, [review, instantGarments]);
 
   const missingSet = useMemo(() => new Set(review?.missingIds ?? []), [review]);
 
@@ -314,12 +247,6 @@ function ReviewInner() {
     }
   }, []);
 
-  /* live customize: every configurator pick updates the avatar in place
-     (no Apply, no refresh) so the 3D scene rebuilds immediately. */
-  const changeAvatar = useCallback((p: AvatarProfile) => {
-    setAvatar(normalizeAvatarProfile(p));
-  }, []);
-
   const scorePct =
     score === null ? null : Math.round(Math.min(1, Math.max(0, score)) * 100);
   const scoreLabel =
@@ -340,12 +267,11 @@ function ReviewInner() {
               Review your outfit
             </p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">
-              Your look, your model
+              Review your look
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-ink-soft">
-              See every picked piece on your 3D model, check the look on
-              real products, and buy them directly. Nothing here is
-              invented — every product is live in the catalog.
+              Check the look on real products and buy them directly.
+              Nothing here is invented — every product is live in the catalog.
             </p>
           </div>
           <Link
@@ -371,41 +297,17 @@ function ReviewInner() {
         ) : (
           <>
             <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-              {/* outfit preview + model */}
-              <div className="space-y-6">
-                <div>
-                  <div className="h-[440px] sm:h-[520px]">
-                    <AvatarPreview
-                      profile={avatar}
-                      garments={sceneGarments}
-                      className="h-full w-full"
-                    />
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowConfig(true)}
-                      className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-paper transition hover:bg-ink-soft"
-                    >
-                      Customize your model
-                    </button>
-                    <p className="text-xs text-ink-soft">
-                      {describeAvatar(avatar)} — same person keeps every look.
-                    </p>
-                  </div>
+              {/* selected items */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-ink">
+                    Selected items
+                  </h2>
+                  <p className="text-xs text-ink-soft">
+                    {ordered.length} piece{ordered.length === 1 ? "" : "s"}
+                  </p>
                 </div>
-
-                {/* selected items */}
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-ink">
-                      Selected items
-                    </h2>
-                    <p className="text-xs text-ink-soft">
-                      {ordered.length} piece{ordered.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                     {ordered.map((p) => {
                       const gone = missingSet.has(p.product.id);
                       return (
@@ -467,7 +369,6 @@ function ReviewInner() {
                     })}
                   </div>
                 </div>
-              </div>
 
               {/* outfit status + summary */}
               <aside className="lg:sticky lg:top-6 lg:self-start lg:space-y-4">
@@ -670,19 +571,10 @@ function ReviewInner() {
             </div>
           </>
         )}
-      </div>
-
-      {showConfig && (
-        <AvatarConfigurator
-          profile={avatar}
-          onChange={changeAvatar}
-          onReset={changeAvatar}
-          onClose={() => setShowConfig(false)}
-        />
-      )}
-    </main>
-  );
-}
+        </div>
+      </main>
+    );
+  }
 
 export default function Page() {
   return (

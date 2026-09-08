@@ -8,12 +8,15 @@
      - computes the total in the engine's EUR reference only when it is
        reliable (real prices + real fx when USD is present);
      - scores the fixed look with the outfit engine's own scorer;
-     - projects each item to a generic GarmentVisual for the 3D avatar
-       (canonical slug + attributes + color — never source fields).
+     - drives the Look verdict through the fashion compatibility engine
+       over generic garment visuals (canonical slug + attributes + color
+       — never source fields).
 
    The look itself (pieces) is source-agnostic by construction: the
    builder's user picks were canonical products, and that is all this
-   route reads. */
+   route reads. (The 3D Avatar was retired from FitWear, so no avatar
+   payload is serialized — the garment visuals stay internal to power
+   the fashion verdict.) */
 
 import { prisma } from "@/lib/prisma";
 import { getFxRate } from "@/lib/currency";
@@ -183,7 +186,6 @@ export async function POST(request: Request) {
         slot: it.slot,
         product: serializeBuildProduct(it.product),
         color: it.color,
-        garment: it.garment,
       })),
       status,
       price,

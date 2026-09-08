@@ -990,9 +990,8 @@ function BuildPageInner() {
                   </div>
                   <div className="p-5">
                     <p className="text-sm text-ink-soft">
-                      Open the full Review to see this look on your 3D model —
-                      rotate and zoom it, swap or remove pieces, and buy each
-                      real product.
+                      Open the full Review to see the look complete, swap or
+                      remove pieces, and buy each real product.
                     </p>
                     <button
                       type="button"
