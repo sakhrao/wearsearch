@@ -49,6 +49,10 @@ type Props = {
   garments: GarmentVisual[];
   className?: string;
   style?: CSSProperties;
+  /* called when WebGL cannot be started OR the render loop dies, so
+     the caller can switch to the visible 2D panel instead of leaving
+     a silently-blank canvas. */
+  onFatal?: () => void;
 };
 
 /* swapped axis helpers: yaw rotates the camera around the avatar */
@@ -706,7 +710,7 @@ function addAccessory(
 /* ---- scene setup + controls ---- */
 const AvatarScene = memo(
   forwardRef<AvatarSceneHandle, Props>(function AvatarScene(
-    { profile, garments, className, style },
+    { profile, garments, className, style, onFatal },
     ref
   ) {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -754,82 +758,105 @@ const AvatarScene = memo(
       if (!mount) return;
       const state = stateRef.current;
 
-      const renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: true,
-        powerPreference: "high-performance",
-      });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      mount.appendChild(renderer.domElement);
-
-      const scene = new THREE.Scene();
-      const fov = 38;
-      const camera = new THREE.PerspectiveCamera(
-        fov,
-        mount.clientWidth / Math.max(1, mount.clientHeight),
-        0.1,
-        100
-      );
-
-      /* lights */
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d0c4, 0.85));
-      const key = new THREE.DirectionalLight(0xffffff, 1.7);
-      key.position.set(2.4, 4, 3.4);
-      key.castShadow = true;
-      key.shadow.mapSize.set(1024, 1024);
-      scene.add(key);
-      const rim = new THREE.DirectionalLight(0xcdd8ff, 0.55);
-      rim.position.set(-2.5, 2.5, -3);
-      scene.add(rim);
-      const fill = new THREE.DirectionalLight(0xffffff, 0.3);
-      fill.position.set(0, 1.5, -4);
-      scene.add(fill);
-
-      /* ground disc + soft contact shadow */
-      const groundMat = new THREE.MeshStandardMaterial({
-        color: 0x292520,
-        roughness: 0.95,
-      });
-      const ground = new THREE.Mesh(
-        new THREE.CircleGeometry(2.6, 40),
-        groundMat
-      );
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = 0.001;
-      ground.receiveShadow = true;
-      scene.add(ground);
-      const shadow = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.6, 2.6),
-        new THREE.ShadowMaterial({ opacity: 0.32 })
-      );
-      shadow.rotation.x = -Math.PI / 2;
-      shadow.position.y = 0.004;
-      shadow.receiveShadow = true;
-      scene.add(shadow);
-
-      const rebuild = () => {
-        const body = makeBody(profile);
-        const group = buildBodyMesh(body, profile);
-        for (const visual of garments) {
-          const g = buildGarment(visual, body);
-          if (g) group.add(g);
-        }
-        scene.add(group);
-        stateRef.current.group = group;
-
-        /* frame the avatar once */
-        const s = stateRef.current;
-        s.tDist = 4.2;
-        s.dist = 4.2;
-        s.tPitch = 0.42;
-        s.pitch = 0.42;
-        s.tYaw = 0;
-        s.yaw = 0;
+      /* Sizing is the classic silent killer: a canvas sized 0 is never
+         visible even though everything else works. Measure from the
+         bounding rect (never collapses for absolute/% children), keep a
+         sane floor, and re-run the fit on the next frame + on every
+         ResizeObserver tick so the canvas ALWAYS gets a real size. */
+      const measure = (): { w: number; h: number } => {
+        const rect = mount.getBoundingClientRect();
+        const w = Math.max(rect.width, mount.clientWidth);
+        const h = Math.max(rect.height, mount.clientHeight);
+        return {
+          /* floor keeps the canvas on-screen even while a parent is
+             mid-layout; 240px is our smallest intended avatar height. */
+          w: Math.max(240, Math.round(w)),
+          h: Math.max(240, Math.round(h)),
+        };
       };
-      rebuild();
+
+      let renderer: THREE.WebGLRenderer;
+      let camera: THREE.PerspectiveCamera;
+      let scene: THREE.Scene;
+
+      try {
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: true,
+          powerPreference: "high-performance",
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        mount.appendChild(renderer.domElement);
+
+        scene = new THREE.Scene();
+        const fov = 38;
+        camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
+
+        /* lights */
+        scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d0c4, 0.85));
+        const key = new THREE.DirectionalLight(0xffffff, 1.7);
+        key.position.set(2.4, 4, 3.4);
+        key.castShadow = true;
+        key.shadow.mapSize.set(1024, 1024);
+        scene.add(key);
+        const rim = new THREE.DirectionalLight(0xcdd8ff, 0.55);
+        rim.position.set(-2.5, 2.5, -3);
+        scene.add(rim);
+        const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+        fill.position.set(0, 1.5, -4);
+        scene.add(fill);
+
+        /* ground disc + soft contact shadow */
+        const groundMat = new THREE.MeshStandardMaterial({
+          color: 0x292520,
+          roughness: 0.95,
+        });
+        const ground = new THREE.Mesh(
+          new THREE.CircleGeometry(2.6, 40),
+          groundMat
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0.001;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        const shadow = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.6, 2.6),
+          new THREE.ShadowMaterial({ opacity: 0.32 })
+        );
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.y = 0.004;
+        shadow.receiveShadow = true;
+        scene.add(shadow);
+
+        const rebuild = () => {
+          const body = makeBody(profile);
+          const group = buildBodyMesh(body, profile);
+          for (const visual of garments) {
+            const g = buildGarment(visual, body);
+            if (g) group.add(g);
+          }
+          scene.add(group);
+          stateRef.current.group = group;
+
+          /* frame the avatar once */
+          const s = stateRef.current;
+          s.tDist = 4.2;
+          s.dist = 4.2;
+          s.tPitch = 0.42;
+          s.pitch = 0.42;
+          s.tYaw = 0;
+          s.yaw = 0;
+        };
+        rebuild();
+      } catch (err) {
+        console.error("avatar scene init failed, showing 2D fallback:", err);
+        mount.childNodes.forEach((n) => mount.removeChild(n));
+        onFatal?.();
+        return;
+      }
 
       /* ---- interactions ---- */
       const pointers = new Map<number, { x: number; y: number }>();
@@ -866,6 +893,11 @@ const AvatarScene = memo(
         pinchDist = 0;
       };
       const onWheel = (e: WheelEvent) => {
+        /* Only intercept ctrlKey wheel events (trackpad pinch and
+           Ctrl+scroll) for zoom. A plain scroll over the avatar must
+           scroll the PAGE — trapping it is what made the review page
+           feel scroll-locked. */
+        if (!e.ctrlKey) return;
         e.preventDefault();
         const s = stateRef.current;
         s.tDist = clampDist(s.tDist + e.deltaY * 0.003);
@@ -880,6 +912,7 @@ const AvatarScene = memo(
       /* ---- animation ---- */
       const lookAt = new THREE.Vector3(0, 1.02, 0);
       let running = true;
+      let loopFailures = 0;
       const tick = () => {
         if (!running) return;
         const s = stateRef.current;
@@ -893,8 +926,24 @@ const AvatarScene = memo(
           lookAt.z + s.dist * Math.cos(s.yaw) * Math.cos(s.pitch)
         );
         camera.lookAt(lookAt);
-        renderer.render(scene, camera);
-        s.raf = requestAnimationFrame(tick);
+        try {
+          renderer.render(scene, camera);
+        } catch (err) {
+          /* a GPU/driver failure mid-loop must not leave a silent
+             blank canvas — surface it as a visible fallback instead */
+          loopFailures += 1;
+          if (loopFailures >= 3) {
+            console.error(
+              "avatar scene render loop failed, showing 2D fallback:",
+              err
+            );
+            running = false;
+            cancelAnimationFrame(state.raf);
+            onFatal?.();
+            return;
+          }
+        }
+        state.raf = requestAnimationFrame(tick);
       };
       state.raf = requestAnimationFrame(tick);
 
@@ -909,21 +958,22 @@ const AvatarScene = memo(
       };
       document.addEventListener("visibilitychange", onVis);
 
-      /* ---- resize ---- */
+      /* ---- resize (always gets a real, on-screen size) ---- */
       const resize = () => {
-        const w = mount.clientWidth;
-        const h = mount.clientHeight;
-        if (w === 0 || h === 0) return;
-        renderer.setSize(w, h, false);
+        const { w, h } = measure();
+        renderer.setSize(w, h, true);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
       };
       resize();
       const ro = new ResizeObserver(resize);
       ro.observe(mount);
+      /* a late layout/font pass can change the box; re-fit once more */
+      const rafId = requestAnimationFrame(() => resize());
 
       return () => {
         running = false;
+        cancelAnimationFrame(rafId);
         document.removeEventListener("visibilitychange", onVis);
         ro.disconnect();
         canvas.removeEventListener("pointerdown", onPointerDown);
@@ -932,7 +982,7 @@ const AvatarScene = memo(
         canvas.removeEventListener("pointercancel", onPointerUp);
         canvas.removeEventListener("wheel", onWheel);
         cancelAnimationFrame(state.raf);
-        scene.traverse((obj) => {
+        scene?.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
             obj.geometry?.dispose?.();
             const m = obj.material;
@@ -944,14 +994,17 @@ const AvatarScene = memo(
         if (renderer.domElement.parentNode === mount) {
           mount.removeChild(renderer.domElement);
         }
+        if (stateRef.current.group) {
+          stateRef.current.group = null;
+        }
       };
-    }, [profile, garments]);
+    }, [profile, garments, onFatal]);
 
     return (
       <div
         ref={mountRef}
         className={className}
-        style={{ touchAction: "none", ...style }}
+        style={{ touchAction: "pan-y", ...style }}
         aria-label="3D outfit preview"
         role="img"
       />

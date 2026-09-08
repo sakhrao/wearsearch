@@ -35,6 +35,10 @@ import {
   fixedLookScore,
 } from "@/lib/outfit/review-state";
 import {
+  orderedReviewPieces,
+  reviewApiPiecesFor,
+} from "@/lib/outfit/review-display";
+import {
   parseUrlState,
   type UrlPiece,
 } from "@/lib/build/url-state";
@@ -48,8 +52,6 @@ import {
   type AvatarProfile,
 } from "@/lib/avatar/profile";
 import { SLOT_LABELS } from "@/lib/build/flow-rules";
-
-const SLOT_ORDER = ["top", "bottom", "footwear", "layer", "accessory"];
 
 type ReviewItem = {
   slot: string;
@@ -163,18 +165,10 @@ function ReviewInner() {
   const topSlug = selected.top?.product.categorySlug ?? null;
 
   /* ordered display list, exactly like the builder flow */
-  const ordered = useMemo(() => {
-    const out: Array<UrlPiece & { slot: string }> = [];
-    for (const slot of SLOT_ORDER) {
-      if (slot === "accessory") {
-        for (const a of accessories) out.push({ ...a, slot });
-      } else {
-        const p = selected[slot];
-        if (p) out.push({ ...p, slot });
-      }
-    }
-    return out;
-  }, [selected, accessories]);
+  const ordered = useMemo(
+    () => orderedReviewPieces(selected, accessories),
+    [selected, accessories]
+  );
 
   /* instant client garments (slug + color only) so the scene renders
      before the server's attribute-rich visuals arrive */
@@ -215,18 +209,7 @@ function ReviewInner() {
     const controller = new AbortController();
     aborterRef.current = controller;
 
-    const pieces = [
-      ...Object.entries(selected).map(([slot, p]) => ({
-        slot,
-        productId: p.product.id,
-        color: p.color ? { name: p.color, hex: null } : null,
-      })),
-      ...accessories.map((p) => ({
-        slot: "accessory",
-        productId: p.product.id,
-        color: p.color ? { name: p.color, hex: null } : null,
-      })),
-    ];
+    const pieces = reviewApiPiecesFor(selected, accessories);
 
     fetch("/api/outfit/review", {
       method: "POST",

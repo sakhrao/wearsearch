@@ -54,6 +54,16 @@ import {
   reviewStatusFor,
   reviewStepsFor,
 } from "../src/lib/outfit/review-state";
+import {
+  orderedReviewPieces,
+  reviewApiPiecesFor,
+} from "../src/lib/outfit/review-display";
+import {
+  parseAccessories,
+  parsePieces,
+  parseUrlState,
+} from "../src/lib/build/url-state";
+import type { UrlBuildProduct, UrlPiece } from "../src/lib/build/url-state";
 import type { OutfitProduct } from "../src/lib/outfit/types";
 
 let passed = 0;
@@ -270,6 +280,67 @@ const scored = fixedLookScore({
 check("fixed look scores deterministically in [0,1]", typeof scored === "number" && scored !== null && scored >= 0 && scored <= 1);
 
 /* ------------------------------------------------------------------ */
+/* PART A — review page wiring (regression for the production bug)     */
+/*                                                                     */
+/* The Avatar + Selected cards are BOTH driven by `ordered` on the     */
+/* page. The bug report (blank avatar, "empty" selected, scroll) must  */
+/* never be explained by a dropped look: these pin the pure helpers    */
+/* the page now uses so a full builder URL always yields its pieces.   */
+/* ------------------------------------------------------------------ */
+
+const urlProduct = (id: string, overrides: Partial<UrlBuildProduct> = {}): UrlBuildProduct => ({
+  id,
+  name: `${id} name`,
+  price: "19.99",
+  currency: "EUR",
+  imageUrl: null,
+  productUrl: `https://shop.example.com/p/${id}`,
+  brand: "DemoBrand",
+  categorySlug: "t-shirts",
+  categoryName: "T-Shirts",
+  gender: "MEN",
+  colors: ["Black"],
+  sizes: ["M"],
+  ...overrides,
+});
+const piece = (id: string, color: string | null = "Black"): UrlPiece => ({
+  product: urlProduct(id),
+  color,
+});
+const urlSelected = {
+  top: piece("t"),
+  bottom: piece("b"),
+  footwear: piece("f"),
+  layer: piece("l"),
+};
+const urlAccessories = [piece("a1"), piece("a2")];
+
+const ordered = orderedReviewPieces(urlSelected, urlAccessories);
+check("review display keeps avatar+buy sources (6 pieces -> 1 avatar + 5 bought)", ordered.length === 6);
+check("review display order is top,bottom,footwear,layer,then ALL accessories", ordered.map((o) => o.slot).join(",") === "top,bottom,footwear,layer,accessory,accessory");
+check("accessories are always last even when optional layer is unset", orderedReviewPieces({ top: urlSelected.top, bottom: urlSelected.bottom }, urlAccessories).map((o) => o.slot).join(",") === "top,bottom,accessory,accessory");
+check("ordered pieces passthrough the real products", ordered[0].product.id === "t" && ordered[4].product.id === "a1");
+check("empty review state -> empty ordered list (page renders its empty state)", orderedReviewPieces({}, []).length === 0);
+
+const apiBody = reviewApiPiecesFor(urlSelected, urlAccessories);
+check("api body has one entry per slot + one per accessory", apiBody.length === 6);
+check("api body carries slot + productId", apiBody[0].slot === "top" && apiBody[0].productId === "t");
+check("api body color is a resolved name with null hex", apiBody[0].color?.name === "Black" && apiBody[0].color?.hex === null);
+check("api body tags every accessory entry", apiBody.filter((p) => p.slot === "accessory").length === 2);
+
+/* the review page receives the builder URL verbatim (?gender&selected&accs) */
+const u = new URL(`https://wearsearch.app/outfit/review?gender=MEN&selected=${encodeURIComponent(JSON.stringify(urlSelected))}&accs=${encodeURIComponent(JSON.stringify(urlAccessories))}`);
+const { selected: parsedSel, accessories: parsedAccs } = parseUrlState(
+  u.searchParams.get("gender"),
+  u.searchParams.get("selected"),
+  u.searchParams.get("accs")
+);
+check("review page parses a builder URL into the exact same look", Object.keys(parsedSel).length === 4 && parsedSel.top?.product.id === "t" && parsedSel.bottom?.product.id === "b" && parsedSel.footwear?.product.id === "f" && parsedSel.layer?.product.id === "l" && parsedAccs.length === 2);
+check("parsed look survives a full JSON roundtrip non-empty (no init reset race)", orderedReviewPieces(parsedSel, parsedAccs).length === 6);
+check("accessories keep their pick order through serialization (it IS the display order)", parseAccessories(JSON.stringify(urlAccessories)).map((p) => p.product.id).join(",") === "a1,a2");
+check("parse drops malformed pieces instead of crashing or inventing them", Object.keys(parsePieces('{"top":{"product":{}}}')).length === 0);
+
+/* ------------------------------------------------------------------ */
 /* PART A — source independence (no fake products, no source coupling) */
 /* ------------------------------------------------------------------ */
 
@@ -296,6 +367,7 @@ const CLIENT_MODULES = [
   "src/lib/avatar/webgl.ts",
   "src/lib/outfit/garment.ts",
   "src/lib/outfit/review-state.ts",
+  "src/lib/outfit/review-display.ts",
   "src/app/outfit/review/page.tsx",
   "src/components/avatar/avatar-scene.tsx",
   "src/components/avatar/avatar-preview.tsx",

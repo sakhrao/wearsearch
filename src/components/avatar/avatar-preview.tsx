@@ -17,6 +17,7 @@ import {
   Suspense,
   lazy,
   memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -117,6 +118,7 @@ function AvatarPreviewInner({
   style,
 }: PreviewProps) {
   const [hasWebGL, setHasWebGL] = useState(false);
+  const [sceneFailed, setSceneFailed] = useState(false);
   const sceneRef = useRef<{ setView: (v: "front" | "left" | "right" | "back" | "reset") => void } | null>(null);
 
   useEffect(() => {
@@ -134,9 +136,12 @@ function AvatarPreviewInner({
     sceneRef.current?.setView("front");
   }, [garments]);
 
+  const onFatal = useCallback(() => setSceneFailed(true), []);
+
   const scene = useMemo(
     () =>
-      hasWebGL && (
+      hasWebGL &&
+      !sceneFailed && (
         <SceneBoundary fallback={<FallbackPanel garments={garments} />}>
           <Suspense fallback={<FallbackPanel garments={garments} />}>
             <AvatarScene
@@ -144,11 +149,12 @@ function AvatarPreviewInner({
               profile={profile}
               garments={garments}
               className="h-full w-full"
+              onFatal={onFatal}
             />
           </Suspense>
         </SceneBoundary>
       ),
-    [hasWebGL, profile, garments]
+    [hasWebGL, sceneFailed, profile, garments, onFatal]
   );
 
   const fallback = useMemo(
@@ -158,16 +164,16 @@ function AvatarPreviewInner({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-paper-soft to-surface ${className ?? ""}`}
+      className={`relative min-h-[420px] overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-paper-soft to-surface sm:min-h-[500px] ${className ?? ""}`}
       style={style}
     >
       {scene ?? fallback}
 
-      {hasWebGL && (
+      {hasWebGL && !sceneFailed && (
         <>
           <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-between p-3">
             <p className="rounded-xl bg-ink/70 px-3 py-1.5 text-[11px] text-paper backdrop-blur">
-              Drag to rotate · scroll / pinch to zoom
+              Drag to rotate · pinch / Ctrl+scroll to zoom
             </p>
           </div>
           <div className="absolute right-3 top-3 z-10 flex gap-1.5">
