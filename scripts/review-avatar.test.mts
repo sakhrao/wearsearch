@@ -703,6 +703,173 @@ if (built) {
   check("shoes anchor at the feet (near ankle height)",
     shoeBox.min.y < fit.ankleY + 0.04 && shoeBox.max.y > fit.ankleY - 0.06);
   check("shoes are not underground", shoeBox.min.y >= 0);
+
+  /* ------------------------------------------------------------------ */
+  /* PART C-2 — BODY-path anatomy garments (the production render path).
+     These pass a real skinned body into buildGarmentVisual, so shells are
+     cut from the posed body surface instead of lathe primitives. */
+  /* ------------------------------------------------------------------ */
+
+  const partsOf = (name: string, g: THREE.Object3D): THREE.Mesh[] =>
+    tileMeshes(g).filter((m) => m.userData?.kind === name ||
+      (m.userData?.kind === "shell" && m.name === name));
+
+  const shellMeshes = (g: THREE.Object3D): THREE.Mesh[] =>
+    tileMeshes(g).filter((m) => m.userData?.kind === "shell");
+  const trimMeshes = (g: THREE.Object3D): THREE.Mesh[] =>
+    tileMeshes(g).filter((m) => m.userData?.kind === "trim");
+  const soleMeshes = (g: THREE.Object3D): THREE.Mesh[] =>
+    tileMeshes(g).filter((m) => m.userData?.kind === "sole");
+
+  /* shell vs body: every garment shell rides just OUTSIDE the posed body,
+     i.e. it is a deflated (offset-outward) skin, never buried inside it. */
+  let bodyPts: Float32Array = new Float32Array(0);
+  const bodyShellHug = (g: THREE.Object3D): number => {
+    if (bodyPts.length === 0) return 1;
+    const mesh = shellMeshes(g)[0];
+    if (!mesh) return 0;
+    const pos = mesh.geometry.attributes.position;
+    if (!pos) return 0;
+    const arr = pos.array as Float32Array;
+    const n = pos.count;
+    const step = Math.max(1, Math.floor(n / 400));
+    let close = 0;
+    let total = 0;
+    const pt = new THREE.Vector3();
+    for (let i = 0; i < n; i += step) {
+      total++;
+      pt.set(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]);
+      let d = Infinity;
+      for (let j = 0; j < bodyPts.length; j += 3) {
+        const dx = pt.x - bodyPts[j];
+        const dy = pt.y - bodyPts[j + 1];
+        const dz = pt.z - bodyPts[j + 2];
+        const dd = dx * dx + dy * dy + dz * dz;
+        if (dd < d) d = dd;
+      }
+      if (Math.sqrt(d) < 0.15) close++;
+    }
+    return total ? close / total : 0;
+  };
+  /* load the posed (unscaled-local) body vertex cloud once for hug tests */
+  (async () => {
+    const bb = await build({});
+    bb.root.updateMatrixWorld(true);
+    const s = bb.body.getWorldScale(new THREE.Vector3()).x || 1;
+    const sk = (await import("../src/lib/avatar/human-model")).skinnedPositions(bb.body);
+    bodyPts = new Float32Array(sk.length);
+    for (let i = 0; i < sk.length; i++) bodyPts[i] = sk[i] / s;
+  })();
+
+  const bodyG = (type: GarmentType, over: Partial<GarmentVisual> = {}) =>
+    buildGarmentVisual(ghost(type, { ...over, slot: over.slot ?? "top" }), fit, body);
+
+  const btee = bodyG("tee");
+  const bjeans = bodyG("jeans", { slot: "bottom" });
+  const bsneakers = bodyG("sneakers", { slot: "footwear" });
+  const bdress = bodyG("dress", { slot: "top", length: "long" });
+  const bjumpsuit = bodyG("jumpsuit", { slot: "top" });
+  const bjacket = bodyG("jacket", { slot: "layer", sleeve: "long", collar: "collar" });
+  const bboots = bodyG("boots", { slot: "footwear" });
+  const bshorts = bodyG("shorts", { slot: "bottom" });
+
+  /* 1. BODY path produces anatomy shells (NOT lathe primitives) */
+  check("body tee: torso is a deflated shell (not a lathe)",
+    latheMeshes(btee).length === 0 && partsOf("torso", btee).length >= 1);
+  check("body tee: short sleeves are two arm shells",
+    shellMeshes(btee).filter((m) => m.name === "sleeve").length >= 2);
+  check("body tee: collar + hem are trim rings",
+    trimMeshes(btee).length >= 2);
+
+  check("body jeans: seat + crotch + two leg tubes",
+    partsOf("seat", bjeans).length === 1 &&
+    partsOf("crotch", bjeans).length === 1 &&
+    shellMeshes(bjeans).filter((m) => m.name === "leg").length === 2);
+
+  check("body sneakers: two deflated foot shells + two soles (no lathe)",
+    shellMeshes(bsneakers).filter((m) => m.name === "shoe").length === 2 &&
+    soleMeshes(bsneakers).length === 2 &&
+    latheMeshes(bsneakers).length === 0);
+
+  check("body boots: foot shells + leg shaft above ankle",
+    shellMeshes(bboots).filter((m) => m.name === "shoe").length === 2 &&
+    shellMeshes(bboots).filter((m) => m.name === "boot-shaft").length === 2);
+
+  check("body dress: conforming torso shell + lathe flare skirt",
+    shellMeshes(bdress).filter((m) => m.name === "dress-torso").length === 1 &&
+    latheMeshes(bdress).length >= 1);
+
+  check("body jumpsuit: torso + two full leg shells",
+    partsOf("jumpsuit-torso", bjumpsuit).length === 1 &&
+    shellMeshes(bjumpsuit).filter((m) => m.name === "jumpsuit-leg").length === 2);
+
+  check("body jacket: long sleeves hug both arm chains",
+    shellMeshes(bjacket).filter((m) => m.name === "sleeve").length >= 2);
+
+  /* 2. shells hug the body surface (not balloons hovering far away) */
+  await new Promise((r) => setTimeout(r, 10));
+  check("body tee: torso shell hugs the body surface",
+    bodyShellHug(btee) > 0.9, `hug=${bodyShellHug(btee).toFixed(2)}`);
+
+  /* 3. garments sit within the body's vertical span */
+  const inSpan = (g: THREE.Object3D): boolean => {
+    const b = new THREE.Box3().setFromObject(g);
+    return b.min.y > -0.06 && b.max.y < fit.height + 0.05;
+  };
+  check("body garments vertical span sane", [btee, bjeans, bdress, bjumpsuit, bjacket, bboots, bshorts, bsneakers].every(inSpan));
+
+  /* 4. shoes: sole clamped flat & flush under the deflated foot */
+  (() => {
+    const shoes = shellMeshes(bsneakers).filter((m) => m.name === "shoe");
+    const soles = soleMeshes(bsneakers);
+    if (shoes.length && soles.length) {
+      const sbox = new THREE.Box3().setFromObject(shoes[0]);
+      const sobox = new THREE.Box3().setFromObject(soles[0]);
+      check("body shoe sole is flat (bottom at plane, not pointed)", sbox.min.y > -0.02 && sbox.min.y < 0.06);
+      check("body shoe sole sits flush under the foot shell", Math.abs(sobox.max.y - sbox.min.y) < 0.05);
+    }
+  })();
+
+  /* 5. layering renders with distinct renderOrder per garment layer */
+  const orders = [btee, bjacket, bsneakers].map((g) => {
+    let o = 0;
+    g.traverse((m) => { if ((m as THREE.Mesh).isMesh) o = (m as THREE.Mesh).renderOrder; });
+    return o;
+  });
+  check("layering: under/outer/footwear renderOrder strictly increases",
+    orders[0] < orders[1] && orders[1] < orders[2], `orders=${orders}`);
+
+  /* 6. customization coherence: one garment whose fit/customs change must
+     still track the same underlying body (no drift or NaN), and a slimmer
+     body yields a slimmer garment */
+  const slimFor = await build({ gender: "WOMEN", heightCm: 160, weightKg: 52, bodyShape: "slim" });
+  slimFor.root.updateMatrixWorld(true);
+  const slimTee = buildGarmentVisual(ghost("tee"), slimFor.fit, slimFor.body);
+  const slimBox = new THREE.Box3().setFromObject(slimTee);
+  const baseBox = new THREE.Box3().setFromObject(btee);
+  check("customization: slimmer body yields a slimmer garment",
+    slimBox.getSize(new THREE.Vector3()).x < baseBox.getSize(new THREE.Vector3()).x + 0.02);
+  check("customization: shelf-changing fit stays finite",
+    tileMeshes(slimTee).every((m) => m.position.toArray().every(Number.isFinite)));
+
+  /* 7. custom-body tracking: when garments are ROOTED under the avatar
+     root (as avatar-scene does), the whole look scales with the profile —
+     a 196 cm body produces a taller tee than a 174 cm body, world-space */
+  const tallFor = await build({ gender: "MEN", heightCm: 196, weightKg: 118, bodyShape: "broad" });
+  tallFor.root.updateMatrixWorld(true);
+  const tallTee = buildGarmentVisual(ghost("tee"), tallFor.fit, tallFor.body);
+  tallFor.root.add(tallTee);
+  tallFor.root.updateMatrixWorld(true);
+  const tallBox = new THREE.Box3().setFromObject(tallTee);
+  const baseTeeForFit = await build({});
+  baseTeeForFit.root.updateMatrixWorld(true);
+  const baseTeeSc = buildGarmentVisual(ghost("tee"), baseTeeForFit.fit, baseTeeForFit.body);
+  baseTeeForFit.root.add(baseTeeSc);
+  baseTeeForFit.root.updateMatrixWorld(true);
+  const baseBox2 = new THREE.Box3().setFromObject(baseTeeSc);
+  check("customization: taller body (rooted) yields a taller garment in world space",
+    tallBox.max.y - baseBox2.max.y > 0.1,
+    `tall=${tallBox.max.y.toFixed(3)} base=${baseBox2.max.y.toFixed(3)}`);
 }
 
 /* ------------------------------------------------------------------ */

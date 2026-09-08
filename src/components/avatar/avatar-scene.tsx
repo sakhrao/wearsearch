@@ -29,9 +29,9 @@ import {
 } from "react";
 import * as THREE from "three";
 import type { AvatarProfile } from "@/lib/avatar/profile";
-import { buildAvatar } from "@/lib/avatar/human-model";
+import { buildAvatar, skinnedPositions } from "@/lib/avatar/human-model";
 import type { GarmentVisual } from "@/lib/outfit/garment";
-import { buildGarmentVisual } from "@/lib/outfit/garment-assets";
+import { buildGarmentVisual, bodyDataFor } from "@/lib/outfit/garment-assets";
 
 export type AvatarSceneHandle = {
   setView: (
@@ -68,6 +68,7 @@ const AvatarScene = memo(
     const stateRef = useRef<{
       renderer: THREE.WebGLRenderer | null;
       group: THREE.Group | null;
+      fit: import("@/lib/avatar/human-model").FitSheet | null;
       yaw: number;
       pitch: number;
       dist: number;
@@ -79,6 +80,7 @@ const AvatarScene = memo(
     }>({
       renderer: null,
       group: null,
+      fit: null,
       yaw: 0,
       pitch: 0,
       dist: 0,
@@ -163,6 +165,32 @@ const AvatarScene = memo(
               });
               return b;
             },
+            bodyData: () => {
+              const g = stateRef.current.group;
+              if (!g) return null;
+              let b: THREE.SkinnedMesh | null = null;
+              g.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.name === "body") b = o as THREE.SkinnedMesh;
+              });
+              return b ? bodyDataFor(b) : null;
+            },
+            liveSkinned: () => {
+              const g = stateRef.current.group;
+              if (!g) return null;
+              let b: THREE.SkinnedMesh | null = null;
+              g.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.name === "body") b = o as THREE.SkinnedMesh;
+              });
+              if (!b) return null;
+              const p = skinnedPositions(b);
+              let n = 0, ymin = Infinity, ymax = -Infinity, xmin = Infinity, xmax = -Infinity;
+              for (let i = 0; i < p.length; i += 3) {
+                n++;
+                const y = p[i + 1], x = p[i];
+                if (y < ymin) ymin = y; if (y > ymax) ymax = y; if (x < xmin) xmin = x; if (x > xmax) xmax = x;
+              }
+              return { n, ymin: n ? +ymin.toFixed(3) : null, ymax: n ? +ymax.toFixed(3) : null, xmin: n ? +xmin.toFixed(3) : null, xmax: n ? +xmax.toFixed(3) : null };
+            },
             garments: () => {
               const g = stateRef.current.group;
               if (!g) return [];
@@ -170,6 +198,24 @@ const AvatarScene = memo(
               g.traverse((o) => {
                 const ud = o.userData;
                 if (ud && ud.garment) {
+                  const parts: unknown[] = [];
+                  (o as THREE.Object3D).traverse((m) => {
+                    const mesh = m as THREE.Mesh;
+                    if (!mesh.isMesh) return;
+                    const box = new THREE.Box3().setFromObject(mesh);
+                    const pos = mesh.geometry?.attributes?.position;
+                    parts.push({
+                      name: mesh.name || undefined,
+                      kind: mesh.userData?.kind,
+                      geoType: mesh.geometry?.type,
+                      verts: pos ? pos.count : 0,
+                      tris: mesh.geometry?.index ? mesh.geometry.index.count / 3 : 0,
+                      bounds: box.isEmpty() ? null : {
+                        min: box.min.toArray().map((n) => Math.round(n * 1000) / 1000),
+                        max: box.max.toArray().map((n) => Math.round(n * 1000) / 1000),
+                      },
+                    });
+                  });
                   out.push({
                     type: ud.garment.type,
                     category: ud.garment.category,
@@ -177,6 +223,8 @@ const AvatarScene = memo(
                     slot: ud.visual?.slot,
                     label: ud.visual?.label,
                     visible: o.visible,
+                    latheCount: parts.filter((p) => (p as { geoType: string }).geoType === "LatheGeometry").length,
+                    parts,
                     bounds: (() => {
                       const box = new THREE.Box3().setFromObject(o);
                       return {
@@ -190,9 +238,29 @@ const AvatarScene = memo(
               });
               return out;
             },
+            /* fit facts (un-scaled local metres) + world-scaled landmarks so
+               spatial guardrails can be compared with garment world bounds */
+            fit: () => {
+              const f = stateRef.current.fit;
+              if (!f) return null;
+              const s = stateRef.current.group?.getWorldScale(new THREE.Vector3()).x || 1;
+              const world = (n: number) => Math.round((n * s) * 1000) / 1000;
+              return {
+                worldScale: Math.round(s * 1000) / 1000,
+                neckY: { local: f.neckY, world: world(f.neckY) },
+                shoulderY: { local: f.shoulderY, world: world(f.shoulderY) },
+                chestY: { local: f.chestY, world: world(f.chestY) },
+                waistY: { local: f.waistY, world: world(f.waistY) },
+                hipY: { local: f.hipY, world: world(f.hipY) },
+                kneeY: { local: f.kneeY, world: world(f.kneeY) },
+                ankleY: { local: f.ankleY, world: world(f.ankleY) },
+              };
+            },
             /* head-plumbing facts for verification: skull top/width from the
                posed body geometry, the hair shell bounding box and the eye
-               parts (iris/pupil world centres). */
+               parts (iris/pupil world centres). Everything is measured in the
+               world frame (skinned local points × the avatar world scale) so
+               thin/tall profiles stay comparable. */
             head: () => {
               const g = stateRef.current.group;
               if (!g) return null;
@@ -202,16 +270,23 @@ const AvatarScene = memo(
               });
               if (!bodyObj) return null;
               const body = bodyObj as THREE.SkinnedMesh;
-              const bodyBox = new THREE.Box3().setFromObject(body);
-              const topY = bodyBox.max.y;
-              const mw = body.matrixWorld;
-              const pos = body.geometry.attributes.position.array as Float32Array;
+              const s =
+                g.getWorldScale(new THREE.Vector3()).x ||
+                body.getWorldScale(new THREE.Vector3()).x ||
+                1;
+              const pts = skinnedPositions(body);
+              let topY = -Infinity;
+              let bottomY = Infinity;
+              for (let i = 1; i < pts.length; i += 3) {
+                if (pts[i] > topY) topY = pts[i];
+                if (pts[i] < bottomY) bottomY = pts[i];
+              }
               let skullHalfW = 0;
-              const v = new THREE.Vector3();
-              for (let i = 0; i < pos.length; i += 3) {
-                v.set(pos[i], pos[i + 1], pos[i + 2]).applyMatrix4(mw);
-                if (v.y > topY - 0.16 && v.y < topY - 0.03) {
-                  if (Math.abs(v.x) > skullHalfW) skullHalfW = Math.abs(v.x);
+              for (let i = 0; i < pts.length; i += 3) {
+                const y = pts[i + 1];
+                if (y > topY - 0.16 && y < topY - 0.03) {
+                  const ax = Math.abs(pts[i]);
+                  if (ax > skullHalfW) skullHalfW = ax;
                 }
               }
               let eyes: THREE.Object3D | null = null;
@@ -237,9 +312,9 @@ const AvatarScene = memo(
                   })()
                 : null;
               return {
-                bodyTop: Math.round(topY * 1000) / 1000,
-                bodyBottom: Math.round(bodyBox.min.y * 1000) / 1000,
-                skullHalfW: Math.round(skullHalfW * 1000) / 1000,
+                bodyTop: Math.round(topY * s * 1000) / 1000,
+                bodyBottom: Math.round(bottomY * s * 1000) / 1000,
+                skullHalfW: Math.round(skullHalfW * s * 1000) / 1000,
                 eyesGroup: !!eyes,
                 iris,
                 pupil,
@@ -320,12 +395,12 @@ const AvatarScene = memo(
         scene.add(holder);
 
         try {
-          const { root, fit } = await buildAvatar(profile);
+          const { root, body, fit } = await buildAvatar(profile);
           /* children of root: body + eyes + hair (already added) */
           const garmentLayer = new THREE.Group();
           garmentLayer.name = "garments";
           for (const visual of garments) {
-            const g = buildGarmentVisual(visual, fit);
+            const g = buildGarmentVisual(visual, fit, body);
             if (g) garmentLayer.add(g);
           }
           root.add(garmentLayer);
@@ -341,11 +416,14 @@ const AvatarScene = memo(
           disposeGroup(holder);
           scene.add(root);
           stateRef.current.group = root;
+          stateRef.current.fit = fit;
 
-          /* frame the avatar once */
+          /* frame the full person once, scaled by the avatar's height so a
+             short or tall profile never goes out of frame */
+          const frameDist = Math.min(6.4, Math.max(3.4, 2.6 + fit.totalHeight * 1.08));
           const s = stateRef.current;
-          s.tDist = 4.4;
-          s.dist = 4.4;
+          s.tDist = frameDist;
+          s.dist = frameDist;
           s.tPitch = 0.42;
           s.pitch = 0.42;
           s.tYaw = 0;

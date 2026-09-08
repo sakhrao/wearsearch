@@ -103,15 +103,30 @@ function hierarchizeArms(bones: THREE.Bone[]): void {
 }
 
 /* Re-own the cloned bone hierarchy: three's clone() duplicates bones, so
-   a fresh Skeleton over the COPY is required for correct skinning. */
+   a fresh Skeleton over the COPY is required for correct skinning.
+
+   The bones array MUST keep the GLB/joint order (the order the mesh's
+   skinIndices were baked against). Loading the list from body.skeleton
+   preserves that; rebuilding via root.traverse() can visit the scene in a
+   different order (notably after clone()), silently pointing every skin
+   index at the wrong joint and skinned geometry comes out garbled. */
 function reBindSkeleton(root: THREE.Group): THREE.SkinnedMesh {
   const body = findBody(root);
   if (!body) throw new Error("avatar base missing 'body' SkinnedMesh");
   root.updateMatrixWorld(true);
   const bones: THREE.Bone[] = [];
-  root.traverse((o) => {
-    if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone);
-  });
+  const jointOrder = body.skeleton?.bones;
+  if (jointOrder && jointOrder.length > 0) {
+    for (const b of jointOrder) {
+      if (b && (b as unknown as THREE.Bone).isBone && b !== bones[bones.length - 1]) {
+        bones.push(b as THREE.Bone);
+      }
+    }
+  } else {
+    root.traverse((o) => {
+      if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone);
+    });
+  }
   hierarchizeArms(bones);   /* arms become real (parent→child) chains */
   root.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(bones);
@@ -481,6 +496,14 @@ export function buildEyes(fit: FitSheet): THREE.Group {
     glint.position.set(e.x - eyeR * 0.2, e.y + eyeR * 0.22, fz + 0.0045);
     glint.userData.part = "glint";
     g.add(glint);
+
+    /* brow: a gently arched strand above each eye — sells the face */
+    const browMat = new THREE.MeshStandardMaterial({ color: 0x2b1f16, roughness: 0.9 });
+    const brow = new THREE.Mesh(new THREE.TorusGeometry(eyeR * 1.1, eyeR * 0.16, 6, 14, Math.PI * 1.15), browMat);
+    brow.position.set(e.x, e.y + eyeR * 1.35, e.z - socketDepth + eyeR * 0.92);
+    brow.rotation.z = Math.PI / 2;
+    brow.userData.part = "brow";
+    g.add(brow);
   }
   return g;
 }
@@ -511,12 +534,16 @@ export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group
   };
 
   /* full scalp shell: from the crown down past the hairline to the nape
-     (thetaLength ~0.78π), flattened slightly front-to-back */
+     (thetaLength ~0.78π), flattened slightly front-to-back. The vertical
+     scale is stretched per-fit so the pole CRESTS the actual crown (the
+     skull top), not a fixed cap that sits a few cm below it. */
   const shell = () => {
     const geo = new THREE.SphereGeometry(scalpR, 30, 18, 0, Math.PI * 2, 0, Math.PI * 0.78);
     const m = new THREE.Mesh(geo, mat);
     m.position.set(0, skullY, 0);
-    m.scale.set(1, 1.02, 0.96);
+    /* pole at theta=0 lands at y = skullY + r · scaleY → target the crown */
+    const shellTop = Math.max(crown, skullY + scalpR) + 0.004;
+    m.scale.set(1, Math.max(1.02, (shellTop - skullY) / scalpR), 0.96);
     g.add(m);
   };
 
@@ -538,14 +565,23 @@ export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group
     g.add(m);
   };
 
-  /* short fringe: a small forward cap on the forehead hairline */
-  const fringe = (size: number) => {
-    const geo = new THREE.SphereGeometry(scalpR * 0.46 * size, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(0, crown - r * 0.04, r * 0.78);
-    m.scale.set(1.15, 0.85, 0.7);
-    g.add(m);
+  /* hairline strands: fine tapered cones ringing the forehead hairline —
+     reads as hair instead of a solid blob cap */
+  const hairline = (density: number) => {
+    const count = Math.round(26 * density);
+    for (let i = 0; i < count; i++) {
+      const phi = (i / count) * Math.PI * 2 + prand() * 0.15;
+      const hx = Math.sin(phi) * scalpR * 0.92;
+      const hz = Math.cos(phi) * scalpR * 0.86;
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.008 + prand() * 0.006, 0.035 + prand() * 0.02, 6), mat);
+      c.position.set(hx, skullY + Math.sqrt(Math.max(0, scalpR * scalpR - hx * hx - hz * hz * 0.86)) * 0.86, hz);
+      c.rotation.x = Math.PI * (0.5 + prand() * 0.25);
+      c.rotation.z = Math.atan2(hx, hz) * 0.4;
+      g.add(c);
+    }
   };
+
+  const longFrac = length === "long" ? 1 : length === "medium" ? 0.62 : 0.34;
 
   /* curly tufts spread across the crown surface */
   const curly = (n: number, size: number) => {
@@ -562,8 +598,6 @@ export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group
     }
   };
 
-  const longFrac = length === "long" ? 1 : length === "medium" ? 0.62 : 0.34;
-
   switch (style) {
     case "buzz":
       shell();
@@ -571,18 +605,18 @@ export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group
     case "short":
       shell();
       backMass(0.35);
-      fringe(1);
+      hairline(0.7);
       break;
     case "medium":
       shell();
       backMass(0.65);
-      fringe(0.85);
+      hairline(1);
       fall(longFrac);
       break;
     case "long":
       shell();
       backMass(longFrac);
-      fringe(0.6);
+      hairline(0.9);
       fall(longFrac);
       break;
     case "curly":
@@ -591,6 +625,7 @@ export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group
       shell();
       curly(Math.round(30 * dense), 0.3);
       curly(Math.round(18 * dense), 0.2);
+      hairline(0.8);
       if (style === "ponytail") {
         const tail = new THREE.Mesh(new THREE.CapsuleGeometry(r * 0.24, r * 1.5, 6, 12), mat);
         tail.position.set(0, crown + r * 0.45, -r * 0.28);

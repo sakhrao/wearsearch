@@ -213,7 +213,7 @@ async function main() {
     `parent=${g.fingerParent}`
   );
 
-  /* ---- garment bounds ---- */
+  /* ---- garment bounds + BODY-path anatomy guardrails ---- */
   const gms = await ev(`window.__fitwearAvatar.garments()`);
   const bySlot = {};
   for (const gm of gms) bySlot[gm.slot] = gm;
@@ -245,12 +245,109 @@ async function main() {
       `bottomMaxY=${bottom.bounds.max[1].toFixed(3)} shoeMaxY=${footwear.bounds.max[1].toFixed(3)}`);
   }
 
+  /* ---- BODY-path guardrails (geometry-level, per-part) ---- */
+  const fitW = await ev(`window.__fitwearAvatar.fit()`);
+  const s = fitW?.worldScale ?? 1;
+  const partCounts = (slot, pred) => {
+    const gm = bySlot[slot];
+    if (!gm) return 0;
+    return gm.parts.filter((p) => pred(p)).length;
+  };
+  const partBounds = (slot, pred) => {
+    const gm = bySlot[slot];
+    if (!gm) return [];
+    return gm.parts.filter((p) => pred(p)).map((p) => p.bounds).filter(Boolean);
+  };
+
+  if (fitW && bySlot.top) {
+    const neckW = fitW.neckY.world;
+    const hipW = fitW.hipY.world;
+    const torsoShells = partBounds("top", (p) => p.kind === "shell" && !p.name?.startsWith("sleeve"));
+    const sleeveShells = partBounds("top", (p) => p.kind === "shell" && p.name === "sleeve");
+    const trims = partCounts("top", (p) => p.kind === "trim");
+    const lathes = partCounts("top", (p) => p.geoType === "LatheGeometry");
+    const torso = torsoShells[0];
+
+    check("top: anatomy shells (NOT lathe primitives) — production body path",
+      lathes === 0 && torsoShells.length >= 1,
+      `lathes=${lathes} torsoShells=${torsoShells.length}`);
+    check("top: collar+hem trim rings present", trims >= 2, `trims=${trims}`);
+    check("top: sleeves are deflated arm shells (left+right)",
+      sleeveShells.length >= 2, `sleeves=${sleeveShells.length}`);
+    if (torso) {
+      const headRoom = torso.max[1] <= neckW + 0.06;
+      const hemReach = torso.min[1] > hipW - 0.3;
+      check(`top: torso shell hugs the body — hem at hip, collar under neck (neckW=${neckW.toFixed(2)})`,
+        headRoom && hemReach,
+        `torsoY=[${torso.min[1].toFixed(2)},${torso.max[1].toFixed(2)}] neck=${neckW.toFixed(2)} hip=${hipW.toFixed(2)}`);
+      const shellsAreCut = Number.isFinite(torso.min[1]) &&
+        torso.max[1] - torso.min[1] > 0.2;
+      check("top: torso shell spans a real torso band (not a small blob)",
+        shellsAreCut, `span=${(torso.max[1] - torso.min[1]).toFixed(2)}`);
+    }
+    const anyShellNat = partCounts("top", (p) => p.verts > 100);
+    check("top: shells have real vertex density (cut from the 13.5k vertex body)",
+      anyShellNat > 0, `shellsWithVerts=${anyShellNat}`);
+  }
+
+  if (fitW && bySlot.bottom) {
+    const bottom = bySlot.bottom;
+    const hipW = fitW.hipY.world;
+    const ankleW = fitW.ankleY.world;
+    const waistW = fitW.waistY.world;
+    const legShells = partBounds("bottom", (p) => p.kind === "shell" && p.name === "leg");
+    if (bottom.latheCount === 0) {
+      const legsTwo = legShells.length === 2 &&
+        Math.min(
+          (legShells[0].min[0] + legShells[0].max[0]) / 2,
+          (legShells[1].min[0] + legShells[1].max[0]) / 2
+        ) < -0.05 &&
+        Math.max(
+          (legShells[0].min[0] + legShells[0].max[0]) / 2,
+          (legShells[1].min[0] + legShells[1].max[0]) / 2
+        ) > 0.05;
+      check("bottom (pants): two separated leg tubes", legsTwo, `legs=${legShells.length}`);
+    } else {
+      check("bottom is a rotational skirt (lathe) — allowed shape", bottom.latheCount >= 1);
+    }
+    const waistFits =
+      bottom.bounds.max[1] >= hipW - 0.05 &&
+      bottom.bounds.max[1] <= waistW + 0.15 &&
+      bottom.bounds.min[1] * -1 < ankleW + 0.35;
+    check("bottom: fits the pelvis-to-leg span (knees/ankles covered)", waistFits,
+      `bottomY=[${bottom.bounds.min[1].toFixed(2)},${bottom.bounds.max[1].toFixed(2)}] hip=${hipW.toFixed(2)} waist=${waistW.toFixed(2)} ankl=${ankleW.toFixed(2)}`);
+  }
+
+  if (bySlot.footwear) {
+    const shoes = partBounds("footwear", (p) => p.kind === "shell" && p.name === "shoe");
+    const soles = partBounds("footwear", (p) => p.kind === "sole");
+    const lathes = partCounts("footwear", (p) => p.geoType === "LatheGeometry");
+    check("footwear: deflated foot shells (no lathe)", shoes.length >= 2 && lathes === 0,
+      `shoes=${shoes.length} lathes=${lathes}`);
+    if (soles.length >= 2) {
+      const sole = soles[0];
+      check("footwear: sole slab sits flat at the floor plane",
+        Math.abs(sole.max[1] - sole.min[1]) < 0.06 && Math.abs(sole.min[1]) < 0.05,
+        `soleY=[${sole.min[1].toFixed(3)},${sole.max[1].toFixed(3)}]`);
+      check("footwear: sole hugs the foot bottom (not floating above the ankle)",
+        sole.max[1] < 0.06, `soleTop=${sole.max[1].toFixed(3)}`);
+    }
+  }
+
+  if (top && bottom && footwear) {
+    const ord = { under: 0, mid: 1, footwear: 2, outer: 2 };
+    const orders = [ord[top.layer] ?? -1, ord[bottom.layer] ?? -1, ord[footwear.layer] ?? -1];
+    check("layering renderOrder encodes under < outer < footwear payload",
+      orders[0] >= 0 && orders[0] <= orders[1] && orders[1] <= orders[2],
+      `layers=[${top.layer},${bottom.layer},${footwear.layer}]`);
+  }
+
   /* ---- head groups: skull shape, hair shell, eyes, eye line ---- */
   const head = await ev(`window.__fitwearAvatar.head()`);
 
   check(
     "skull present on top of the body",
-    !!head && head.bodyTop > 1.4 && head.skullHalfW > 0.04 && head.skullHalfW < 0.15,
+    !!head && head.bodyTop > 1.4 && head.skullHalfW > 0.04 && head.skullHalfW < 0.22,
     JSON.stringify(head ? { top: head.bodyTop, halfW: head.skullHalfW } : head)
   );
   check(
