@@ -19,6 +19,9 @@ import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
+import * as THREE from "three";
+import { buildAvatarFrom, avatarFromBytes } from "../src/lib/avatar/human-model";
+
 import {
   AVATAR_GENDERS,
   BODY_SHAPES,
@@ -70,6 +73,7 @@ import {
   avatarModelFor,
   bodyMorphsFor,
   silentProfileFields,
+  AVATAR_MORPH_NAMES,
 } from "../src/lib/avatar/avatar-model";
 import {
   fashionCompatibility,
@@ -80,7 +84,7 @@ import {
   silhouetteFactor,
   verdictFor,
 } from "../src/lib/outfit/fashion-compatibility";
-import { garmentAssetFor } from "../src/lib/outfit/garment-assets";
+import { garmentAssetFor, buildGarmentVisual } from "../src/lib/outfit/garment-assets";
 
 let passed = 0;
 let failed = 0;
@@ -355,6 +359,7 @@ check("slab: big coat + relaxed jeans scores low", silhouetteFactor([
 ]) <= 0.4);
 check("single outer layers cleanly", layeringFactor([ghost("coat")]) === 1);
 check("coat over blazer conflicts", layeringFactor([ghost("coat"), ghost("blazer")]) === 0.55);
+check("two structured outers is hard-invalid", fashionCompatibility([ghost("jacket"), ghost("blazer")]).verdict === "hard-invalid");
 check("verdict thresholds", verdictFor(0.8, []) === "strong" && verdictFor(0.6, []) === "valid" && verdictFor(0.3, []) === "soft-mismatch" && verdictFor(0.9, ["x"]) === "hard-invalid");
 
 /* ------------------------------------------------------------------ */
@@ -541,6 +546,164 @@ const manifestOk = existsSync(manifest) ? JSON.parse(readFileSync(manifest, "utf
 check("avatar manifest exists with the CC0 bill of provenance", manifestOk?.license?.toLowerCase().includes("cc0"));
 check("avatar base is the expected body (13380 verts, 26756 tris, 52 bones)", manifestOk?.scene?.vertexCount === 13380 && manifestOk?.scene?.triangleCount === 26756 && manifestOk?.scene?.boneCount === 52);
 check("every runtime morph name exists in the baked base", Array.isArray(manifestOk?.morphs) && manifestOk.morphs.length === 30);
+
+/* ------------------------------------------------------------------ */
+/* PART C — GarmentSystem + avatar GEOMETRY gates (no DOM / WebGL)     */
+/*                                                                     */
+/* These check the ACTUAL three.js output the GPU would render: a      */
+/* garment mesh must exist per category, be front-facing (not          */
+/* back-face-culled by the winding, which previously made the torso    */
+/* invisible), have real bounding boxes on the body (not floating,     */
+/* not underground), and every profile pick must visibly change the    */
+/* mesh. Regression: lathe surfaces built top-down were inward-wound   */
+/* (all triangles culled on FrontSide) — the cargo of this whole part. */
+/* ------------------------------------------------------------------ */
+
+const glbBuff = readFileSync(baseGlb);
+const glbBytes = glbBuff.buffer.slice(
+  glbBuff.byteOffset,
+  glbBuff.byteOffset + glbBuff.byteLength
+) as ArrayBuffer;
+
+async function build(profileOverride: Record<string, unknown>) {
+  const profile = normalizeAvatarProfile(profileOverride);
+  const baseRoot = await avatarFromBytes(glbBytes);
+  return buildAvatarFrom(baseRoot, profile);
+}
+
+let built;
+try {
+  built = await build({});
+} catch {
+  built = null;
+}
+check("avatar parses from the baked GLB in Node (no DOM needed)", built !== null);
+
+const tileMeshes = (g: THREE.Object3D): THREE.Mesh[] => {
+  const out: THREE.Mesh[] = [];
+  g.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) out.push(o as THREE.Mesh);
+  });
+  return out;
+};
+
+function latheMeshes(g: THREE.Object3D): THREE.Mesh[] {
+  return tileMeshes(g).filter((m) => m.geometry.type === "LatheGeometry");
+}
+
+/* winding-based outward fraction: what the rasterizer would actually
+   keep on FrontSide (the default material side) */
+function outwardFraction(geo: THREE.BufferGeometry): number {
+  const pos = geo.attributes.position;
+  const idx = geo.index;
+  if (!pos || !idx) return 0;
+  const p = pos.array as unknown as ArrayLike<number>;
+  const i = idx.array as unknown as ArrayLike<number>;
+  let out = 0;
+  let total = 0;
+  for (let t = 0; t + 2 < i.length; t += 3) {
+    const a = new THREE.Vector3(p[i[t] * 3], p[i[t] * 3 + 1], p[i[t] * 3 + 2]);
+    const b = new THREE.Vector3(p[i[t + 1] * 3], p[i[t + 1] * 3 + 1], p[i[t + 1] * 3 + 2]);
+    const c = new THREE.Vector3(p[i[t + 2] * 3], p[i[t + 2] * 3 + 1], p[i[t + 2] * 3 + 2]);
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    const cent = new THREE.Vector3().addVectors(a, b).addScaledVector(c, 1).multiplyScalar(1 / 3);
+    const radial = new THREE.Vector3(cent.x, 0, cent.z);
+    if (radial.lengthSq() < 1e-9) continue;
+    total++;
+    if (radial.dot(n) > 0) out++;
+  }
+  return total ? out / total : 0;
+}
+
+if (built) {
+  const { root, body, fit, config } = built;
+  check("avatar has a real rigged SkinnedMesh", body.isSkinnedMesh && body.name === "body");
+  check("avatar skeleton has the baked 52 bones", body.skeleton.bones.length === 52);
+  check("all 30 runtime morphs are drivable on the mesh",
+    AVATAR_MORPH_NAMES.every((n) => (body.morphTargetDictionary ?? {})[n] !== undefined));
+  check("height scale applied to the avatar root", Math.abs(root.scale.y - 174 / 169.4) < 0.001);
+  check("head exists in human proportions", fit.headR > 0.06 && fit.headR < 0.16 && fit.headY > 1.3);
+  const hair = root.children.find((c) => c.name === "hair");
+  check("hair group exists with visible meshes", hair !== undefined && tileMeshes(hair as THREE.Object3D).length > 0);
+  const eyes = root.children.find((c) => c.name === "eyes");
+  check("eyes group exists (sclera+iris+pupil+glint)", eyes !== undefined && tileMeshes(eyes as THREE.Object3D).length >= 8);
+
+  /* a visibly different body MUST produce a visibly different mesh */
+  const slimShort = await build({ gender: "WOMEN", heightCm: 152, weightKg: 45, bodyShape: "slim" });
+  const tallBroad = await build({ gender: "MEN", heightCm: 196, weightKg: 118, bodyShape: "broad" });
+  slimShort.root.updateMatrixWorld(true);
+  tallBroad.root.updateMatrixWorld(true);
+  const b1 = new THREE.Box3().setFromObject(slimShort.body);
+  const b2 = new THREE.Box3().setFromObject(tallBroad.body);
+  check("short-slim vs tall-broad bodies differ visibly in height", b2.max.y - b1.max.y > 0.25);
+  check("heavier/broader body measures bigger (waist & chest) than short/slim",
+    tallBroad.fit.waistR > slimShort.fit.waistR && tallBroad.fit.chestR > slimShort.fit.chestR);
+  check("slim feminine profile keeps a waist-to-hip flare",
+    slimShort.fit.hipR > slimShort.fit.waistR && slimShort.fit.waistR > 0.07);
+  check("broad masculine profile has a defined torso taper",
+    tallBroad.fit.chestR > tallBroad.fit.waistR && tallBroad.fit.waistR > 0.08 && tallBroad.fit.hipR > 0.1);
+  check("morphs differ between profiles", JSON.stringify(slimShort.config.morphs) !== JSON.stringify(tallBroad.config.morphs));
+
+  /* per-category garment gates */
+  const garmentCases = [
+    { name: "tee (top)", visual: ghost("tee", { slot: "top" }) },
+    { name: "jeans (bottom)", visual: ghost("jeans", { slot: "bottom" }) },
+    { name: "sneakers (footwear)", visual: ghost("sneakers", { slot: "footwear" }) },
+    { name: "dress (one-piece)", visual: ghost("dress", { slot: "top" }) },
+    { name: "skirt (bottom)", visual: ghost("skirt", { slot: "bottom" }) },
+    { name: "jacket (layer)", visual: ghost("jacket", { slot: "layer" }) },
+  ];
+
+  for (const { name, visual } of garmentCases) {
+    const g = buildGarmentVisual(visual, fit);
+    const meshes = tileMeshes(g);
+    const box = new THREE.Box3().setFromObject(g);
+    const size = box.getSize(new THREE.Vector3());
+    check(`${name}: produces meshes`, meshes.length > 0);
+    check(`${name}: every mesh is VISIBLE and has geometry+material`,
+      meshes.every((m) => m.visible && m.geometry !== undefined && m.material !== undefined));
+    check(`${name}: positions/scales finite (no NaN)`,
+      meshes.every((m) => m.position.toArray().every(Number.isFinite) && m.scale.toArray().every(Number.isFinite)));
+    check(`${name}: bounding box is real and finite`,
+      !box.isEmpty() && box.min.toArray().every(Number.isFinite) && box.max.toArray().every(Number.isFinite));
+    check(`${name}: sits within the body's vertical extent`,
+      box.min.y > -0.05 && box.max.y < fit.height + 0.05);
+    check(`${name}: plausible size (not a spec bump)`,
+      size.x < 1 && size.y < fit.height + 0.05 && size.z < 1);
+  }
+
+  /* THE regression: lathe surfaces have outward winding (visible) */
+  const tee = buildGarmentVisual(garmentCases[0].visual, fit);
+  const jeans = buildGarmentVisual(garmentCases[1].visual, fit);
+  const dress = buildGarmentVisual(garmentCases[3].visual, fit);
+  const skirt = buildGarmentVisual(garmentCases[4].visual, fit);
+  for (const [label, g] of [["tee", tee], ["jeans", jeans], ["dress", dress], ["skirt", skirt]] as const) {
+    const lathes = latheMeshes(g);
+    check(`${label}: torso/skirt is a lathe surface`, lathes.length >= 1);
+    if (lathes.length >= 1) {
+      check(`${label}: lathe faces OUTWARD (visible under FrontSide)`,
+        outwardFraction(lathes[0].geometry) > 0.98,
+        `outward=${outwardFraction(lathes[0].geometry)}`);
+    }
+  }
+
+  /* integration: avatar + every garment, mimicking avatar-scene.tsx */
+  const int = await build({});
+  const garmentLayer = new THREE.Group();
+  for (const { visual } of garmentCases) garmentLayer.add(buildGarmentVisual(visual, fit));
+  int.root.add(garmentLayer);
+  int.root.updateMatrixWorld(true);
+  const bodyBox = new THREE.Box3().setFromObject(int.body);
+  for (const { name, visual } of garmentCases) {
+    const g = buildGarmentVisual(visual, fit);
+    const b = new THREE.Box3().setFromObject(g);
+    check(`${name}: worn on the body (box intersects the avatar)`, b.intersectsBox(bodyBox));
+  }
+  const shoeBox = new THREE.Box3().setFromObject(buildGarmentVisual(garmentCases[2].visual, fit));
+  check("shoes anchor at the feet (near ankle height)",
+    shoeBox.min.y < fit.ankleY + 0.04 && shoeBox.max.y > fit.ankleY - 0.06);
+  check("shoes are not underground", shoeBox.min.y >= 0);
+}
 
 /* ------------------------------------------------------------------ */
 /* PART B — honest API (needs live local catalog; skips cleanly)      */

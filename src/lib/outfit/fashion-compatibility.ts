@@ -291,6 +291,13 @@ export function fashionCompatibility(
   if ((counts["one-piece"] ?? 0) === 1 && (counts["bottom"] ?? 0) === 1) {
     hardInvalid.push("A dress/jumpsuit covers the bottom too — drop the trousers/jeans.");
   }
+  /* two structured outer layers fight each other and read as clutter */
+  const structuredOuters = garments.filter(
+    (g) => g.type === "coat" || g.type === "jacket" || g.type === "blazer"
+  ).length;
+  if (structuredOuters >= 2) {
+    hardInvalid.push("More than one structured outer layer (coat / jacket / blazer) — pick one.");
+  }
   issues.push(...hardInvalid);
 
   /* per-factor scores */

@@ -9,6 +9,7 @@
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { AvatarModelConfig } from "@/lib/avatar/avatar-model";
 import { avatarModelFor } from "@/lib/avatar/avatar-model";
 import type { AvatarProfile } from "@/lib/avatar/profile";
@@ -40,16 +41,83 @@ function loadAvatarBase(): Promise<THREE.Group> {
 export async function cloneAvatarBase(): Promise<THREE.Group> {
   const base = await loadAvatarBase();
   const copy = base.clone(true);
-  const body = findBody(copy);
+  reBindSkeleton(copy);
+  return copy;
+}
+
+/* Parse a GLB/glTF buffer into the avatar base scene — used by the Node
+   test-suite (no DOM, no network) and as the build entry for tools. */
+export async function avatarFromBytes(bytes: ArrayBuffer): Promise<THREE.Group> {
+  const gltf = await new Promise<GLTF>((resolve, reject) => {
+    const loader = new GLTFLoader();
+    loader.parse(bytes, "", (g) => resolve(g), (e) => reject(e instanceof Error ? e : new Error(String(e))));
+  });
+  return gltf.scene;
+}
+
+/* Reparent `child` under `parent` while preserving its world transform
+   (the flesh keeps its exact bind pose; the chain only gains a pivot). */
+function reparentPreservingWorld(child: THREE.Bone, parent: THREE.Bone): void {
+  child.updateWorldMatrix(true, false);
+  const world = child.matrixWorld.clone();
+  parent.updateWorldMatrix(true, false);
+  const inv = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+  const local = inv.multiply(world);
+  local.decompose(child.position, child.quaternion, child.scale);
+  child.parent?.remove(child);
+  parent.add(child);
+  child.updateMatrix();
+}
+
+/* The baked GLB carries a FLAT bone hierarchy — every bone hangs directly
+   off the scene root with its bind transform baked into the local frame.
+   That pins each part in space: rotating a shoulder cannot swing the arm.
+   This re-parents the arm (and finger) chains so the joints get real
+   pivots (world transforms preserved → zero visual change at bind), which
+   then lets poseArmsNeutral give the avatar a natural, neutral hang. */
+function hierarchizeArms(bones: THREE.Bone[]): void {
+  const byName = new Map(bones.map((b) => [b.name, b] as const));
+  const reparent = (childName: string, parentName: string): void => {
+    const child = byName.get(childName);
+    const parent = byName.get(parentName);
+    if (!child || !parent || child === parent) return;
+    if (child.parent === parent) return;                 /* already a chain */
+    if (child.parent && (child.parent as THREE.Bone).isBone) return;
+    reparentPreservingWorld(child, parent);
+  };
+  for (const side of ["Left", "Right"]) {
+    const base = `mixamorig${side}`;
+    reparent(`${base}Arm`, `${base}Shoulder`);
+    reparent(`${base}ForeArm`, `${base}Arm`);
+    reparent(`${base}Hand`, `${base}ForeArm`);
+    for (const finger of [
+      "HandThumb1", "HandThumb2", "HandThumb3",
+      "HandIndex1", "HandIndex2", "HandIndex3",
+      "HandMiddle1", "HandMiddle2", "HandMiddle3",
+      "HandRing1", "HandRing2", "HandRing3",
+      "HandPinky1", "HandPinky2", "HandPinky3",
+    ]) {
+      reparent(`${base}${finger}`, `${base}Hand`);
+    }
+  }
+}
+
+/* Re-own the cloned bone hierarchy: three's clone() duplicates bones, so
+   a fresh Skeleton over the COPY is required for correct skinning. */
+function reBindSkeleton(root: THREE.Group): THREE.SkinnedMesh {
+  const body = findBody(root);
   if (!body) throw new Error("avatar base missing 'body' SkinnedMesh");
+  root.updateMatrixWorld(true);
   const bones: THREE.Bone[] = [];
-  copy.traverse((o) => {
+  root.traverse((o) => {
     if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone);
   });
+  hierarchizeArms(bones);   /* arms become real (parent→child) chains */
+  root.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(bones);
   body.bind(skeleton, body.matrixWorld);
   body.updateMatrixWorld(true);
-  return copy;
+  return body;
 }
 
 export function findBody(root: THREE.Object3D): THREE.SkinnedMesh | null {
@@ -77,6 +145,48 @@ export function morphedPositions(body: THREE.SkinnedMesh): Float32Array {
     if (!influence || influence === 0) continue;
     const delta = morphs[m].array as Float32Array;
     for (let i = 0; i < count; i++) out[i] += delta[i] * influence;
+  }
+  return out;
+}
+
+/* CPU-side SKINNED positions: the morph-deformed bind vertices pushed through
+   the CURRENT skeleton pose (Σ weightᵢ · matrixWorldᵢ · bindInverseᵢ), i.e.
+   exactly what the GPU rasterizes. computeFit reads this so the torso bands
+   reflect the neutral-hang arms — otherwise measurements would keep "seeing"
+   the spread bind pose and read a waist wider than the hips. */
+export function skinnedPositions(body: THREE.SkinnedMesh): Float32Array {
+  const g = body.geometry;
+  const bind = morphedPositions(body);
+  const idx = g.attributes.skinIndex.array as Uint16Array;
+  const wgt = g.attributes.skinWeight.array as Float32Array;
+  const bones = body.skeleton.bones as THREE.Bone[];
+  const invs = body.skeleton.boneInverses;
+  if (!idx || !wgt || bones.length === 0 || invs.length === 0) return bind;
+  const out = new Float32Array(bind.length);
+  const te = new Float32Array(16);
+  const poseMatrix = new THREE.Matrix4();
+  const tmp = new THREE.Matrix4();
+  const v = new THREE.Vector3();
+  for (let i = 0; i < idx.length; i += 4) {
+    te.fill(0);
+    for (let k = 0; k < 4; k++) {
+      const b = idx[i + k];
+      const w = wgt[i + k];
+      if (!w || !bones[b] || !invs[b]) continue;
+      const e = tmp.multiplyMatrices(bones[b].matrixWorld, invs[b]).elements;
+      for (let m = 0; m < 16; m++) {
+        te[m] += e[m] * w;
+      }
+    }
+    poseMatrix.fromArray(te);
+    const vi = i;               /* i is the 4-wide vertex counter → 4 * vert */
+    const b3 = (vi / 4) * 3;    /* component base of this vertex in xyz */
+    v
+      .set(bind[b3], bind[b3 + 1], bind[b3 + 2])
+      .applyMatrix4(poseMatrix);
+    out[b3] = v.x;
+    out[b3 + 1] = v.y;
+    out[b3 + 2] = v.z;
   }
   return out;
 }
@@ -109,34 +219,115 @@ export type FitSheet = {
 type VP = THREE.Vector3;
 const vp = (x: number, y: number, z: number): VP => new THREE.Vector3(x, y, z);
 
-/* Band silhouette radius: p75 of the max-radius-per-azimuth at height y.
-   Arms make a couple of azimuth spikes near the torso; the percentile keeps
-   them from inflating the chest/waist/hip clothing radius. */
+/* Band silhouette radius: the MEDIAN of the max-radius-per-azimuth of the
+   cross-section ring at height y, measured around the RING'S OWN centroid.
+   The centroid kills the head/belly sitting forward of the spine axis (an
+   axis-based "r" reads the offset, not the width), and the median over fine
+   azimuth bins keeps the few arm-peak bins from inflating the value. */
 function bandRadius(
   pts: Float32Array,
   y: number,
   half: number,
-  az = 48
+  az = 72
 ): number {
-  const maxPerAz = new Array(az).fill(0);
   let n = 0;
+  let cx = 0;
+  let cz = 0;
   for (let i = 0; i < pts.length; i += 3) {
     const py = pts[i + 1];
     if (py < y - half || py > y + half) continue;
-    const px = pts[i];
-    const pz = pts[i + 2];
-    const r = Math.sqrt(px * px + pz * pz);
-    const a = Math.floor((Math.atan2(pz, px) + Math.PI) / (Math.PI * 2 / az)) % az;
-    if (r > maxPerAz[a]) maxPerAz[a] = r;
+    cx += pts[i];
+    cz += pts[i + 2];
     n++;
   }
-  if (n < 24) return 0;
-  const sorted = maxPerAz.slice().sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length * 0.75)];
+  if (n < 12) return 0;
+  cx /= n;
+  cz /= n;
+  const maxPerAz = new Array(az).fill(0);
+  for (let i = 0; i < pts.length; i += 3) {
+    const py = pts[i + 1];
+    if (py < y - half || py > y + half) continue;
+    const dx = pts[i] - cx;
+    const dz = pts[i + 2] - cz;
+    const r = Math.sqrt(dx * dx + dz * dz);
+    const a = Math.floor((Math.atan2(dz, dx) + Math.PI) / (Math.PI * 2 / az)) % az;
+    if (r > maxPerAz[a]) maxPerAz[a] = r;
+  }
+  const vals = maxPerAz.filter((v) => v > 0).sort((a, b) => a - b);
+  if (vals.length === 0) return 0;
+  return vals[Math.floor(vals.length * 0.5)];
+}
+
+/* Express a WORLD-space rotation `worldRot` as a rotation in `bone`'s LOCAL
+   parent frame (bone's own frame is rotated by its parents in the chain). */
+function localFrameRotation(bone: THREE.Bone, worldRot: THREE.Quaternion): THREE.Quaternion {
+  const parent = bone.parent ? (bone.parent as THREE.Object3D) : bone;
+  const pw = new THREE.Quaternion();
+  parent.getWorldQuaternion(pw);
+  return pw.clone().invert().multiply(worldRot).multiply(pw);
+}
+
+/* Neutral-hang arm pose. The MakeHuman hm08 rest pose spreads the arms well
+   away from the torso (hands at x≈±0.45–0.5, forward of the chest), which
+   reads as an unnatural stance and inflates the waist/hip torso bands. This
+   swings each shoulder chain so the hand hangs at the side of the thigh,
+   then re-bends the forearm for a soft, natural elbow. Called AFTER morphs,
+   BEFORE fit measurement, so garments inherit the corrected joints too. */
+export function poseArmsNeutral(body: THREE.SkinnedMesh): void {
+  const sk = body.skeleton as unknown as { getBoneByName(name: string): THREE.Bone | null };
+  const targetHandX = 0.14;   /* hand hangs just outside the hip */
+  const targetHandZ = 0.045;  /* slightly in front of the thigh plane */
+  for (const side of ["left", "right"] as const) {
+    const cap = side[0].toUpperCase() + side.slice(1);
+    const shoulder = sk.getBoneByName(`mixamorig${cap}Shoulder`);
+    const arm = sk.getBoneByName(`mixamorig${cap}Arm`);
+    const forearm = sk.getBoneByName(`mixamorig${cap}ForeArm`);
+    const hand = sk.getBoneByName(`mixamorig${cap}Hand`);
+    if (!shoulder || !arm || !forearm || !hand) continue;
+
+    const S = new THREE.Vector3();
+    shoulder.getWorldPosition(S);
+    const H = new THREE.Vector3();
+    hand.getWorldPosition(H);
+    const dirH = new THREE.Vector3().subVectors(H, S);
+    const armLen = dirH.length();
+    if (armLen < 1e-3) continue;
+    dirH.divideScalar(armLen);
+    const towardOwnSide = S.x >= 0 ? 1 : -1;
+    const drop = Math.max(0.46, Math.min(0.72, -dirH.y * armLen));
+    const T = new THREE.Vector3(
+      towardOwnSide * targetHandX,
+      S.y - drop,
+      S.z + targetHandZ
+    );
+    const dirT = new THREE.Vector3().subVectors(T, S).normalize();
+
+    /* rotate the shoulder — the whole now-chained arm swings about it */
+    const q1 = new THREE.Quaternion().setFromUnitVectors(dirH, dirT);
+    if (Math.abs(q1.w) < 0.9985) {
+      shoulder.quaternion.premultiply(localFrameRotation(shoulder, q1));
+    }
+
+    /* re-bend the forearm so the wrist lands on the target hang line */
+    const E = new THREE.Vector3();
+    forearm.getWorldPosition(E);
+    const H2 = new THREE.Vector3();
+    hand.getWorldPosition(H2);
+    const dirFA = new THREE.Vector3().subVectors(H2, E);
+    const faLen = dirFA.length();
+    if (faLen < 1e-3) continue;
+    dirFA.divideScalar(faLen);
+    const dirT2 = new THREE.Vector3().subVectors(T, E).normalize();
+    const q2 = new THREE.Quaternion().setFromUnitVectors(dirFA, dirT2);
+    if (Math.abs(q2.w) < 0.9995) {
+      forearm.quaternion.premultiply(localFrameRotation(forearm, q2));
+    }
+  }
+  body.updateMatrixWorld(true);
 }
 
 export function computeFit(body: THREE.SkinnedMesh): FitSheet {
-  const pts = morphedPositions(body);
+  const pts = skinnedPositions(body);
   let topY = 0, bottomY = Infinity;
   for (let i = 1; i < pts.length; i += 3) {
     if (pts[i] > topY) topY = pts[i];
@@ -146,7 +337,7 @@ export function computeFit(body: THREE.SkinnedMesh): FitSheet {
   const joints = new Map<string, VP>();
   for (const bone of body.skeleton.bones as THREE.Bone[]) {
     const name = bone.name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-    joints.set(name, bone.position.clone());
+    joints.set(name, bone.getWorldPosition(new THREE.Vector3()));
   }
   const bone = (...names: string[]): VP => {
     for (const n of names) {
@@ -249,36 +440,69 @@ export function applyProfile(body: THREE.SkinnedMesh, config: AvatarModelConfig)
   body.updateMatrixWorld(true);
 }
 
-/* ---- eyes (procedural, anchored to the head) ---- */
+/* ---- eyes (procedural, anchored to the head) ----
+   The eyeball is embedded in the socket (slightly recessed) so only the
+   front sphere bulges; the iris + pupil are discs ON the front of the
+   sclera (facing +Z, the head's forward), clearly visible. A tiny white
+   highlight sells the wet-glint. The old build hidden the iris INSIDE the
+   opaque sclera sphere — pupils were never rendered. */
 export function buildEyes(fit: FitSheet): THREE.Group {
   const g = new THREE.Group();
-  const scleraMat = new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.2, metalness: 0.0 });
-  const irisMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.15, metalness: 0.0 });
-  const scleraGeo = new THREE.SphereGeometry(fit.headR * 0.14, 16, 12);
-  const irisGeo = new THREE.CircleGeometry(fit.headR * 0.06, 18);
+  const scleraMat = new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.18, metalness: 0.0, envMapIntensity: 0.7 });
+  const irisMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.1, metalness: 0.0, envMapIntensity: 0.8 });
+  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x0b0a08, roughness: 0.08, metalness: 0.02 });
+  const glintMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, envMapIntensity: 1.2 });
+
+  const eyeR = fit.headR * 0.15;
+  const socketDepth = fit.headR * 0.20;   /* embed the ball into the skull */
+  const frontZ = (z: number) => z - socketDepth + eyeR * 1.16;
+
   for (const side of [-1, 1]) {
-    const s = new THREE.Mesh(scleraGeo, scleraMat);
     const e = side < 0 ? fit.leftEye : fit.rightEye;
-    s.position.copy(e);
-    s.scale.z = 1.25;
-    g.add(s);
-    const iris = new THREE.Mesh(irisGeo, irisMat);
-    iris.position.set(e.x, e.y, e.z + fit.headR * 0.12);
-    iris.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 18, 14), scleraMat);
+    ball.position.set(e.x, e.y, e.z - socketDepth);
+    ball.scale.z = 1.16;
+    ball.userData.part = "sclera";
+    g.add(ball);
+
+    const fz = frontZ(e.z);
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(eyeR * 0.5, 20), irisMat);
+    iris.position.set(e.x, e.y, fz + 0.0015);
+    iris.userData.part = "iris";
     g.add(iris);
+
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(eyeR * 0.24, 16), pupilMat);
+    pupil.position.set(e.x, e.y, fz + 0.003);
+    pupil.userData.part = "pupil";
+    g.add(pupil);
+
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.14, 8, 6), glintMat);
+    glint.position.set(e.x - eyeR * 0.2, e.y + eyeR * 0.22, fz + 0.0045);
+    glint.userData.part = "glint";
+    g.add(glint);
   }
   return g;
 }
 
-/* ---- hair (procedural per style/length/texture) ---- */
+/* ---- hair (procedural per style/length/texture) ----
+   A scalp-hugging shell (hemisphere centred ON the skull, not floating
+   above it) + a nape/back mass that reaches the hairline + a fringe for
+   the short/medium cuts + layered crown tufts for curls. All radii are
+   measured from the morphed head, so the hair follows a thin/heavy or
+   short/tall customization too. */
 export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group {
   const g = new THREE.Group();
   const { style, length, texture, color } = config.hair;
   if (style === "bald") return g;
 
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85, side: THREE.DoubleSide });
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.88, side: THREE.DoubleSide });
   const r = fit.headR;
-  const cy = fit.headY;
+  const cy = fit.headY;          /* mid-skull reference */
+  const crown = fit.crownY;      /* actual head top */
+  const skullY = cy - r * 0.12;  /* skull centre: below mid so the shell hugs */
+  const scalpR = r * 1.05;
+
   const seed1 = 101;
   let seed = seed1;
   const prand = () => {
@@ -286,99 +510,134 @@ export function buildHair(fit: FitSheet, config: AvatarModelConfig): THREE.Group
     return seed / 233280;
   };
 
-  const cap = (scaleY: number) => {
-    const geo = new THREE.SphereGeometry(r * 1.06, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.62);
+  /* full scalp shell: from the crown down past the hairline to the nape
+     (thetaLength ~0.78π), flattened slightly front-to-back */
+  const shell = () => {
+    const geo = new THREE.SphereGeometry(scalpR, 30, 18, 0, Math.PI * 2, 0, Math.PI * 0.78);
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(0, cy + r * 0.06, 0);
-    m.scale.set(1, scaleY, 1);
+    m.position.set(0, skullY, 0);
+    m.scale.set(1, 1.02, 0.96);
     g.add(m);
   };
 
-  const backMass = (len: number, rx: number) => {
-    const geo = new THREE.SphereGeometry(r * 0.62, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.7);
+  /* back mass: fills the nape / above-neck so the hairline reads solid */
+  const backMass = (lenFrac: number) => {
+    const geo = new THREE.SphereGeometry(scalpR * 0.92, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.7);
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(0, cy - r * 0.22 - len * 0.3, r * 0.14);
-    m.scale.set(1 + rx, len / (r * 1.3), 1 + rx);
+    m.position.set(0, skullY - scalpR * 0.28, -r * 0.12);
+    m.scale.set(1 + lenFrac * 0.35, 0.7 + lenFrac * 0.8, 0.6 + lenFrac * 0.35);
     g.add(m);
   };
 
-  const fall = (len: number) => {
-    const geo = new THREE.CapsuleGeometry(r * 0.34, len * 0.8, 6, 14);
+  /* long fall: hangs down the back of the neck toward the shoulders */
+  const fall = (lenFrac: number) => {
+    const geo = new THREE.CapsuleGeometry(r * 0.3, scalpR * 1.15 * lenFrac, 5, 12);
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(0, cy - r * 0.4 - len * 0.45, r * 0.2);
-    m.rotation.x = 0.16;
+    m.position.set(0, skullY - scalpR * 0.55 - scalpR * 0.55 * lenFrac, -r * 0.3);
+    m.rotation.x = 0.14;
     g.add(m);
   };
 
+  /* short fringe: a small forward cap on the forehead hairline */
+  const fringe = (size: number) => {
+    const geo = new THREE.SphereGeometry(scalpR * 0.46 * size, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(0, crown - r * 0.04, r * 0.78);
+    m.scale.set(1.15, 0.85, 0.7);
+    g.add(m);
+  };
+
+  /* curly tufts spread across the crown surface */
   const curly = (n: number, size: number) => {
     for (let i = 0; i < n; i++) {
       const phi = prand() * Math.PI * 2;
-      const theta = prand() * Math.PI * 0.48;
-      const c = new THREE.Mesh(new THREE.SphereGeometry(r * size, 12, 10), mat);
+      const theta = prand() * Math.PI * 0.58;
+      const c = new THREE.Mesh(new THREE.SphereGeometry(scalpR * size, 12, 10), mat);
       c.position.set(
-        Math.sin(theta) * Math.cos(phi) * r * 1.05,
-        cy + Math.cos(theta) * r * 1.05,
-        Math.sin(theta) * Math.sin(phi) * r * 1.05
+        Math.sin(theta) * Math.cos(phi) * scalpR * 0.92,
+        skullY + Math.cos(theta) * scalpR * 0.9,
+        Math.sin(theta) * Math.sin(phi) * scalpR * 0.92
       );
       g.add(c);
     }
   };
 
+  const longFrac = length === "long" ? 1 : length === "medium" ? 0.62 : 0.34;
+
   switch (style) {
     case "buzz":
-      cap(0.62);
+      shell();
       break;
     case "short":
-      cap(0.78);
-      backMass(length === "long" ? r * 1.0 : r * 0.45, 0.1);
+      shell();
+      backMass(0.35);
+      fringe(1);
       break;
     case "medium":
-      cap(0.92);
-      backMass(length === "long" ? r * 1.6 : r * 1.0, 0.18);
+      shell();
+      backMass(0.65);
+      fringe(0.85);
+      fall(longFrac);
       break;
     case "long":
-      cap(1.0);
-      backMass(r * 1.2, 0.15);
-      fall(length === "long" ? r * 1.9 : r * 1.2);
+      shell();
+      backMass(longFrac);
+      fringe(0.6);
+      fall(longFrac);
       break;
     case "curly":
     case "ponytail": {
-      const dense = texture === "coily" ? 1.25 : texture === "curly" ? 1 : 0.85;
-      cap(1.0);
-      curly(Math.round(22 * dense), 0.34);
-      curly(Math.round(14 * dense), 0.24);
+      const dense = texture === "coily" ? 1.3 : texture === "curly" ? 1 : 0.85;
+      shell();
+      curly(Math.round(30 * dense), 0.3);
+      curly(Math.round(18 * dense), 0.2);
       if (style === "ponytail") {
-        const tail = new THREE.Mesh(new THREE.CapsuleGeometry(r * 0.24, r * 1.6, 6, 12), mat);
-        tail.position.set(0, cy + r * 0.9, r * 0.4);
-        tail.rotation.x = -0.55;
+        const tail = new THREE.Mesh(new THREE.CapsuleGeometry(r * 0.24, r * 1.5, 6, 12), mat);
+        tail.position.set(0, crown + r * 0.45, -r * 0.28);
+        tail.rotation.x = -0.5;
         g.add(tail);
       }
       break;
     }
     default:
-      cap(0.8);
+      shell();
+      backMass(0.4);
   }
 
   return g;
 }
 
-/* ---- top-level builder ---- */
-export async function buildAvatar(profile: AvatarProfile): Promise<{
+/* ---- top-level builder ----
+   buildAvatarFrom builds the full avatar on an ALREADY-parsed base root
+   (shared by buildAvatar and the Node test-suite, which cannot fetch or
+   create a DOM). buildAvatar = parse via the network loader + build. */
+export function buildAvatarFrom(
+  baseRoot: THREE.Group,
+  profile: AvatarProfile
+): {
   root: THREE.Group;
   body: THREE.SkinnedMesh;
   fit: FitSheet;
   config: AvatarModelConfig;
-}> {
+} {
   const config = avatarModelFor(profile);
-  const root = await cloneAvatarBase();
-  const body = findBody(root);
-  if (!body) throw new Error("avatar base has no body");
+  const root = baseRoot;
+  const body = reBindSkeleton(root);
   body.name = "body";
   applyProfile(body, config);
-  root.scale.setScalar(config.heightScale);
+  poseArmsNeutral(body);
+  root.updateMatrixWorld(true);
 
+  /* fit is measured on the posed, un-scaled body so every value lives in
+     the model's own local frame (the height scale is applied afterwards to
+     the whole root — garments + avatar — together). */
   const fit = computeFit(body);
+  root.scale.setScalar(config.heightScale);
+  root.children
+    .filter((c) => c.name === "eyes" || c.name === "hair")
+    .forEach((c) => root.remove(c));
   const eyes = buildEyes(fit);
+  eyes.name = "eyes";
   root.add(eyes);
   const hair = buildHair(fit, config);
   hair.name = "hair";
@@ -386,4 +645,13 @@ export async function buildAvatar(profile: AvatarProfile): Promise<{
 
   root.updateMatrixWorld(true);
   return { root, body, fit, config };
+}
+
+export async function buildAvatar(profile: AvatarProfile): Promise<{
+  root: THREE.Group;
+  body: THREE.SkinnedMesh;
+  fit: FitSheet;
+  config: AvatarModelConfig;
+}> {
+  return buildAvatarFrom(await cloneAvatarBase(), profile);
 }

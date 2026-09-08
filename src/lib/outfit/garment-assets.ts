@@ -91,14 +91,19 @@ export function materialFor(visual: GarmentVisual, colorHex: number): THREE.Mesh
   }
 }
 
-/* lathe (rotation around Y) from (y, r) control points */
+/* Lathe (rotation around Y) from (y, r) control points.
+   The profile points must ASCEND in y (hem -> neck, bottom -> top):
+   LatheGeometry builds its ring winding from the profile direction, so a
+   top-down profile yields inward-facing (back-face-culled) surfaces. The
+   control points here are authored top-down (natural to read), so we
+   reverse before building. Returns only the surface whose front faces
+   remain OUTWARD, i.e. visible from outside. */
 function latheMesh(points: Array<{ y: number; r: number }>, mat: THREE.Material, seg = 44): THREE.Mesh {
-  const geo = new THREE.LatheGeometry(
-    points
-      .filter((p) => p.r > 0)
-      .map((p) => new THREE.Vector2(p.r, p.y)),
-    seg
-  );
+  const profile = points
+    .filter((p) => p.r > 0)
+    .map((p) => new THREE.Vector2(p.r, p.y));
+  const ascending = [...profile].reverse();
+  const geo = new THREE.LatheGeometry(ascending, seg);
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = true;
   return m;

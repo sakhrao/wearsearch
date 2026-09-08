@@ -141,8 +141,116 @@ const AvatarScene = memo(
         mount.appendChild(renderer.domElement);
 
         scene = new THREE.Scene();
+
+        /* Optional introspection hook for automated verification only:
+           ?avatarDebug=1 exposes the live scene + avatar group on window.
+           Does nothing otherwise (kept out of the product path). */
+        let debugCamera: THREE.PerspectiveCamera | null = null;
+        const debugHook =
+          typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).has("avatarDebug");
+        if (debugHook) {
+          (window as unknown as Record<string, unknown>).__fitwearAvatar = {
+            scene,
+            camera: () => debugCamera,
+            getGroup: () => stateRef.current.group,
+            body: () => {
+              const g = stateRef.current.group;
+              if (!g) return null;
+              let b: THREE.SkinnedMesh | null = null;
+              g.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.name === "body") b = o as THREE.SkinnedMesh;
+              });
+              return b;
+            },
+            garments: () => {
+              const g = stateRef.current.group;
+              if (!g) return [];
+              const out: unknown[] = [];
+              g.traverse((o) => {
+                const ud = o.userData;
+                if (ud && ud.garment) {
+                  out.push({
+                    type: ud.garment.type,
+                    category: ud.garment.category,
+                    layer: ud.garment.layer,
+                    slot: ud.visual?.slot,
+                    label: ud.visual?.label,
+                    visible: o.visible,
+                    bounds: (() => {
+                      const box = new THREE.Box3().setFromObject(o);
+                      return {
+                        min: box.min.toArray().map((n) => Math.round(n * 1000) / 1000),
+                        max: box.max.toArray().map((n) => Math.round(n * 1000) / 1000),
+                        size: box.getSize(new THREE.Vector3()).toArray().map((n) => Math.round(n * 1000) / 1000),
+                      };
+                    })(),
+                  });
+                }
+              });
+              return out;
+            },
+            /* head-plumbing facts for verification: skull top/width from the
+               posed body geometry, the hair shell bounding box and the eye
+               parts (iris/pupil world centres). */
+            head: () => {
+              const g = stateRef.current.group;
+              if (!g) return null;
+              let bodyObj: THREE.Object3D | undefined;
+              g.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.name === "body") bodyObj = o;
+              });
+              if (!bodyObj) return null;
+              const body = bodyObj as THREE.SkinnedMesh;
+              const bodyBox = new THREE.Box3().setFromObject(body);
+              const topY = bodyBox.max.y;
+              const mw = body.matrixWorld;
+              const pos = body.geometry.attributes.position.array as Float32Array;
+              let skullHalfW = 0;
+              const v = new THREE.Vector3();
+              for (let i = 0; i < pos.length; i += 3) {
+                v.set(pos[i], pos[i + 1], pos[i + 2]).applyMatrix4(mw);
+                if (v.y > topY - 0.16 && v.y < topY - 0.03) {
+                  if (Math.abs(v.x) > skullHalfW) skullHalfW = Math.abs(v.x);
+                }
+              }
+              let eyes: THREE.Object3D | null = null;
+              let hairMesh: THREE.Object3D | null = null;
+              const iris: number[][] = [];
+              const pupil: number[][] = [];
+              const wv = new THREE.Vector3();
+              g.traverse((o) => {
+                const nm = o.name;
+                if (nm === "eyes") eyes = o;
+                if (nm === "hair") hairMesh = o;
+                if (o.userData?.part === "iris") iris.push(o.getWorldPosition(wv.clone()).toArray().map((n) => Math.round(n * 1000) / 1000));
+                if (o.userData?.part === "pupil") pupil.push(o.getWorldPosition(wv.clone()).toArray().map((n) => Math.round(n * 1000) / 1000));
+              });
+              const hair = hairMesh
+                ? (() => {
+                    const box = new THREE.Box3().setFromObject(hairMesh);
+                    return {
+                      min: box.min.toArray().map((n) => Math.round(n * 1000) / 1000),
+                      max: box.max.toArray().map((n) => Math.round(n * 1000) / 1000),
+                      size: box.getSize(new THREE.Vector3()).toArray().map((n) => Math.round(n * 1000) / 1000),
+                    };
+                  })()
+                : null;
+              return {
+                bodyTop: Math.round(topY * 1000) / 1000,
+                bodyBottom: Math.round(bodyBox.min.y * 1000) / 1000,
+                skullHalfW: Math.round(skullHalfW * 1000) / 1000,
+                eyesGroup: !!eyes,
+                iris,
+                pupil,
+                hair,
+              };
+            },
+          };
+        }
         const fov = 38;
         camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
+        debugCamera = camera;
 
         /* lights */
         scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d0c4, 0.85));
