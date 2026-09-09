@@ -13,6 +13,7 @@ import {
   genderToAudience,
   getStepState,
   type QuestionnaireAnswers,
+  type StepKey,
 } from "@/lib/questionnaire";
 import {
   sizeSectionsFor,
@@ -906,8 +907,53 @@ export function FindQuestionnaire({
     }));
   }
 
+  /* Revisiting a step on Back never carries the old picks forward: the
+     user is redoing that step, so its answer (and anything that depends
+     on it) is cleared the moment we land on it. */
+  function clearAnswerFor(key: StepKey) {
+    setAnswers((previous) => {
+      switch (key) {
+        case "gender":
+          /* Redoing Who restarts the funnel: category options and the
+             size context both hang off the gender, so they reset with
+             it instead of riding along as stale picks. */
+          return {
+            ...previous,
+            gender: null,
+            category: null,
+            size: null,
+          };
+        case "category":
+          return { ...previous, category: null, size: null };
+        case "size":
+          return { ...previous, size: null };
+        case "colors":
+          return { ...previous, colors: [] };
+        case "budget":
+          return {
+            ...previous,
+            budgetMin: "",
+            budgetMax: "",
+            budgetCurrency: null,
+          };
+        case "details":
+          return { ...previous, attributes: [], detailTokens: [] };
+        default:
+          return previous;
+      }
+    });
+  }
+
   function back() {
     if (step > 0) {
+      const landingStep = STEP_KEYS[step - 1];
+      clearAnswerFor(landingStep);
+      if (landingStep === "category" || landingStep === "gender") {
+        setOpenSection(null);
+      }
+      if (landingStep === "colors") {
+        setColorFilter("");
+      }
       setStep(step - 1);
     }
   }
