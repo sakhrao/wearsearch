@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -302,6 +302,14 @@ export function FindQuestionnaire({
     useState("");
   const [openSection, setOpenSection] =
     useState<string | null>(null);
+  const optionsRef = useRef<HTMLElement | null>(null);
+
+  /* Any step change (forward, backward, or expanding/collapsing a
+     category section) restarts the options area at its top so a deep
+     internal scroll never carries over between steps. */
+  useEffect(() => {
+    optionsRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [step, openSection]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(
@@ -1133,6 +1141,7 @@ export function FindQuestionnaire({
       </div>
 
       <section
+        ref={optionsRef}
         className="min-h-0 flex-1 overflow-y-auto"
         aria-busy={!meta}
       >
