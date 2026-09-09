@@ -242,10 +242,12 @@ const eq = (a: unknown, b: unknown): boolean =>
     detailOptionGroupsFor(ctx).map((g) => g.name);
 
   check(
-    "shoes profile: Type/Material/Use",
+    "sneakers profile: Style/Material/Closure/Width/Use",
     eq(names({ root: "Shoes", group: "Shoes", slug: "sneakers" }), [
-      "Type",
+      "Style",
       "Material",
+      "Closure",
+      "Width",
       "Use",
     ])
   );
@@ -266,20 +268,77 @@ const eq = (a: unknown, b: unknown): boolean =>
     ])
   );
   check(
-    "headwear profile: Type/Material/Coverage",
+    "caps profile: Cap Style/Material/Pattern",
     eq(names({ root: "Headwear", group: "Headwear", slug: "caps" }), [
-      "Type",
+      "Cap Style",
       "Material",
+      "Pattern",
+    ])
+  );
+  check(
+    "hats profile: Hat Style/Material/Pattern/Coverage",
+    eq(names({ root: "Headwear", group: "Headwear", slug: "hats" }), [
+      "Hat Style",
+      "Material",
+      "Pattern",
       "Coverage",
     ])
   );
   check(
-    "general tops profile: Fit/Style/Material/Pattern",
+    "heels profile leads with Heel height",
+    eq(names({ root: "Shoes", group: "Shoes", slug: "heels" })[0], "Heel")
+  );
+  check(
+    "boots profile includes Closure and Heel",
+    eq(names({ root: "Shoes", group: "Shoes", slug: "boots" }), [
+      "Heel",
+      "Closure",
+      "Material",
+      "Width",
+    ])
+  );
+  check(
+    "tops profile: Fit/Sleeve/Style/Material/Pattern",
     eq(names({ root: "Clothing", group: "Tops", slug: "t-shirts" }), [
       "Fit",
+      "Sleeve",
       "Style",
       "Material",
       "Pattern",
+    ])
+  );
+  check(
+    "dresses profile: Length/Sleeve/Fit/Material/Pattern",
+    eq(names({ root: "Clothing", group: "Dresses & Jumpsuits", slug: "dresses" }), [
+      "Length",
+      "Sleeve",
+      "Fit",
+      "Material",
+      "Pattern",
+    ])
+  );
+  check(
+    "tie profile: Tie Style/Material/Pattern",
+    eq(names({ root: "Accessories", group: "Accessories", slug: "ties" }), [
+      "Tie Style",
+      "Material",
+      "Pattern",
+    ])
+  );
+  check(
+    "sunglasses profile: Frame/Lens/Material",
+    eq(names({ root: "Accessories", group: "Accessories", slug: "sunglasses" }), [
+      "Frame",
+      "Lens",
+      "Material",
+    ])
+  );
+  check(
+    "wallets profile: Size/Closure/Material",
+    eq(names({ root: "Accessories", group: "Accessories", slug: "wallets" }), [
+      "Size",
+      "Closure",
+      "Material",
     ])
   );
   check(
@@ -386,13 +445,37 @@ const eq = (a: unknown, b: unknown): boolean =>
     ])
   );
   check(
-    "general tops keep the shared clothing profile",
+    "general tops keep the shared clothing profile (with Sleeve)",
     eq(names({ root: "Clothing", group: "Tops", slug: "t-shirts" }), [
       "Fit",
+      "Sleeve",
       "Style",
       "Material",
       "Pattern",
     ])
+  );
+  check(
+    "no profile restates the picked leaf category (no self-chip)",
+    (() => {
+      const ctxs = [
+        { root: "Shoes", group: "Shoes", slug: "sneakers" },
+        { root: "Shoes", group: "Shoes", slug: "heels" },
+        { root: "Headwear", group: "Headwear", slug: "caps" },
+        { root: "Headwear", group: "Headwear", slug: "hats" },
+        { root: "Clothing", group: "Swimwear & Basics", slug: "swimwear" },
+        { root: "Accessories", group: "Accessories", slug: "sunglasses" },
+      ];
+      return ctxs.every((c) => {
+        const leaf = c.slug;
+        const values = detailOptionGroupsFor(c).flatMap((g) => g.values);
+        const self = values.find(
+          (v) =>
+            v.toLowerCase().replace(/[^a-z0-9]/g, "") ===
+            leaf.replace(/[^a-z0-9]/g, "")
+        );
+        return self == null;
+      });
+    })()
   );
 }
 
