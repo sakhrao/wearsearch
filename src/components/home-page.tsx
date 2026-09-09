@@ -1113,6 +1113,153 @@ function Home({
     void router.push("/");
   }
 
+  /* Shared search bar markup. Landing renders it over the hero
+     photo (onImage=true, paper styling on the dark overlay); the
+     results view keeps the plain paper styling (onImage=false). */
+  const renderSearchContent = (onImage: boolean) => (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <label className="relative flex-1">
+          <span className="sr-only">Search for clothes</span>
+
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className="pointer-events-none absolute left-6 top-1/2 size-5 -translate-y-1/2 text-ink-faint"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+
+          <input
+            id="search-input"
+            type="text"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                if (query.trim()) {
+                  handleSearch(
+                    { query, params: EMPTY_SEARCH_PARAMS },
+                    true
+                  );
+                } else if (searchParams.size > 0) {
+                  /* C4: an empty query + Enter must not leave the
+                     input blank while the old URL and results stay.
+                     Route to the empty landing state through the URL
+                     effect (its "empty" branch resets results); this
+                     matches the Search button for a blank query. */
+                  void router.push("/");
+                }
+              }
+            }}
+            placeholder="What are you looking for?"
+            aria-label="Search for clothes"
+            className={
+              onImage
+                ? "h-16 w-full rounded-full border border-paper/25 bg-paper/95 pl-14 pr-6 text-base text-ink outline-none transition placeholder:text-ink-faint focus:border-paper focus:ring-4 focus:ring-paper/20 sm:text-lg"
+                : "h-16 w-full rounded-full border border-line bg-surface pl-14 pr-6 text-base text-ink outline-none transition placeholder:text-ink-faint hover:border-ink/40 focus:border-ink focus:ring-4 focus:ring-ink/5 sm:text-lg"
+            }
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={() =>
+            handleSearch(
+              { query, params: EMPTY_SEARCH_PARAMS },
+              true
+            )
+          }
+          disabled={loading || !query.trim()}
+          aria-label="Run search"
+          className={
+            onImage
+              ? "h-16 rounded-full bg-paper px-10 text-base font-semibold text-ink transition hover:bg-paper-soft disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[168px]"
+              : "h-16 rounded-full bg-ink px-10 text-base font-semibold text-paper transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[168px]"
+          }
+        >
+          {loading ? "Searching..." : "Search"}
+        </button>
+      </div>
+
+      {/* EXAMPLE SEARCHES (landing only) */}
+
+      {!searched && (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          <span
+            className={
+              onImage ? "text-sm text-paper/70" : "text-sm text-ink-faint"
+            }
+          >
+            Try:
+          </span>
+          {HERO_EXAMPLES.map((example) => (
+            <Link
+              key={example}
+              href={`/?q=${encodeURIComponent(example)}`}
+              className={
+                onImage
+                  ? "rounded-full border border-paper/30 bg-paper/10 px-4 py-1.5 text-sm text-paper/85 transition hover:border-paper hover:text-paper"
+                  : "rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft transition hover:border-ink hover:text-ink"
+              }
+            >
+              {example}
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const renderFindRow = (onImage: boolean) => (
+    <div
+      className={
+        onImage
+          ? "mt-10 text-center"
+          : "mx-auto mt-6 max-w-3xl text-center"
+      }
+    >
+      <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <Link
+          href="/find"
+          className={
+            onImage
+              ? "inline-flex h-11 items-center justify-center gap-2 rounded-full border border-paper/40 bg-paper/10 px-5 text-sm font-medium text-paper transition-all duration-200 hover:border-paper hover:bg-paper/20 active:scale-[0.98]"
+              : "inline-flex h-11 items-center justify-center gap-2 rounded-full border border-ink/30 bg-surface px-5 text-sm font-medium text-ink transition-all duration-200 hover:border-ink hover:bg-paper-soft active:scale-[0.98]"
+          }
+        >
+          Find your match
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className="size-4"
+          >
+            <path d="M5 12h14m-6-6 6 6-6 6" />
+          </svg>
+        </Link>
+        {onImage && (
+          <p className="text-sm text-paper/80">
+            Know exactly what you want? Use the search bar
+            above. Prefer a nudge? Let us narrow it down.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-paper text-ink">
       <div className="mx-auto max-w-6xl px-6 pb-24 pt-10 sm:pt-16">
@@ -1120,159 +1267,65 @@ function Home({
         {/* HERO (landing only) */}
 
         {!searched && (
-          <div
-            role="region"
-            aria-labelledby="hero-title"
-            className="hero-animate pb-14 pt-6 sm:pb-20 sm:pt-12"
-          >
-            <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-16">
-              <div className="max-w-2xl lg:col-span-7">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink">
-                  Search fashion your way
-                </p>
-                <h1
-                  id="hero-title"
-                  className="mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl sm:leading-[1.04] lg:text-7xl"
-                >
-                  Find exactly what you&apos;re looking for.
-                </h1>
-                <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">
-                  Describe the perfect piece in your own words &mdash;
-                  style, color, size or budget &mdash; and discover
-                  products that match.
-                </p>
+          <div className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden border-y border-line">
+            <img
+              src="/images/hero-project.jpg"
+              alt="Rack of garments you can search through to find your perfect piece"
+              className="absolute inset-0 h-full w-full object-cover grayscale"
+              loading="eager"
+              decoding="async"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-ink/65"
+            />
+            <div className="relative mx-auto max-w-3xl px-6 pb-20 pt-14 sm:pt-20">
+              <div
+                role="region"
+                aria-labelledby="hero-title"
+                className="hero-animate"
+              >
+                <div className="text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-paper/80">
+                    Search fashion your way
+                  </p>
+                  <h1
+                    id="hero-title"
+                    className="mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-paper sm:text-6xl sm:leading-[1.04] lg:text-7xl"
+                  >
+                    Find exactly what you&apos;re looking for.
+                  </h1>
+                  <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-paper/90 sm:text-lg">
+                    Describe the perfect piece in your own words &mdash;
+                    style, color, size or budget &mdash; and discover
+                    products that match.
+                  </p>
+                </div>
               </div>
 
-              <figure className="relative hidden lg:col-span-5 lg:block">
-                <div className="relative h-full overflow-hidden rounded-3xl border border-line bg-paper-soft">
-                  <img
-                    src="/images/hero-fashion.jpg"
-                    alt="Editorial fashion photograph of a stylish black outfit"
-                    className="h-full min-h-[540px] w-full object-cover grayscale"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-              </figure>
+              <div
+                id="search"
+                className="mx-auto mt-10 w-full max-w-3xl scroll-mt-24 sm:mt-12"
+              >
+                {renderSearchContent(true)}
+              </div>
+
+              {renderFindRow(true)}
             </div>
           </div>
         )}
 
-        {/* SEARCH (always visible, drives landing + results) */}
+        {/* SEARCH (results view: plain bar above the results) */}
 
-        <div id="search" className="mx-auto w-full max-w-3xl scroll-mt-24">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <label className="relative flex-1">
-              <span className="sr-only">Search for clothes</span>
-
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="pointer-events-none absolute left-6 top-1/2 size-5 -translate-y-1/2 text-ink-faint"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
-
-              <input
-                id="search-input"
-                type="text"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    if (query.trim()) {
-                      handleSearch(
-                        { query, params: EMPTY_SEARCH_PARAMS },
-                        true
-                      );
-                    } else if (searchParams.size > 0) {
-                      /* C4: an empty query + Enter must not leave the
-                         input blank while the old URL and results stay.
-                         Route to the empty landing state through the URL
-                         effect (its "empty" branch resets results); this
-                         matches the Search button for a blank query. */
-                      void router.push("/");
-                    }
-                  }
-                }}
-                placeholder="What are you looking for?"
-                aria-label="Search for clothes"
-                className="h-16 w-full rounded-full border border-line bg-surface pl-14 pr-6 text-base text-ink outline-none transition placeholder:text-ink-faint hover:border-ink/40 focus:border-ink focus:ring-4 focus:ring-ink/5 sm:text-lg"
-              />
-            </label>
-
-            <button
-              type="button"
-              onClick={() =>
-                handleSearch(
-                  { query, params: EMPTY_SEARCH_PARAMS },
-                  true
-                )
-              }
-              disabled={loading || !query.trim()}
-              aria-label="Run search"
-              className="h-16 rounded-full bg-ink px-10 text-base font-semibold text-paper transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[168px]"
-            >
-              {loading ? "Searching..." : "Search"}
-            </button>
-          </div>
-
-          {/* EXAMPLE SEARCHES (landing only) */}
-
-          {!searched && (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-sm text-ink-faint">
-                Try:
-              </span>
-{HERO_EXAMPLES.map((example) => (
-                <Link
-                  key={example}
-                  href={`/?q=${encodeURIComponent(example)}`}
-                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft transition hover:border-ink hover:text-ink"
-                >
-                  {example}
-                </Link>
-              ))}
+        {searched && (
+          <>
+            <div id="search" className="mx-auto w-full max-w-3xl scroll-mt-24">
+              {renderSearchContent(false)}
             </div>
-          )}
-        </div>
 
-        <div className="mx-auto mt-6 max-w-3xl text-center">
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link
-              href="/find"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-ink/30 bg-surface px-5 text-sm font-medium text-ink transition-all duration-200 hover:border-ink hover:bg-paper-soft active:scale-[0.98]"
-            >
-              Find your match
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="size-4"
-              >
-                <path d="M5 12h14m-6-6 6 6-6 6" />
-              </svg>
-            </Link>
-            {!searched && (
-              <p className="text-sm text-ink-faint">
-                Know exactly what you want? Use the search bar
-                above. Prefer a nudge? Let us narrow it down.
-              </p>
-            )}
-          </div>
-        </div>
+            {renderFindRow(false)}
+          </>
+        )}
 
         {/* F14-C1: a USD budget URL waits for the fx rate before
             the URL effect can search. While the rate fetch is
