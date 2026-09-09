@@ -300,8 +300,8 @@ export function FindQuestionnaire({
     useState(false);
   const [colorFilter, setColorFilter] =
     useState("");
-  const [expandedSections, setExpandedSections] =
-    useState<Set<string>>(new Set());
+  const [expandedSection, setExpandedSection] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(
@@ -486,21 +486,19 @@ export function FindQuestionnaire({
 
   function isSectionExpanded(key: string): boolean {
     return (
-      expandedSections.has(key) ||
+      key === expandedSection ||
       key === selectedSectionKey
     );
   }
 
   function toggleSection(key: string) {
-    setExpandedSections((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
+    if (key === selectedSectionKey) {
+      /* the section holding the current pick stays open */
+      return;
+    }
+    setExpandedSection((previous) =>
+      previous === key ? null : key
+    );
   }
 
   const selectedCategoryGroup = useMemo(() => {
@@ -1043,7 +1041,7 @@ export function FindQuestionnaire({
       </div>
 
       {/* Question */}
-      <div className="mt-8 text-center">
+      <div className="mt-6 text-center">
         <Heading className="font-display text-3xl font-medium tracking-tight text-ink sm:text-4xl">
           {copy.ask}
         </Heading>
@@ -1059,7 +1057,7 @@ export function FindQuestionnaire({
         {meta && (
           <div key={step} className="step-animate">
             {step === 0 && (
-              <div className="mx-auto grid max-w-md gap-3">
+              <div className="mx-auto grid w-full max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
                 {GENDER_OPTIONS.map((value) => (
                   <OptionCard
                     key={value}
@@ -1087,11 +1085,11 @@ export function FindQuestionnaire({
                   </p>
                 </div>
               ) : (
-                <div className="mx-auto w-full max-w-lg">
+                <div className="mx-auto w-full max-w-3xl">
                   <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                     Tap a section to expand it
                   </p>
-                  <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+                  <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {categorySections.map((section) => {
                       const open = isSectionExpanded(
                         section.key
@@ -1104,7 +1102,12 @@ export function FindQuestionnaire({
                             answers.category
                         );
                       return (
-                        <div key={section.key}>
+                        <div
+                          key={section.key}
+                          className={`overflow-hidden rounded-2xl border border-line bg-surface ${
+                            open ? "col-span-full" : ""
+                          }`}
+                        >
                           <button
                             type="button"
                             aria-expanded={open}
@@ -1113,14 +1116,10 @@ export function FindQuestionnaire({
                                 section.key
                               )
                             }
-                            className="flex w-full items-center justify-between gap-3 bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[0.02] sm:px-5"
+                            className="flex w-full items-center justify-between gap-2 bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[0.02]"
                           >
                             <span
-                              className={`flex items-center gap-2 text-sm font-medium ${
-                                selectedIn
-                                  ? "text-ink"
-                                  : "text-ink-soft"
-                              }`}
+                              className={`flex items-center gap-2 text-sm font-medium ${selectedIn ? "text-ink" : "text-ink-soft"}`}
                             >
                               {selectedIn && (
                                 <span className="text-accent-deep">
@@ -1129,7 +1128,7 @@ export function FindQuestionnaire({
                               )}
                               {section.title}
                             </span>
-                            <span className="flex items-center gap-3">
+                            <span className="flex items-center gap-2.5">
                               <span className="text-xs tabular-nums text-ink-faint">
                                 {section.categories.length}
                               </span>
@@ -1145,8 +1144,8 @@ export function FindQuestionnaire({
                             </span>
                           </button>
                           {open && (
-                            <div className="border-t border-line px-4 py-4 sm:px-5">
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <div className="border-t border-line p-3">
+                              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
                                 {section.categories.map(
                                   (category) => (
                                     <OptionCard
@@ -1179,7 +1178,7 @@ export function FindQuestionnaire({
 
             {step === 3 && (
               <div>
-                <div className="mx-auto mb-6 max-w-sm">
+                <div className="mx-auto mb-4 max-w-sm">
                   <FieldInput
                     id="find-color-filter"
                     value={colorFilter}
