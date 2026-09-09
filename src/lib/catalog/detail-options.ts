@@ -97,12 +97,32 @@ const SLEEVE = group("Sleeve", "Sleeve", [
   "3/4",
 ]);
 
+/* Collar silhouettes (the catalog's Collar group adds the neckline
+   values V-Neck/Round Neck/Crew Neck/... on top of these). */
 const COLLAR = group("Collar", "Collar", [
-  "Crew",
-  "Polo",
-  "Button-Down",
   "Spread",
+  "Button-Down",
+  "Stand",
+  "Mandarin",
+  "Peter Pan",
+  "Pointed",
   "Collarless",
+]);
+
+/* Waist/rise talk: high-waist is the clothes-adjacent part shoppers
+   ask about, distinct from the Length cut. */
+const RISE = group("Rise", null, [
+  "High-Waist",
+  "Mid-Rise",
+  "Low-Rise",
+]);
+
+const POCKETS = group("Pockets", null, [
+  "Chest Pocket",
+  "Side Pocket",
+  "Zip Pocket",
+  "Cargo Pocket",
+  "Flap Pocket",
 ]);
 
 const LENGTH = group("Length", "Length", [
@@ -467,14 +487,21 @@ function clothingProfile(context: DetailContext): DetailOptionGroup[] {
   if (/^polo-shirts$|^polo$|button-up/.test(context.slug ?? "")) {
     return [FIT, SLEEVE, COLLAR, MATERIAL];
   }
+  if (/^blouses$|^blouse$/.test(context.slug ?? "")) {
+    return [FIT, SLEEVE, COLLAR, MATERIAL, PATTERN];
+  }
+  if (/t-shirt|tank-top|bodysuit/.test(context.slug ?? "")) {
+    /* Neckline (crew/v-neck) is the collar talk of collarless tops. */
+    return [FIT, NECKLINE, SLEEVE, MATERIAL, PATTERN];
+  }
   if (/^dresses$|^dress$|^jumpsuits$|^jumpsuit$/.test(context.slug ?? "")) {
     return [LENGTH, SLEEVE, FIT, MATERIAL, PATTERN];
   }
   if (/^skirts$|^skirt$/.test(context.slug ?? "")) {
-    return [SKIRT_LENGTH, FIT, MATERIAL, PATTERN];
+    return [SKIRT_LENGTH, FIT, RISE, MATERIAL, PATTERN];
   }
   if (/^leggings$|^legging$/.test(context.slug ?? "")) {
-    return [FIT, MATERIAL, USE];
+    return [FIT, RISE, MATERIAL, USE];
   }
   if (/^socks$|^sock$/.test(context.slug ?? "")) {
     return [SOCK_LENGTH, MATERIAL, PATTERN, USE];
@@ -487,13 +514,13 @@ function clothingProfile(context: DetailContext): DetailOptionGroup[] {
   }
   switch (context.group) {
     case "Outerwear":
-      return [WEATHERPROOF, COAT_CUT, STYLE, MATERIAL];
+      return [WEATHERPROOF, POCKETS, COAT_CUT, MATERIAL];
     case "Sportswear":
       return [USE, FIT, MATERIAL];
     case "Dresses & Jumpsuits":
       return [LENGTH, SLEEVE, FIT, MATERIAL, PATTERN];
     case "Bottoms":
-      return [FIT, LENGTH, MATERIAL, USE];
+      return [FIT, LENGTH, RISE, MATERIAL, USE];
     case "Swimwear & Basics":
       return [STYLE, MATERIAL];
   }
@@ -518,11 +545,11 @@ function profileFor(
   }
 
   if (isJeans(context)) {
-    return [FIT, LENGTH, WASH, MATERIAL];
+    return [FIT, LENGTH, WASH, RISE, MATERIAL];
   }
 
   if (isTrousers(context)) {
-    return [FIT, LENGTH, PATTERN, MATERIAL];
+    return [FIT, LENGTH, RISE, MATERIAL, PATTERN];
   }
 
   if (isScarves(context)) {

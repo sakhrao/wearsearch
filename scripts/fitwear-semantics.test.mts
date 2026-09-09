@@ -298,11 +298,27 @@ const eq = (a: unknown, b: unknown): boolean =>
     ])
   );
   check(
-    "tops profile: Fit/Sleeve/Style/Material/Pattern",
+    "t-shirt profile: Fit/Neckline/Sleeve/Material/Pattern",
     eq(names({ root: "Clothing", group: "Tops", slug: "t-shirts" }), [
       "Fit",
+      "Neckline",
       "Sleeve",
-      "Style",
+      "Material",
+      "Pattern",
+    ])
+  );
+  check(
+    "t-shirt neckline values are real (Crew/V-Neck)",
+    detailOptionGroupsFor({ root: "Clothing", group: "Tops", slug: "t-shirts" })
+      .find((g) => g.name === "Neckline")
+      ?.values?.some((v) => /crew|v-neck/i.test(v)) === true
+  );
+  check(
+    "blouses profile: Fit/Sleeve/Collar/Material/Pattern",
+    eq(names({ root: "Clothing", group: "Tops", slug: "blouses" }), [
+      "Fit",
+      "Sleeve",
+      "Collar",
       "Material",
       "Pattern",
     ])
@@ -427,29 +443,81 @@ const eq = (a: unknown, b: unknown): boolean =>
       ?.values?.some((v) => /short|long/i.test(v)) === true
   );
   check(
-    "trousers profile: Fit/Length/Pattern/Material",
+    "trousers profile: Fit/Length/Rise/Material/Pattern",
     eq(names({ root: "Clothing", group: "Bottoms", slug: "trousers" }), [
       "Fit",
       "Length",
-      "Pattern",
+      "Rise",
       "Material",
+      "Pattern",
     ])
   );
   check(
-    "jeans profile: Fit/Length/Wash/Material",
+    "jeans profile: Fit/Length/Wash/Rise/Material",
     eq(names({ root: "Clothing", group: "Bottoms", slug: "jeans" }), [
       "Fit",
       "Length",
       "Wash",
+      "Rise",
       "Material",
     ])
+  );
+  check(
+    "jeans rise values are real (High-Waist)",
+    detailOptionGroupsFor({ root: "Clothing", group: "Bottoms", slug: "jeans" })
+      .find((g) => g.name === "Rise")
+      ?.values?.includes("High-Waist") === true
+  );
+  check(
+    "skirts profile: Length/Fit/Rise/Material/Pattern",
+    eq(names({ root: "Clothing", group: "Bottoms", slug: "skirts" }), [
+      "Length",
+      "Fit",
+      "Rise",
+      "Material",
+      "Pattern",
+    ])
+  );
+  check(
+    "leggings profile: Fit/Rise/Material/Use",
+    eq(names({ root: "Clothing", group: "Bottoms", slug: "leggings" }), [
+      "Fit",
+      "Rise",
+      "Material",
+      "Use",
+    ])
+  );
+  check(
+    "outerwear profile: Weatherproof/Pockets/Cut/Material",
+    eq(names({ root: "Clothing", group: "Outerwear", slug: "jackets" }), [
+      "Weatherproof",
+      "Pockets",
+      "Cut",
+      "Material",
+    ])
+  );
+  check(
+    "outerwear pockets are real (Chest/Cargo Pocket)",
+    ["Chest Pocket", "Cargo Pocket"].every((v) =>
+      detailOptionGroupsFor({ root: "Clothing", group: "Outerwear", slug: "coats" })
+        .find((g) => g.name === "Pockets")
+        ?.values?.includes(v)
+    )
+  );
+  check(
+    "collar values are real collar silhouettes (Spread/Mandarin)",
+    ["Spread", "Mandarin", "Peter Pan"].every((v) =>
+      detailOptionGroupsFor({ root: "Clothing", group: "Tops", slug: "shirts" })
+        .find((g) => g.name === "Collar")
+        ?.values?.includes(v)
+    )
   );
   check(
     "general tops keep the shared clothing profile (with Sleeve)",
     eq(names({ root: "Clothing", group: "Tops", slug: "t-shirts" }), [
       "Fit",
+      "Neckline",
       "Sleeve",
-      "Style",
       "Material",
       "Pattern",
     ])
