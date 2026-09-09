@@ -1143,30 +1143,17 @@ function Home({
                 </p>
               </div>
 
-              {featured[0]?.imageUrl && (
-                <div className="hidden lg:col-span-5 lg:block">
-                  <Link
-                    href={featured[0].productUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group relative block overflow-hidden bg-paper-soft"
-                  >
-                    <img
-                      src={featured[0].imageUrl}
-                      alt={featured[0].name}
-                      className="aspect-[3/4] w-full object-cover transition duration-700 group-hover:scale-[1.03]"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 bg-gradient-to-t from-black/70 to-transparent px-5 py-4">
-                      <p className="text-sm font-medium text-paper">
-                        {featured[0].brand}
-                      </p>
-                      <p className="text-sm font-medium text-paper/85">
-                        {featured[0].price} {featured[0].currency}
-                      </p>
-                    </div>
-                  </Link>
+              <figure className="relative hidden lg:col-span-5 lg:block">
+                <div className="relative h-full overflow-hidden rounded-3xl border border-line bg-paper-soft">
+                  <img
+                    src="/images/hero-fashion.jpg"
+                    alt="Editorial fashion photograph of a stylish black outfit"
+                    className="h-full min-h-[540px] w-full object-cover grayscale"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
-              )}
+              </figure>
             </div>
           </div>
         )}
