@@ -1262,58 +1262,57 @@ function Home({
 
   return (
     <main className="min-h-screen bg-paper text-ink">
-      <div className="mx-auto max-w-6xl px-6 pb-24 pt-10 sm:pt-16">
-
-        {/* HERO (landing only) */}
-
-        {!searched && (
-          <div className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden border-y border-line">
-            <img
-              src="/images/hero-project.jpg"
-              alt="Rack of garments you can search through to find your perfect piece"
-              className="absolute inset-0 h-full w-full object-cover grayscale"
-              loading="eager"
-              decoding="async"
-            />
+      {/* HERO (landing only) — full-bleed, flush against the nav */}
+      {!searched && (
+        <div className="relative overflow-hidden border-b border-line">
+          <img
+            src="/images/hero-project.jpg"
+            alt="Rack of garments you can search through to find your perfect piece"
+            className="absolute inset-0 h-full w-full object-cover grayscale"
+            loading="eager"
+            decoding="async"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-ink/65"
+          />
+          <div className="relative mx-auto max-w-3xl px-6 pb-20 pt-16 sm:pt-24">
             <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-ink/65"
-            />
-            <div className="relative mx-auto max-w-3xl px-6 pb-20 pt-14 sm:pt-20">
-              <div
-                role="region"
-                aria-labelledby="hero-title"
-                className="hero-animate"
-              >
-                <div className="text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-paper/80">
-                    Search fashion your way
-                  </p>
-                  <h1
-                    id="hero-title"
-                    className="mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-paper sm:text-6xl sm:leading-[1.04] lg:text-7xl"
-                  >
-                    Find exactly what you&apos;re looking for.
-                  </h1>
-                  <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-paper/90 sm:text-lg">
-                    Describe the perfect piece in your own words &mdash;
-                    style, color, size or budget &mdash; and discover
-                    products that match.
-                  </p>
-                </div>
+              role="region"
+              aria-labelledby="hero-title"
+              className="hero-animate"
+            >
+              <div className="text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-paper/80">
+                  Search fashion your way
+                </p>
+                <h1
+                  id="hero-title"
+                  className="mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-paper sm:text-6xl sm:leading-[1.04] lg:text-7xl"
+                >
+                  Find exactly what you&apos;re looking for.
+                </h1>
+                <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-paper/90 sm:text-lg">
+                  Describe the perfect piece in your own words &mdash;
+                  style, color, size or budget &mdash; and discover
+                  products that match.
+                </p>
               </div>
-
-              <div
-                id="search"
-                className="mx-auto mt-10 w-full max-w-3xl scroll-mt-24 sm:mt-12"
-              >
-                {renderSearchContent(true)}
-              </div>
-
-              {renderFindRow(true)}
             </div>
+
+            <div
+              id="search"
+              className="mx-auto mt-10 w-full max-w-3xl scroll-mt-24 sm:mt-12"
+            >
+              {renderSearchContent(true)}
+            </div>
+
+            {renderFindRow(true)}
           </div>
-        )}
+        </div>
+      )}
+
+      <div className="mx-auto max-w-6xl px-6 pb-24 pt-10 sm:pt-16">
 
         {/* SEARCH (results view: plain bar above the results) */}
 
