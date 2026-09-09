@@ -604,13 +604,12 @@ export function FindQuestionnaire({
     );
   }, [meta, answers.category]);
 
-  /* Stage 3-A: size options come from the contextual catalog. The
-     section list is audience + category driven (productType comes
-     from the selected category), so women | Sneakers shows EU and US
-     columns with only the values that buyable women's or unisex
-     products actually carry, while accessories/headwear (no data)
-     yield nothing -> "No sizes available for this category." No size
-     is ever invented. */
+  /* Stage 3-A: size options are the union, per category, of every size
+     the catalog carries for it (all audiences) with the full standard
+     surface for its product type (orders fit every possible size). The
+     picked gender no longer narrows the list; footwear shows EU/US/UK
+     columns with all possible numeric sizes, clothing the whole alpha
+     ladder (see sizeSectionsFor). */
   const sizeSections = useMemo<SizeSection[]>(() => {
     if (!meta) {
       return [];

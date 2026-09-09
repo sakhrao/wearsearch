@@ -333,14 +333,37 @@ export type SizeSection = {
   values: string[];
 };
 
-/** Sections for one questionnaire context. Shoes become one column
-    per system (EU, US, ...); clothing collapses into a single generic
-    section. UNISEX products are merged for MEN and WOMEN exactly like
-    the engine's genderMatches (spec §2/§12): they are eligible for
-    adult audiences but never bleed a MEN/WOMEN row into another
-    audience. KIDS is kids-only: an adult unisex shoe size is never
-    offered to a children's context (Kids -> no sections when no KIDS
-    rows exist). */
+/** Full standard size surfaces per category type. The questionnaire
+    step always offers every conceivable size ("all possible sizes for
+    each category"), so a category's list is the union of these complete
+    standard ranges with whatever the catalog actually carries for that
+    category — any audience, any system. Clothing gets the full alpha
+    ladder; footwear gets complete EU/US/UK numeric scales that always
+    appear, even when the catalog has no rows for one of them. */
+export const STANDARD_CLOTHING_SIZES = ORDERED_ALPHA;
+
+function footRange(from: number, to: number): string[] {
+  return Array.from({ length: to - from + 1 }, (_, i) =>
+    String(from + i)
+  );
+}
+
+export const STANDARD_FOOTWEAR_SYSTEMS: Record<string, string[]> = {
+  EU: footRange(35, 50),
+  US: footRange(4, 14),
+  UK: footRange(3, 13),
+};
+
+/** Sections for one questionnaire context. The list no longer depends
+    on the picked gender: every size the catalog carries for the category
+    (across all audiences, MEN/WOMEN/KIDS/UNISEX) is merged, then unioned
+    with the full standard surface for the category's product type, so
+    the step shows all possible sizes. Clothing collapses into a single
+    generic list (up to one column per system for a category that mixes
+    systems, e.g. belts waist + letters); footwear becomes one column per
+    system — EU, US, UK always present, plus any catalog systems such as
+    IT or FR. A category finds no catalog rows still falls back to the
+    standard clothing surface rather than offering nothing. */
 export function sizeSectionsFor(params: {
   audience: ContextualSizeAudience | null;
   categoryName: string | null;
@@ -350,15 +373,11 @@ export function sizeSectionsFor(params: {
   if (!audience || !categoryName) {
     return [];
   }
-  const audiences: ContextualSizeAudience[] =
-    audience === "UNISEX" || audience === "KIDS"
-      ? [audience]
-      : [audience, "UNISEX"];
 
   const mergedBySystem = new Map<string, Set<string>>();
   let productType: ContextualProductType | null = null;
 
-  for (const aud of audiences) {
+  for (const aud of SIZE_AUDIENCES) {
     const entry = catalog[aud];
     if (!entry) {
       continue;
@@ -373,10 +392,12 @@ export function sizeSectionsFor(params: {
       if (productType === null) {
         productType = pt;
       }
+      if (productType !== pt) {
+        continue;
+      }
       for (const system of category.systems) {
         const set =
-          mergedBySystem.get(system.system) ??
-          new Set<string>();
+          mergedBySystem.get(system.system) ?? new Set<string>();
         for (const value of system.values) {
           set.add(value);
         }
@@ -385,24 +406,23 @@ export function sizeSectionsFor(params: {
     }
   }
 
-  if (productType === null || mergedBySystem.size === 0) {
-    return [];
-  }
-
   if (productType === "FOOTWEAR") {
-    const known = [...mergedBySystem.keys()]
-      .filter(
-        (system) =>
-          system.toLowerCase() !== "unknown"
+    const knownSystems = new Set<string>(
+      [...mergedBySystem.keys()].filter(
+        (system) => system.toLowerCase() !== "unknown"
       )
-      .sort(systemNameOrder);
-    const unknown = mergedBySystem.get(
-      "UNKNOWN"
     );
-    const sections: SizeSection[] = known.map(
-      (system) => {
+    for (const system of Object.keys(STANDARD_FOOTWEAR_SYSTEMS)) {
+      knownSystems.add(system);
+    }
+    const sections: SizeSection[] = [...knownSystems]
+      .sort(systemNameOrder)
+      .map((system) => {
         const values = sortValues([
-          ...mergedBySystem.get(system)!,
+          ...new Set([
+            ...(mergedBySystem.get(system) ?? new Set<string>()),
+            ...(STANDARD_FOOTWEAR_SYSTEMS[system] ?? []),
+          ]),
         ]);
         return {
           label: rangeLabel(system, values),
@@ -410,30 +430,29 @@ export function sizeSectionsFor(params: {
           productType: "FOOTWEAR",
           values,
         };
-      }
-    );
+      });
     /* A shoes row whose store system is missing (catalog rows carry
-       no system signal) renders as ONE generic value list, exactly
-       like clothing: no invented EU/US/US-band label ever appears. */
-    if (unknown && sections.length === 0) {
-      return [
-        {
-          label: null,
-          system: null,
-          productType: "FOOTWEAR",
-          values: sortValues([...unknown]),
-        },
-      ];
+       no system signal) renders as ONE extra generic value list, never
+       an invented EU/US/US-band label. */
+    const unknown = mergedBySystem.get("UNKNOWN");
+    if (unknown && unknown.size > 0) {
+      sections.push({
+        label: null,
+        system: null,
+        productType: "FOOTWEAR",
+        values: sortValues([...unknown]),
+      });
     }
     return sections;
   }
 
+  /* Clothing — or a category with no catalog rows at all, which
+     defaults to the complete standard clothing surface. */
   const values = sortValues([
-    ...new Set(
-      [...mergedBySystem.values()].flatMap((set) => [
-        ...set,
-      ])
-    ),
+    ...new Set([
+      ...STANDARD_CLOTHING_SIZES,
+      ...[...mergedBySystem.values()].flatMap((set) => [...set]),
+    ]),
   ]);
   return [
     {
