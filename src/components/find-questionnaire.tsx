@@ -996,8 +996,8 @@ export function FindQuestionnaire({
     <Shell
       className={
         embedded
-          ? "w-full"
-          : "mx-auto w-full max-w-2xl flex-1 px-4 pb-16 pt-8 sm:pt-12"
+          ? "flex min-h-0 w-full flex-1 flex-col"
+          : "mx-auto flex h-[calc(100svh-4rem)] min-h-0 w-full max-w-2xl flex-col px-4 pb-5 pt-6"
       }
     >
       {/* Small header */}
@@ -1043,17 +1043,17 @@ export function FindQuestionnaire({
       </div>
 
       {/* Question */}
-      <div className="mt-10 text-center">
+      <div className="mt-8 text-center">
         <Heading className="font-display text-3xl font-medium tracking-tight text-ink sm:text-4xl">
           {copy.ask}
         </Heading>
-        <p className="mt-3 text-ink-soft">
+        <p className="mt-2.5 text-ink-soft">
           {copy.hint}
         </p>
       </div>
 
       <section
-        className="mt-9 min-h-[16rem]"
+        className="min-h-0 flex-1 overflow-y-auto"
         aria-busy={!meta}
       >
         {meta && (
@@ -1521,8 +1521,8 @@ export function FindQuestionnaire({
         )}
       </section>
 
-      {/* Bottom navigation */}
-      <div className="mt-10 flex items-center justify-between gap-3 border-t border-line pt-6">
+      {/* Bottom navigation — stays pinned at the bottom of the window */}
+      <div className="mt-auto flex shrink-0 items-center justify-between gap-3 border-t border-line pb-1 pt-5">
         <button
           type="button"
           onClick={back}

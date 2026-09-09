@@ -1367,9 +1367,9 @@ function Home({
             <section
               id="questionnaire"
               aria-labelledby="questionnaire-title"
-              className="scroll-mt-24"
+              className="mx-auto flex min-h-[calc(100svh-6rem)] w-full max-w-4xl flex-col justify-center scroll-mt-24 px-4 py-6 sm:py-8"
             >
-              <div className="rounded-2xl border border-line bg-surface px-5 py-8 sm:px-8 lg:py-12">
+              <div className="flex min-h-0 w-full flex-col rounded-2xl border border-line bg-surface px-5 pb-6 pt-6 sm:px-8 sm:pt-8 max-h-[calc(100svh-9rem)] sm:max-h-[calc(100svh-10rem)]">
                 <SectionHeading
                   id="questionnaire-title"
                   eyebrow="Find your match"
@@ -1377,7 +1377,7 @@ function Home({
                   description="A few quick questions and we&apos;ll narrow it down for you &mdash; or use the search bar above."
                   align="center"
                 />
-                <div className="mt-6 sm:mt-8">
+                <div className="mt-5 flex min-h-0 min-w-0 flex-1 flex-col sm:mt-6">
                   <FindQuestionnaire embedded />
                 </div>
               </div>
