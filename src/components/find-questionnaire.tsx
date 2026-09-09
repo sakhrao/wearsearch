@@ -300,7 +300,7 @@ export function FindQuestionnaire({
     useState(false);
   const [colorFilter, setColorFilter] =
     useState("");
-  const [expandedSection, setExpandedSection] =
+  const [openSection, setOpenSection] =
     useState<string | null>(null);
 
   useEffect(() => {
@@ -485,19 +485,101 @@ export function FindQuestionnaire({
   }, [categorySections, answers.category]);
 
   function isSectionExpanded(key: string): boolean {
-    return (
-      key === expandedSection ||
-      key === selectedSectionKey
-    );
+    return key === openSection;
+  }
+
+  /* keep the section holding the current pick open; a manual open
+     elsewhere overrides it for as long as it stays open. Synced here in
+     render (documented React pattern) instead of an effect so a manual
+     collapse is never undone by a stale revision of the pick. */
+  const [lastPickedSectionKey, setLastPickedSectionKey] =
+    useState<string | null>(null);
+  if (lastPickedSectionKey !== selectedSectionKey) {
+    setLastPickedSectionKey(selectedSectionKey);
+    if (selectedSectionKey) {
+      setOpenSection(selectedSectionKey);
+    }
   }
 
   function toggleSection(key: string) {
-    if (key === selectedSectionKey) {
-      /* the section holding the current pick stays open */
-      return;
-    }
-    setExpandedSection((previous) =>
+    setOpenSection((previous) =>
       previous === key ? null : key
+    );
+  }
+
+  /* The single open section, resolved against what still exists so a
+     gender switch that removes the pick's section never leaves us
+     pointing at a vanished header. */
+  const openKey = useMemo(() => {
+    if (openSection === null) {
+      return null;
+    }
+    return categorySections.some(
+      (section) => section.key === openSection
+    )
+      ? openSection
+      : null;
+  }, [categorySections, openSection]);
+
+  /* One category section card: header always, options only while this
+     section is the one on screen. In the closed grid every card shows
+     just its header; in the open view the single focused section shows
+     its header plus the option cards. */
+  function renderSection(section: CategorySection) {
+    const open = isSectionExpanded(section.key);
+    const selectedIn =
+      answers.category !== null &&
+      section.categories.some(
+        (category) =>
+          category.name === answers.category
+      );
+    return (
+      <div
+        key={section.key}
+        className="overflow-hidden rounded-2xl border border-line bg-surface"
+      >
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => toggleSection(section.key)}
+          className="flex w-full items-center justify-between gap-2 bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[0.02]"
+        >
+          <span
+            className={`flex items-center gap-2 text-sm font-medium ${selectedIn ? "text-ink" : "text-ink-soft"}`}
+          >
+            {selectedIn && (
+              <span className="text-accent-deep">
+                <CheckIcon />
+              </span>
+            )}
+            {section.title}
+          </span>
+          <span className="flex items-center gap-2.5">
+            <span className="text-xs tabular-nums text-ink-faint">
+              {section.categories.length}
+            </span>
+            <span
+              className={open ? "text-accent-deep" : "text-ink-faint"}
+            >
+              <ChevronIcon open={open} />
+            </span>
+          </span>
+        </button>
+        {open && (
+          <div className="border-t border-line p-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+              {section.categories.map((category) => (
+                <OptionCard
+                  key={category.slug}
+                  label={category.name}
+                  selected={answers.category === category.name}
+                  onClick={() => pickCategory(category.name)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -1042,7 +1124,7 @@ export function FindQuestionnaire({
 
       {/* Question */}
       <div className="mt-6 text-center">
-        <Heading className="font-display text-3xl font-medium tracking-tight text-ink sm:text-4xl">
+        <Heading className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">
           {copy.ask}
         </Heading>
         <p className="mt-2.5 text-ink-soft">
@@ -1084,101 +1166,34 @@ export function FindQuestionnaire({
                     go back and pick another.
                   </p>
                 </div>
-              ) : (
+              ) : openKey === null ? (
                 <div className="mx-auto w-full max-w-3xl">
                   <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                     Tap a section to expand it
                   </p>
                   <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {categorySections.map((section) => {
-                      const open = isSectionExpanded(
-                        section.key
-                      );
-                      const selectedIn =
-                        answers.category !== null &&
-                        section.categories.some(
-                          (category) =>
-                            category.name ===
-                            answers.category
-                        );
-                      return (
-                        <div
-                          key={section.key}
-                          className={`overflow-hidden rounded-2xl border border-line bg-surface ${
-                            open ? "col-span-full" : ""
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            aria-expanded={open}
-                            onClick={() =>
-                              toggleSection(
-                                section.key
-                              )
-                            }
-                            className="flex w-full items-center justify-between gap-2 bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[0.02]"
-                          >
-                            <span
-                              className={`flex items-center gap-2 text-sm font-medium ${selectedIn ? "text-ink" : "text-ink-soft"}`}
-                            >
-                              {selectedIn && (
-                                <span className="text-accent-deep">
-                                  <CheckIcon />
-                                </span>
-                              )}
-                              {section.title}
-                            </span>
-                            <span className="flex items-center gap-2.5">
-                              <span className="text-xs tabular-nums text-ink-faint">
-                                {section.categories.length}
-                              </span>
-                              <span
-                                className={
-                                  open
-                                    ? "text-accent-deep"
-                                    : "text-ink-faint"
-                                }
-                              >
-                                <ChevronIcon open={open} />
-                              </span>
-                            </span>
-                          </button>
-                          {open && (
-                            <div className="border-t border-line p-3">
-                              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                                {section.categories.map(
-                                  (category) => (
-                                    <OptionCard
-                                      key={category.slug}
-                                      label={
-                                        category.name
-                                      }
-                                      selected={
-                                        answers.category ===
-                                        category.name
-                                      }
-                                      onClick={() =>
-                                        pickCategory(
-                                          category.name
-                                        )
-                                      }
-                                    />
-                                  )
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {categorySections.map((section) =>
+                      renderSection(section)
+                    )}
                   </div>
+                </div>
+              ) : (
+                <div className="mx-auto w-full max-w-2xl">
+                  {categorySections
+                    .filter(
+                      (section) =>
+                        section.key === openKey
+                    )
+                    .map((section) =>
+                      renderSection(section)
+                    )}
                 </div>
               )
             )}
 
             {step === 3 && (
               <div>
-                <div className="mx-auto mb-4 max-w-sm">
+                <div className="mx-auto mb-3 max-w-sm">
                   <FieldInput
                     id="find-color-filter"
                     value={colorFilter}
@@ -1187,7 +1202,7 @@ export function FindQuestionnaire({
                     icon
                   />
                 </div>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-1.5">
                   {meta.colors
                     .filter((color) =>
                       colorFilter.trim()
