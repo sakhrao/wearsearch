@@ -399,5 +399,40 @@ const bQuery = "men Nike Black 41 Sneakers";
   );
 }
 
+{
+  /* I11: color-palette exactness - a requested color admits only products
+     whose full palette lies inside the requested set, so a Black+Orange
+     (or Yellow/Beige/Black) item never appears among exact matches for a
+     plain Black request. Off-palette blends are demoted to Similar. */
+  const r = await search("women black Sneakers");
+  const exact = (r.exactProducts ?? []) as {
+    id: string;
+    name: string;
+    variants?: { color?: { name?: string } | null }[];
+  }[];
+  const similar = (r.similarProducts ?? []) as {
+    id: string;
+    name: string;
+    variants?: { color?: { name?: string } | null }[];
+  }[];
+  const variantColors = (p: { variants?: { color?: { name?: string } | null }[] }) =>
+    [...new Set((p.variants ?? []).map((v) => v.color?.name).filter((c): c is string => Boolean(c)).map((c) => c.toLowerCase()))];
+  check(
+    "I11 exact matches for a Black request are palette-exact (only black variants)",
+    r.exactCount > 0 &&
+      exact.every((p) => {
+        const colors = variantColors(p);
+        return colors.length === 1 && colors[0] === "black";
+      }),
+    exact.map((p) => `${p.name} [${variantColors(p).join("/")}]`).join(" | ")
+  );
+  check(
+    "I11 two-tone Black+Orange sneaker is demoted to Similar, absent from Exact",
+    !exact.some((p) => p.name.includes("Leopard Print")) &&
+      similar.some((p) => p.name.includes("Leopard Print")),
+    `exact=${exact.map((p) => p.name).join(" | ")} || sim=${similar.map((p) => p.name).join(" | ")}`
+  );
+}
+
 console.log(`\n=== RESULT: ${passed}/${passed + failed} passed ===`);
 process.exit(failed > 0 ? 1 : 0);

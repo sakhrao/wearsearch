@@ -2091,26 +2091,19 @@ export async function GET(
           productColors
         );
 
-        /* Color admission (spec §5):
-           - no color requested: vacuous
-           - one color: product must carry it (intersection)
-           - two+: subset semantics — every product color must
-             be inside the requested palette AND the product
-             carries at least one requested color */
+        /* Color admission (spec §5): subset semantics for every
+           palette size. Every product color must lie inside the
+           requested palette — a Black+White or Yellow+Black item
+           never satisfies a single Black request — and the
+           product carries at least one requested color (products
+           with no color evidence can never be color-confirmed). */
         const colorMatches =
           detectedColors.length === 0
             ? true
-            : detectedColors.length === 1
-              ? productColorSet.has(
-                  normalizeText(
-                    detectedColor!
-                  )
-                )
-              : productColors.length > 0 &&
-                  productColors.every(
-                    (color) =>
-                      selectedColorSet.has(color)
-                  );
+            : productColors.length > 0 &&
+                productColors.every((color) =>
+                  selectedColorSet.has(color)
+                );
 
         /* Compatibility for the Similar path / 80% gate:
            a product sharing any requested color is a color
@@ -2456,9 +2449,9 @@ export async function GET(
             (categoryMatches ||
               categoryCredit)
           ) ||
-          Boolean(
+Boolean(
             detectedColor &&
-            colorMatches
+              colorCompatible
           ) ||
           Boolean(
             detectedSize &&

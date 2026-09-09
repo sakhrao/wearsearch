@@ -201,9 +201,9 @@ check(
 const goldens = [
   ["sneakers", 14],
   ["jeans", 1],
-  ["black shoes", 23],
+  ["black shoes", 12],
   ["nike", 1],
-  ["size medium black tank top", 14],
+  ["size medium black tank top", 3],
 ];
 for (const [q, expected] of goldens) {
   const { d } = await ranks(q);
