@@ -66,6 +66,16 @@ export const SPOTLIGHT_CATEGORY_SLUGS = [
   "jeans",
 ] as const;
 
+/**
+ * Hand-picked representative products per category slug, matched by
+ * the stable eBay item id inside `productUrl`. When such a product is
+ * AVAILABLE with an image and a real page, it wins over the automatic
+ * title-length pick so a specific listing can be showcased.
+ */
+const PINNED_REPRESENTATIVES: Record<string, string> = {
+  "t-shirts": "256468968056",
+};
+
 export type CategorySpotlight = {
   id: string;
   name: string;
@@ -77,8 +87,10 @@ export type CategorySpotlight = {
 
 /**
  * Returns one entry per target category slug with a real product
- * count and the newest AVAILABLE product as a representative.
- * Categories with zero matching products are omitted.
+ * count and a representative product: a pinned listing if one is
+ * available for the category, otherwise the AVAILABLE product whose
+ * title is nearest the target length (newest wins ties). Categories
+ * with zero matching products are omitted.
  */
 export async function getSpotlightCategories(): Promise<
   CategorySpotlight[]
@@ -153,12 +165,32 @@ export async function getSpotlightCategories(): Promise<
 
     bucket.count += 1;
 
-    /* Representative = the product whose title is nearest the target
-       length (newest wins ties because rows come createdAt desc), so a
-       too-long eBay listing or a bare brand name never becomes the
-       spotlight card and every card stays the same height. */
     if (!row.imageUrl) continue;
+
+    const pinnedItem = PINNED_REPRESENTATIVES[slug];
+    const isPinned =
+      !!pinnedItem &&
+      row.productUrl.includes(pinnedItem);
+
+    /* Representative = the pinned listing when one exists for the
+       category; otherwise the product whose title is nearest the
+       target length (newest wins ties because rows come createdAt
+       desc), so a too-long eBay listing or a bare brand name never
+       becomes the spotlight card and every card stays the same height. */
     if (!bucket.representative) {
+      bucket.representative = {
+        id: row.id,
+        name: row.name,
+        brand: row.brand.name,
+        category: row.category.name,
+        price: Number(row.price),
+        currency: row.currency,
+        productUrl: row.productUrl,
+        imageUrl: row.imageUrl,
+      };
+      continue;
+    }
+    if (isPinned) {
       bucket.representative = {
         id: row.id,
         name: row.name,
