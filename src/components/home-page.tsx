@@ -1367,9 +1367,9 @@ function Home({
             <section
               id="questionnaire"
               aria-labelledby="questionnaire-title"
-              className="mx-auto flex min-h-[calc(100svh-6rem)] w-full max-w-4xl flex-col justify-center scroll-mt-24 px-4 py-6 sm:py-8"
+              className="wizard-window mx-auto flex w-full max-w-4xl flex-col justify-center px-4 py-6 sm:py-8"
             >
-              <div className="flex min-h-0 w-full flex-col rounded-2xl border border-line bg-surface px-5 pb-6 pt-6 sm:px-8 sm:pt-8 max-h-[calc(100svh-9rem)] sm:max-h-[calc(100svh-10rem)]">
+              <div className="wizard-card w-full rounded-2xl border border-line bg-surface px-5 pb-6 pt-6 sm:px-8 sm:pt-8">
                 <SectionHeading
                   id="questionnaire-title"
                   eyebrow="Find your match"

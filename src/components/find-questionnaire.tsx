@@ -997,7 +997,7 @@ export function FindQuestionnaire({
       className={
         embedded
           ? "flex min-h-0 w-full flex-1 flex-col"
-          : "mx-auto flex h-[calc(100svh-4rem)] min-h-0 w-full max-w-2xl flex-col px-4 pb-5 pt-6"
+          : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-4 pb-5 pt-6"
       }
     >
       {/* Small header */}
