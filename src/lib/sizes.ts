@@ -1,4 +1,4 @@
-import { isNumericSize } from "./facets";
+﻿import { isNumericSize } from "./facets";
 
 export type SizeCandidate = {
   category: string;
@@ -32,7 +32,7 @@ function alphaOrder(value: string): number {
 }
 
 /* Builds the full catalog size surfaces per discipline
-   (spec §6/§13). Shape guard: alphabetic values go to
+   (spec Â§6/Â§13). Shape guard: alphabetic values go to
    clothing, numeric values go to shoes. A shoe row holding
    an alphabetic value (historical mislabel) pollutes
    neither group. */
@@ -80,7 +80,7 @@ export function categorizeSizeList(
 /* Shoes are kept per sizing system (EU, US, UK, IT, FR) so the
    questionnaire can split them into EU vs US columns instead of
    merging every numeric scale into one alphabetical-free list. The
-   system column is the catalog truth (spec §6): a value tagged US
+   system column is the catalog truth (spec Â§6): a value tagged US
    stays in the US bucket even if its magnitude looks European, and
    non-numeric / blank rows never pollute a system bucket. Only
    systems with at least one real numeric value are emitted. */
@@ -337,15 +337,19 @@ export type SizeSection = {
     step always offers every conceivable size ("all possible sizes for
     each category"), so a category's list is the union of these complete
     standard ranges with whatever the catalog actually carries for that
-    category — any audience, any system. Clothing gets the full alpha
+    category â€” any audience, any system. Clothing gets the full alpha
     ladder; footwear gets complete EU/US/UK numeric scales that always
     appear, even when the catalog has no rows for one of them. */
 export const STANDARD_CLOTHING_SIZES = ORDERED_ALPHA;
 
 function footRange(from: number, to: number): string[] {
-  return Array.from({ length: to - from + 1 }, (_, i) =>
-    String(from + i)
-  );
+  /* Shoes come in half sizes (38.5, 40.5, 44.5, ...), so the standard
+     surface steps by 0.5 from one end of the range to the other. */
+  const values: string[] = [];
+  for (let n = from; n <= to; n += 0.5) {
+    values.push(Number.isInteger(n) ? String(n) : n.toFixed(1));
+  }
+  return values;
 }
 
 export const STANDARD_FOOTWEAR_SYSTEMS: Record<string, string[]> = {
@@ -361,7 +365,7 @@ export const STANDARD_FOOTWEAR_SYSTEMS: Record<string, string[]> = {
     the step shows all possible sizes. Clothing collapses into a single
     generic list (up to one column per system for a category that mixes
     systems, e.g. belts waist + letters); footwear becomes one column per
-    system — EU, US, UK always present, plus any catalog systems such as
+    system â€” EU, US, UK always present, plus any catalog systems such as
     IT or FR. A category finds no catalog rows still falls back to the
     standard clothing surface rather than offering nothing. */
 export function sizeSectionsFor(params: {
@@ -446,7 +450,7 @@ export function sizeSectionsFor(params: {
     return sections;
   }
 
-  /* Clothing — or a category with no catalog rows at all, which
+  /* Clothing â€” or a category with no catalog rows at all, which
      defaults to the complete standard clothing surface. */
   const values = sortValues([
     ...new Set([
