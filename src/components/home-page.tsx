@@ -41,6 +41,8 @@ import { DiscoveryCategories } from "@/components/discovery-categories";
 import { FeaturedProducts } from "@/components/featured-products";
 import { ValuePromise } from "@/components/value-promise";
 import { OutfitPromo } from "@/components/outfit-promo";
+import { FindQuestionnaire } from "@/components/find-questionnaire";
+import { SectionHeading } from "@/components/section-heading";
 import type {
   DiscoveryCategory,
   FeaturedProduct,
@@ -1304,10 +1306,8 @@ function Home({
               id="search"
               className="mx-auto mt-10 w-full max-w-3xl scroll-mt-24 sm:mt-12"
             >
-              {renderSearchContent(true)}
+{renderSearchContent(true)}
             </div>
-
-            {renderFindRow(true)}
           </div>
         </div>
       )}
@@ -1363,7 +1363,27 @@ function Home({
         {/* LANDING SECTIONS (hero state only) */}
 
         {!searched && (
-          <div className="mt-6">
+          <>
+            <section
+              id="questionnaire"
+              aria-labelledby="questionnaire-title"
+              className="scroll-mt-24"
+            >
+              <div className="rounded-2xl border border-line bg-surface px-5 py-8 sm:px-8 lg:py-12">
+                <SectionHeading
+                  id="questionnaire-title"
+                  eyebrow="Find your match"
+                  title="Tell us what you're looking for"
+                  description="A few quick questions and we&apos;ll narrow it down for you &mdash; or use the search bar above."
+                  align="center"
+                />
+                <div className="mt-6 sm:mt-8">
+                  <FindQuestionnaire embedded />
+                </div>
+              </div>
+            </section>
+
+            <div className="mt-16">
             <Reveal>
               <HowItWorks />
             </Reveal>
@@ -1383,7 +1403,8 @@ function Home({
             <Reveal>
               <OutfitPromo />
             </Reveal>
-          </div>
+            </div>
+          </>
         )}
 
         {/* RESULTS */}
