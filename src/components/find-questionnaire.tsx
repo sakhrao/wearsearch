@@ -1137,7 +1137,7 @@ export function FindQuestionnaire({
         aria-busy={!meta}
       >
         {meta && (
-          <div key={step} className="step-animate">
+          <div key={step} className="step-animate flex min-h-full w-full flex-col justify-center">
             {step === 0 && (
               <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-6 sm:grid-cols-3">
                 {GENDER_OPTIONS.map((value) => (
