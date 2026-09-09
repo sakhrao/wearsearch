@@ -567,7 +567,7 @@ export function FindQuestionnaire({
         </button>
         {open && (
           <div className="border-t border-line p-3">
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {section.categories.map((category) => (
                 <OptionCard
                   key={category.slug}
@@ -1099,7 +1099,7 @@ export function FindQuestionnaire({
       </div>
 
       {/* Minimal progress */}
-      <div className="mt-6 flex items-center gap-4">
+      <div className="mt-5 flex items-center gap-4">
         <span className="shrink-0 text-sm font-medium text-ink-soft">
           Step {step + 1} of {totalSteps}
         </span>
@@ -1123,11 +1123,11 @@ export function FindQuestionnaire({
       </div>
 
       {/* Question */}
-      <div className="mt-6 text-center">
+      <div className="mt-5 text-center">
         <Heading className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">
           {copy.ask}
         </Heading>
-        <p className="mt-2.5 text-ink-soft">
+        <p className="mt-3 text-ink-soft">
           {copy.hint}
         </p>
       </div>
@@ -1139,7 +1139,7 @@ export function FindQuestionnaire({
         {meta && (
           <div key={step} className="step-animate">
             {step === 0 && (
-              <div className="mx-auto grid w-full max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="mx-auto grid w-full max-w-lg grid-cols-1 gap-4 sm:grid-cols-3">
                 {GENDER_OPTIONS.map((value) => (
                   <OptionCard
                     key={value}
@@ -1168,7 +1168,7 @@ export function FindQuestionnaire({
                 </div>
               ) : openKey === null ? (
                 <div className="mx-auto w-full max-w-3xl">
-                  <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
+                  <p className="mb-4 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                     Tap a section to expand it
                   </p>
                   <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1202,7 +1202,7 @@ export function FindQuestionnaire({
                     icon
                   />
                 </div>
-                <div className="flex flex-wrap justify-center gap-1.5">
+                <div className="flex flex-wrap justify-center gap-2">
                   {meta.colors
                     .filter((color) =>
                       colorFilter.trim()
@@ -1258,14 +1258,14 @@ export function FindQuestionnaire({
             {step === 2 && (
               <div>
                 {sizeSections.length > 0 ? (
-                  <div className="space-y-6">
+                  <div className="space-y-7">
                     {sizeSections.map((section) =>
                       section.label !== null ? (
                         <div key={section.label}>
                           <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
                             {section.label}
                           </h2>
-                          <div className="flex flex-wrap justify-center gap-2">
+                          <div className="flex flex-wrap justify-center gap-2.5">
                             {section.values.map((size) => (
                               <OptionPill
                                 key={size}
@@ -1287,7 +1287,7 @@ export function FindQuestionnaire({
                       ) : (
                         <div
                           key="sizes"
-                          className="flex flex-wrap justify-center gap-2"
+                          className="flex flex-wrap justify-center gap-2.5"
                         >
                           {section.values.map((size) => (
                             <OptionPill
@@ -1481,7 +1481,7 @@ export function FindQuestionnaire({
                     <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
                       {group.name}
                     </h2>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2.5">
                       {group.values
                         .filter(
                           (value) =>
