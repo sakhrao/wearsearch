@@ -11,14 +11,6 @@ import { hasRealProductPage } from "@/lib/product-url";
    No fabricated counts, no fake inventory.
 */
 
-export type DiscoveryCategory = {
-  id: string;
-  name: string;
-  slug: string;
-  group: string;
-  count: number;
-};
-
 export type FeaturedProduct = {
   id: string;
   name: string;
@@ -49,109 +41,38 @@ export function isDemoSource(name: string, type: string): boolean {
   return /dummy|fake|demo/i.test(name);
 }
 
-const GROUP_ORDER = [
-  "Tops",
-  "Bottoms",
-  "Shoes",
-  "Accessories",
-  "Headwear",
-  "Swimwear",
-  "Other",
-];
+/** The 6 spotlight categories the homepage highlights. */
+export const SPOTLIGHT_CATEGORY_SLUGS = [
+  "t-shirts",
+  "hoodies",
+  "jackets",
+  "sneakers",
+  "trousers",
+  "jeans",
+] as const;
 
-/** Top categories with real, honest product counts. At most
-    `perGroup` entries per group, capped at `total`. */
-export async function getDiscoveryCategories(
-  perGroup = 2,
-  total = 8
-): Promise<DiscoveryCategory[]> {
+export type CategorySpotlight = {
+  id: string;
+  name: string;
+  slug: string;
+  group: string;
+  count: number;
+  representativeProduct: FeaturedProduct | null;
+};
+
+/**
+ * Returns one entry per target category slug with a real product
+ * count and the newest AVAILABLE product as a representative.
+ * Categories with zero matching products are omitted.
+ */
+export async function getSpotlightCategories(): Promise<
+  CategorySpotlight[]
+> {
+  /* Fetch every AVAILABLE non-demo product with a real page once,
+     grouped by category, to compute counts and pick representatives. */
   const rows = await prisma.product.findMany({
     where: {
       availability: "AVAILABLE",
-      source: { type: { not: "DEMO" } },
-    },
-    select: {
-      productUrl: true,
-      source: { select: { name: true, type: true } },
-      category: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          parent: { select: { name: true } },
-        },
-      },
-    },
-  });
-
-  const counts = new Map<string, DiscoveryCategory & { order: number }>();
-
-  for (const row of rows) {
-    if (isDemoSource(row.source.name, row.source.type)) {
-      continue;
-    }
-    if (!hasRealProductPage(row.productUrl)) {
-      continue;
-    }
-
-    const category = row.category;
-    const group =
-      category.parent?.name ??
-      SLUG_TO_GROUP[category.slug] ??
-      category.name;
-
-    const existing = counts.get(category.id);
-
-    if (existing) {
-      existing.count += 1;
-    } else {
-      counts.set(category.id, {
-        id: category.id,
-        name: category.name,
-        slug: category.slug,
-        group,
-        count: 1,
-        order: Math.max(0, GROUP_ORDER.indexOf(group)),
-      });
-    }
-  }
-
-  const sorted = [...counts.values()].sort(
-    (a, b) => a.order - b.order || b.count - a.count
-  );
-
-  const byGroup = new Map<string, number>();
-  const picked: DiscoveryCategory[] = [];
-
-  for (const category of sorted) {
-    const groupCount = byGroup.get(category.group) ?? 0;
-    if (groupCount >= perGroup) {
-      continue;
-    }
-    picked.push({
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-      group: category.group,
-      count: category.count,
-    });
-    byGroup.set(category.group, groupCount + 1);
-    if (picked.length >= total) {
-      break;
-    }
-  }
-
-  return picked;
-}
-
-/** Real products for the homepage preview, newest first. */
-export async function getFeaturedProducts(
-  limit = 6
-): Promise<FeaturedProduct[]> {
-  const rows = await prisma.product.findMany({
-    where: {
-      availability: "AVAILABLE",
-      imageUrl: { not: null },
       source: { type: { not: "DEMO" } },
     },
     select: {
@@ -161,46 +82,90 @@ export async function getFeaturedProducts(
       currency: true,
       productUrl: true,
       imageUrl: true,
+      createdAt: true,
       source: { select: { name: true, type: true } },
       brand: { select: { name: true } },
-      category: { select: { name: true } },
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          parent: { select: { name: true } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
-    take: limit * 3,
   });
 
-  const products: FeaturedProduct[] = [];
+  type Bucket = {
+    id: string;
+    name: string;
+    slug: string;
+    group: string;
+    count: number;
+    representative: FeaturedProduct | null;
+  };
+
+  const buckets = new Map<string, Bucket>();
+
+  for (const slug of SPOTLIGHT_CATEGORY_SLUGS) {
+    buckets.set(slug, {
+      id: "",
+      name: "",
+      slug,
+      group: "",
+      count: 0,
+      representative: null,
+    });
+  }
 
   for (const row of rows) {
-    if (isDemoSource(row.source.name, row.source.type)) {
-      continue;
+    const slug = row.category.slug;
+    const bucket = buckets.get(slug);
+    if (!bucket) continue;
+
+    if (isDemoSource(row.source.name, row.source.type)) continue;
+    if (!hasRealProductPage(row.productUrl)) continue;
+
+    if (!bucket.id) {
+      bucket.id = row.category.id;
+      bucket.name = row.category.name;
+      bucket.group =
+        row.category.parent?.name ??
+        SLUG_TO_GROUP[row.category.slug] ??
+        row.category.name;
     }
-    if (!hasRealProductPage(row.productUrl)) {
-      continue;
-    }
-    products.push({
-      id: row.id,
-      name: row.name,
-      brand: row.brand.name,
-      category: row.category.name,
-      price: Number(row.price),
-      currency: row.currency,
-      productUrl: row.productUrl,
-      imageUrl: row.imageUrl,
-    });
-    if (products.length >= limit) {
-      break;
+
+    bucket.count += 1;
+
+    if (!bucket.representative && row.imageUrl) {
+      bucket.representative = {
+        id: row.id,
+        name: row.name,
+        brand: row.brand.name,
+        category: row.category.name,
+        price: Number(row.price),
+        currency: row.currency,
+        productUrl: row.productUrl,
+        imageUrl: row.imageUrl,
+      };
     }
   }
 
-  return products;
+  return [...buckets.values()]
+    .filter((b) => b.count > 0 && b.id)
+    .map(({ id, name, slug, group, count, representative }) => ({
+      id,
+      name,
+      slug,
+      group,
+      count,
+      representativeProduct: representative,
+    }));
 }
 
 export async function getHomepageData() {
-  const [categories, featured] = await Promise.all([
-    getDiscoveryCategories(),
-    getFeaturedProducts(),
-  ]);
+  const spotlights = await getSpotlightCategories();
 
-  return { categories, featured };
+  return { spotlights };
 }

@@ -37,15 +37,13 @@ import {
 import { buildEditAnswers } from "@/lib/questionnaire-restore";
 import { Reveal } from "@/components/reveal";
 import { HowItWorks } from "@/components/how-it-works";
-import { DiscoveryCategories } from "@/components/discovery-categories";
-import { FeaturedProducts } from "@/components/featured-products";
+import { CategorySpotlight } from "@/components/category-spotlight";
 import { ValuePromise } from "@/components/value-promise";
 import { OutfitPromo } from "@/components/outfit-promo";
 import { FindQuestionnaire } from "@/components/find-questionnaire";
 import { SectionHeading } from "@/components/section-heading";
 import type {
-  DiscoveryCategory,
-  FeaturedProduct,
+  CategorySpotlight as CategorySpotlightType,
 } from "@/lib/discovery";
 
 const HERO_EXAMPLES = [
@@ -239,15 +237,13 @@ const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
 };
 
 export default function HomePage({
-  categories,
-  featured,
+  spotlights,
 }: {
-  categories: DiscoveryCategory[];
-  featured: FeaturedProduct[];
+  spotlights: CategorySpotlightType[];
 }) {
   return (
     <Suspense fallback={<HomeFallback />}>
-      <Home categories={categories} featured={featured} />
+      <Home spotlights={spotlights} />
     </Suspense>
   );
 }
@@ -257,11 +253,9 @@ function HomeFallback() {
 }
 
 function Home({
-  categories,
-  featured,
+  spotlights,
 }: {
-  categories: DiscoveryCategory[];
-  featured: FeaturedProduct[];
+  spotlights: CategorySpotlightType[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1389,11 +1383,7 @@ function Home({
             </Reveal>
 
             <Reveal delay={80}>
-              <FeaturedProducts products={featured} />
-            </Reveal>
-
-            <Reveal delay={80}>
-              <DiscoveryCategories categories={categories} />
+              <CategorySpotlight spotlights={spotlights} />
             </Reveal>
 
             <Reveal>
