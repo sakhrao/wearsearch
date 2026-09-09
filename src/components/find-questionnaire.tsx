@@ -82,6 +82,16 @@ const GROUP_ORDER = [
   "Headwear",
 ];
 
+/* One collapsible unit of the "Pick a category" step: a root whose
+   leaves hang directly under it (Shoes, Accessories, Headwear) or a
+   named sub-group under a root (Tops, Bottoms, Dresses & Jumpsuits,
+   Outerwear, Sportswear, Swimwear & Basics, Bags). */
+type CategorySection = {
+  key: string;
+  title: string;
+  categories: Meta["categories"];
+};
+
 const GENDER_LABELS: Record<string, string> = {
   women: "Women",
   men: "Men",
@@ -135,6 +145,25 @@ function ArrowIcon({ dir }: { dir: "left" | "right" }) {
       ) : (
         <path d="M5 12h14m-6-6 6 6-6 6" />
       )}
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`size-4 shrink-0 transition-transform duration-200 ${
+        open ? "rotate-180" : ""
+      }`}
+    >
+      <path d="m6 9 6 6 6-6" />
     </svg>
   );
 }
@@ -271,6 +300,8 @@ export function FindQuestionnaire({
     useState(false);
   const [colorFilter, setColorFilter] =
     useState("");
+  const [expandedSections, setExpandedSections] =
+    useState<Set<string>>(new Set());
 
   useEffect(() => {
     const saved = sessionStorage.getItem(
@@ -361,12 +392,13 @@ export function FindQuestionnaire({
     );
   }, [answers, sessionReady]);
 
-/* Build the hierarchical category tree for the "Pick a category" step.
+/* Build the collapsed category sections for the "Pick a category" step.
    Top level = canonical root (Clothing / Shoes / Accessories / Headwear);
-   within a root, leaves with a `subgroup` (e.g. Tops, Bags) are nested
-   under that sub-header, and leaves with no subgroup are offered directly
-   under the root. Every canonical leaf (IMPORTABLE and PLANNED alike) and
-   every preserved legacy DB-only category appears exactly once.
+   a root becomes one collapsible section (Shoes, Accessories, Headwear)
+   when its leaves hang directly under it, and its named sub-groups become
+   their own collapsible sections (Tops, Bottoms, Bags, ...) otherwise.
+   Every canonical leaf (IMPORTABLE and PLANNED alike) and every preserved
+   legacy DB-only category appears exactly once.
 
    Gender awareness: once a gender is picked, only the categories whose
    real gender compatibility (plan tokens + live stock) includes that
@@ -383,7 +415,7 @@ export function FindQuestionnaire({
     );
   }, [meta, genderAudience]);
 
-  const categoryTree = useMemo(() => {
+  const categorySections = useMemo(() => {
     const rootMap = new Map<string, { leaves: Meta["categories"]; subgroups: Map<string, Meta["categories"]> }>();
     for (const category of visibleCategories) {
       const root = category.root;
@@ -400,11 +432,76 @@ export function FindQuestionnaire({
       }
       rootMap.set(root, entry);
     }
-    return GROUP_ORDER.filter((root) => rootMap.has(root)).map((root) => {
-      const entry = rootMap.get(root)!;
-      return { root, leaves: entry.leaves, subgroups: [...entry.subgroups.entries()] };
-    });
+    /* Collapse the upfront category list into a compact set of sections:
+       an accordion unit per root (e.g. Shoes, Accessories) when the root
+       has no sub-groups, and per sub-group (Tops, Bottoms, Bags, ...)
+       otherwise, each keeping just the categories underneath it. */
+    const out: CategorySection[] = [];
+    for (const root of GROUP_ORDER) {
+      const entry = rootMap.get(root);
+      if (!entry) continue;
+      if (entry.subgroups.size === 0) {
+        if (entry.leaves.length > 0) {
+          out.push({
+            key: `root:${root}`,
+            title: root,
+            categories: entry.leaves,
+          });
+        }
+        continue;
+      }
+      if (entry.leaves.length > 0) {
+        out.push({
+          key: `root:${root}`,
+          title: root,
+          categories: entry.leaves,
+        });
+      }
+      for (const [subgroup, items] of entry.subgroups) {
+        out.push({
+          key: `sub:${root}/${subgroup}`,
+          title: subgroup,
+          categories: items,
+        });
+      }
+    }
+    return out;
   }, [visibleCategories]);
+
+  /* The section holding the picked category stays expanded so the
+     selection is never hidden behind a collapsed header. */
+  const selectedSectionKey = useMemo(() => {
+    if (!answers.category) {
+      return null;
+    }
+    return (
+      categorySections.find((section) =>
+        section.categories.some(
+          (category) =>
+            category.name === answers.category
+        )
+      )?.key ?? null
+    );
+  }, [categorySections, answers.category]);
+
+  function isSectionExpanded(key: string): boolean {
+    return (
+      expandedSections.has(key) ||
+      key === selectedSectionKey
+    );
+  }
+
+  function toggleSection(key: string) {
+    setExpandedSections((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   const selectedCategoryGroup = useMemo(() => {
     if (!meta || !answers.category) {
@@ -980,8 +1077,8 @@ export function FindQuestionnaire({
               </div>
             )}
 
-            {step === 1 && (
-              categoryTree.length === 0 ? (
+{step === 1 && (
+              categorySections.length === 0 ? (
                 <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
                   <p className="text-sm text-ink-soft">
                     There are no categories in
@@ -990,63 +1087,93 @@ export function FindQuestionnaire({
                   </p>
                 </div>
               ) : (
-              <div className="space-y-6">
-                {categoryTree.map((group) => (
-                  <div key={group.root}>
-                    <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                      {group.root}
-                    </h2>
-                    {group.leaves.length > 0 && (
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {group.leaves.map((category) => (
-                          <OptionCard
-                            key={category.slug}
-                            label={category.name}
-                            selected={
-                              answers.category ===
-                              category.name
-                            }
+                <div className="mx-auto w-full max-w-lg">
+                  <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
+                    Tap a section to expand it
+                  </p>
+                  <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+                    {categorySections.map((section) => {
+                      const open = isSectionExpanded(
+                        section.key
+                      );
+                      const selectedIn =
+                        answers.category !== null &&
+                        section.categories.some(
+                          (category) =>
+                            category.name ===
+                            answers.category
+                        );
+                      return (
+                        <div key={section.key}>
+                          <button
+                            type="button"
+                            aria-expanded={open}
                             onClick={() =>
-                              pickCategory(
-                                category.name
+                              toggleSection(
+                                section.key
                               )
                             }
-                          />
-))}
-                      </div>
-                    )}
-                    {group.subgroups.map(
-                      ([subgroup, items]) => (
-                        <div
-                          key={subgroup}
-                          className="mt-4"
-                        >
-                          <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-ink-soft">
-                            {subgroup}
-                          </h3>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            {items.map((category) => (
-                              <OptionCard
-                                key={category.slug}
-                                label={category.name}
-                                selected={
-                                  answers.category ===
-                                  category.name
+                            className="flex w-full items-center justify-between gap-3 bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[0.02] sm:px-5"
+                          >
+                            <span
+                              className={`flex items-center gap-2 text-sm font-medium ${
+                                selectedIn
+                                  ? "text-ink"
+                                  : "text-ink-soft"
+                              }`}
+                            >
+                              {selectedIn && (
+                                <span className="text-accent-deep">
+                                  <CheckIcon />
+                                </span>
+                              )}
+                              {section.title}
+                            </span>
+                            <span className="flex items-center gap-3">
+                              <span className="text-xs tabular-nums text-ink-faint">
+                                {section.categories.length}
+                              </span>
+                              <span
+                                className={
+                                  open
+                                    ? "text-accent-deep"
+                                    : "text-ink-faint"
                                 }
-                                onClick={() =>
-                                  pickCategory(
-                                    category.name
+                              >
+                                <ChevronIcon open={open} />
+                              </span>
+                            </span>
+                          </button>
+                          {open && (
+                            <div className="border-t border-line px-4 py-4 sm:px-5">
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                {section.categories.map(
+                                  (category) => (
+                                    <OptionCard
+                                      key={category.slug}
+                                      label={
+                                        category.name
+                                      }
+                                      selected={
+                                        answers.category ===
+                                        category.name
+                                      }
+                                      onClick={() =>
+                                        pickCategory(
+                                          category.name
+                                        )
+                                      }
+                                    />
                                   )
-                                }
-                              />
-                            ))}
-                          </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )
-                    )}
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                </div>
               )
             )}
 
