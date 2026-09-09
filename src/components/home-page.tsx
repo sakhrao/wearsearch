@@ -1369,7 +1369,7 @@ function Home({
               aria-labelledby="questionnaire-title"
               className="wizard-window mx-auto flex w-full max-w-4xl flex-col justify-center px-4 py-6 sm:py-8"
             >
-              <div className="wizard-card w-full rounded-2xl border border-line bg-surface px-5 pb-6 pt-6 sm:px-8 sm:pt-8">
+              <div className="wizard-card w-full rounded-2xl border border-line bg-surface px-6 pb-7 pt-7 sm:px-9 sm:pt-9">
                 <SectionHeading
                   id="questionnaire-title"
                   eyebrow="Find your match"

@@ -191,7 +191,7 @@ function OptionCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
+      className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border px-5 py-3.5 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
         selected
           ? "border-accent-deep bg-accent-tint text-ink"
           : "border-line bg-surface text-ink-soft hover:-translate-y-px hover:border-accent/60 hover:text-ink hover:shadow-md"
@@ -221,7 +221,7 @@ function OptionPill({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex min-h-11 items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-150 ${
+      className={`flex min-h-12 items-center gap-1.5 rounded-full border px-4 py-3 text-sm font-medium transition-all duration-150 ${
         selected
           ? "border-accent-deep bg-accent-tint text-ink"
           : "border-line bg-surface text-ink-soft hover:border-accent/50 hover:text-ink"
@@ -542,7 +542,7 @@ export function FindQuestionnaire({
           type="button"
           aria-expanded={open}
           onClick={() => toggleSection(section.key)}
-          className="flex w-full items-center justify-between gap-2 bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[0.02]"
+          className="flex w-full items-center justify-between gap-2 bg-surface px-5 py-4 text-left transition-colors hover:bg-ink/[0.02]"
         >
           <span
             className={`flex items-center gap-2 text-sm font-medium ${selectedIn ? "text-ink" : "text-ink-soft"}`}
@@ -566,8 +566,8 @@ export function FindQuestionnaire({
           </span>
         </button>
         {open && (
-          <div className="border-t border-line p-3">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="border-t border-line p-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {section.categories.map((category) => (
                 <OptionCard
                   key={category.slug}
@@ -1077,7 +1077,7 @@ export function FindQuestionnaire({
       className={
         embedded
           ? "flex min-h-0 w-full flex-1 flex-col"
-          : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-4 pb-5 pt-6"
+          : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-5 pb-6 pt-7"
       }
     >
       {/* Small header */}
@@ -1171,7 +1171,7 @@ export function FindQuestionnaire({
                   <p className="mb-4 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                     Tap a section to expand it
                   </p>
-                  <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {categorySections.map((section) =>
                       renderSection(section)
                     )}
@@ -1193,7 +1193,7 @@ export function FindQuestionnaire({
 
             {step === 3 && (
               <div>
-                <div className="mx-auto mb-3 max-w-sm">
+                <div className="mx-auto mb-4 max-w-sm">
                   <FieldInput
                     id="find-color-filter"
                     value={colorFilter}
@@ -1202,7 +1202,7 @@ export function FindQuestionnaire({
                     icon
                   />
                 </div>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-3">
                   {meta.colors
                     .filter((color) =>
                       colorFilter.trim()
@@ -1258,14 +1258,14 @@ export function FindQuestionnaire({
             {step === 2 && (
               <div>
                 {sizeSections.length > 0 ? (
-                  <div className="space-y-7">
+                  <div className="space-y-8">
                     {sizeSections.map((section) =>
                       section.label !== null ? (
                         <div key={section.label}>
                           <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
                             {section.label}
                           </h2>
-                          <div className="flex flex-wrap justify-center gap-2.5">
+                          <div className="flex flex-wrap justify-center gap-3.5">
                             {section.values.map((size) => (
                               <OptionPill
                                 key={size}
@@ -1481,7 +1481,7 @@ export function FindQuestionnaire({
                     <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
                       {group.name}
                     </h2>
-                    <div className="flex flex-wrap gap-2.5">
+                    <div className="flex flex-wrap gap-3.5">
                       {group.values
                         .filter(
                           (value) =>
@@ -1536,7 +1536,7 @@ export function FindQuestionnaire({
       </section>
 
       {/* Bottom navigation — stays pinned at the bottom of the window */}
-      <div className="mt-auto flex shrink-0 items-center justify-between gap-3 border-t border-line pb-1 pt-5">
+      <div className="mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-6">
         <button
           type="button"
           onClick={back}
