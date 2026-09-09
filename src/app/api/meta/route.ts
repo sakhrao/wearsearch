@@ -13,7 +13,11 @@ import {
   type ContextualSizeRow,
   type SizeCandidate,
 } from "../../../lib/sizes";
-import { getFxRate } from "../../../lib/currency";
+import {
+  getFxRate,
+  normalizePriceToEur,
+  roundMoney,
+} from "../../../lib/currency";
 import {
   buildQuestionnaireCategories,
   genderCompatibilityFor,
@@ -48,7 +52,7 @@ export async function GET() {
     const snapshot = await getCatalogMemo(
       prisma,
       fingerprint,
-      "meta-snapshot-v3",
+      "meta-snapshot-v4",
       async () => {
         const [
           categories,
@@ -166,11 +170,18 @@ export async function GET() {
 
           /* Live Product.gender per category slug: the real stock
              signal that fills KIDS and verifies UNISEX for the
-             gender-aware category filter. */
+             gender-aware category filter. The same rows carry the
+             product price so the budget step can size its sliders
+             against the priciest stocked product per category. */
           prisma.product.findMany({
             select: {
               gender: true,
-              category: { select: { slug: true } },
+              price: true,
+              currency: true,
+              availability: true,
+              category: {
+                select: { slug: true, name: true },
+              },
             },
           }),
         ]);
@@ -348,6 +359,17 @@ export async function GET() {
           ]),
         ].sort((a, b) => a.localeCompare(b));
 
+        /* Raw per-product price rows (kept currency-native). The route
+           normalizes them to the EUR reference per request so the max
+           always tracks the CURRENT fx rate, never a rate frozen in
+           the memo. */
+        const productPriceRows = productGenderRows.map((row) => ({
+          name: row.category?.name ?? "",
+          price: String(row.price),
+          currency: row.currency,
+          availability: row.availability,
+        }));
+
         /* Phase-0 offer sizes: real sellable size chips, expanded to
            their canonical members (M/L from "S/M L/XL 2XL/3XL", 6..12
            from "6-12"), contextualised by the product's own gender and
@@ -461,9 +483,38 @@ export async function GET() {
           sizeCatalog: buildSizeCatalog(contextualRows),
           brands: brands.map((brand) => brand.name),
           attributeGroups,
+          productPriceRows,
         };
       }
     );
+
+    /* Highest stocked price per category in the EUR reference
+       (computed per request against the live fx rate; product rows
+       themselves are memoized, the conversion is not). */
+    const priceMaxEurByCategory: Record<string, number> = {};
+    for (const row of snapshot.productPriceRows) {
+      if (row.availability !== "AVAILABLE") {
+        continue;
+      }
+      const normalized = normalizePriceToEur(
+        Number(row.price),
+        row.currency,
+        fx.rate
+      );
+      if (
+        !Number.isFinite(normalized) ||
+        normalized <= 0
+      ) {
+        continue;
+      }
+      const previous =
+        priceMaxEurByCategory[row.name] ?? -Infinity;
+      if (normalized > previous) {
+        priceMaxEurByCategory[row.name] = roundMoney(
+          normalized
+        );
+      }
+    }
 
     return NextResponse.json(
       {
@@ -476,6 +527,7 @@ export async function GET() {
         sizeCatalog: snapshot.sizeCatalog,
         brands: snapshot.brands,
         attributeGroups: snapshot.attributeGroups,
+        priceMaxEurByCategory,
         fx: {
           rate: fx.rate,
           asOf: fx.asOf,

@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { usdToEur } from "@/lib/currency";
+import {
+  eurToUsd,
+  usdToEur,
+} from "@/lib/currency";
 import { buildSearchQueryString } from "@/lib/search-url";
 import {
   EMPTY_ANSWERS,
@@ -48,6 +51,11 @@ type Meta = {
   sizeCatalog: SizeCatalog;
   brands: string[];
   attributeGroups: Record<string, string[]>;
+  /* Highest stocked product price per category, in the EUR reference
+     (computed by /api/meta against the live fx rate). The budget step
+     sizes its sliders against this so the Maximum covers the most
+     expensive product in the picked category. */
+  priceMaxEurByCategory: Record<string, number>;
   fx: {
     rate: number | null;
     asOf: string | null;
@@ -627,6 +635,39 @@ export function FindQuestionnaire({
      default: USD when a rate is available, else EUR. */
   const budgetCurrencyLabel =
     answers.budgetCurrency ?? (fxRate ? "USD" : "EUR");
+
+  /* The budget sliders cap at the most expensive stocked product in
+     the picked category (any category's max is the priciest buyable
+     product there, normalized to the EUR reference by /api/meta). The
+     value is expressed in the budget display currency and rounded up
+     a whole unit so the Maximum genuinely covers the top price; no
+     catalog max falls back to a flat 200. */
+  const budgetSliderMax = useMemo(() => {
+    const maxEur =
+      meta?.priceMaxEurByCategory?.[
+        answers.category ?? ""
+      ];
+    if (
+      maxEur == null ||
+      !Number.isFinite(maxEur) ||
+      maxEur <= 0
+    ) {
+      return 200;
+    }
+    const rate = meta?.fx?.rate ?? null;
+    const display =
+      budgetCurrencyLabel === "USD" &&
+      rate !== null &&
+      Number.isFinite(rate) &&
+      rate > 0
+        ? eurToUsd(maxEur, rate)
+        : maxEur;
+    return Math.max(1, Math.ceil(display));
+  }, [
+    meta,
+    answers.category,
+    budgetCurrencyLabel,
+  ]);
 
   const sizeStepLabel = useMemo(() => {
     const group = selectedCategoryGroup;
@@ -1392,7 +1433,7 @@ export function FindQuestionnaire({
                   <input
                     type="range"
                     min={0}
-                    max={200}
+                    max={budgetSliderMax}
                     step={1}
                     aria-label={`Minimum budget in ${budgetCurrencyLabel}`}
                     value={
@@ -1433,19 +1474,19 @@ export function FindQuestionnaire({
                     <span className="tabular-nums text-ink-soft">
                       {budgetCurrencyLabel}{" "}
                       {answers.budgetMax === ""
-                        ? 200
+                        ? budgetSliderMax
                         : answers.budgetMax}
                     </span>
                   </div>
                   <input
                     type="range"
                     min={0}
-                    max={200}
+                    max={budgetSliderMax}
                     step={1}
                     aria-label={`Maximum budget in ${budgetCurrencyLabel}`}
                     value={
                       answers.budgetMax === ""
-                        ? 200
+                        ? budgetSliderMax
                         : Number(answers.budgetMax)
                     }
                     onChange={(event) => {
