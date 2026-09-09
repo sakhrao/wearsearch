@@ -1,23 +1,43 @@
 @import "tailwindcss";
 
 /*
-   FitWear design tokens.
-   The palette is intentionally restrained: a warm off-white paper
-   base, a near-black charcoal ink, a warm beige accent family and
-   hairline neutrals. Components must use these tokens (or the @theme
-   utilities they generate) instead of ad-hoc colors.
+   FitWear design system.
+
+   Monochrome editorial palette: pure white base, near-black ink and a
+   scale of grays for surfaces, hairlines and quiet text. Product imagery
+   carries its own colour; the interface itself never introduces hue.
+   The legacy token names (paper / ink / accent / line) are kept so every
+   existing class usage maps onto the new grayscale automatically.
+
+   Status states are also monochrome by design: success = solid dark,
+   warning = quiet gray, error = high-contrast black on light gray.
+   Semantics are carried by shape, weight and text, not by colour.
 */
 :root {
-  --paper: #faf6f0;
-  --paper-soft: #f2ebe0;
+  --paper: #ffffff;
+  --paper-soft: #f4f4f4;
   --surface: #ffffff;
-  --ink: #211d19;
-  --ink-soft: #4f4a44;
-  --ink-faint: #857c6f;
-  --line: #e6ded0;
-  --accent: #c8a475;
-  --accent-deep: #8a6234;
-  --accent-tint: #f4ead8;
+  --ink: #0a0a0a;
+  --ink-soft: #3f3f3f;
+  --ink-faint: #8f8f8f;
+  --line: #e6e6e6;
+  --accent: #4a4a4a;
+  --accent-deep: #000000;
+  --accent-tint: #ebebeb;
+
+  /* Monochrome status states (no hue) */
+  --success: #111111;
+  --success-bg: #f0f0f0;
+  --success-border: #bdbdbd;
+  --warning: #4a4a4a;
+  --warning-bg: #f7f7f7;
+  --warning-border: #cfcfcf;
+  --error: #000000;
+  --error-bg: #f2f2f2;
+  --error-border: #999999;
+  --info: #202020;
+  --info-bg: #f2f2f2;
+  --info-border: #d4d4d4;
 }
 
 @theme inline {
@@ -33,6 +53,20 @@
   --color-accent: var(--accent);
   --color-accent-deep: var(--accent-deep);
   --color-accent-tint: var(--accent-tint);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-error-border: var(--error-border);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-fraunces);
@@ -46,15 +80,16 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: var(--accent-tint);
-  color: var(--accent-deep);
+  background: var(--ink);
+  color: var(--paper);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent-deep);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 4px;
 }

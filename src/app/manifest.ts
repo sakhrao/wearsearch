@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Find the clothes you are looking for — search a real catalog by category, color, brand, size or budget and open genuine product pages.",
     start_url: "/",
     display: "standalone",
-    background_color: "#faf6f0",
-    theme_color: "#faf6f0",
+    background_color: "#ffffff",
+    theme_color: "#ffffff",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
     ],

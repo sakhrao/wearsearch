@@ -564,11 +564,11 @@ function BuildPageInner() {
         )}
 
         {error && !response && !atFinished && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
-            <h2 className="text-lg font-semibold text-red-700">
+          <div className="rounded-2xl border border-error-border bg-error-bg p-8 text-center">
+            <h2 className="text-lg font-semibold text-error">
               Something went wrong
             </h2>
-            <p className="mt-2 text-sm text-red-600">{error}</p>
+            <p className="mt-2 text-sm text-ink-soft">{error}</p>
             <button
               type="button"
               onClick={() => setRetryNonce((n) => n + 1)}
@@ -886,7 +886,7 @@ function BuildPageInner() {
                                     return next;
                                   })
                             }
-                            className="text-xs font-medium text-red-500 transition hover:text-red-700"
+                            className="text-xs font-medium text-error transition hover:text-ink"
                           >
                             Remove
                           </button>

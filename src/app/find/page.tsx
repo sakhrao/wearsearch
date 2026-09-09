@@ -1269,7 +1269,7 @@ export default function FindPage() {
                        budgets — nothing is invented or converted.`}
                 </p>
                 {!fxRate && budgetCurrencyLabel === "USD" && (
-                  <p className="text-center text-xs text-amber-700">
+                  <p className="text-center text-xs text-warning">
                     No reliable USD rate is available right now, so
                     your budget is matched at its listed value. Nothing
                     is invented — conversion applies automatically once

@@ -292,14 +292,14 @@ function OutfitPage() {
                 <button
                   type="button"
                   onClick={saveOutfit}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  className="rounded-lg border-ink-faint px-4 py-2 text-sm font-medium text-ink transition hover:bg-paper-soft"
                 >
                   {saved ? "Saved" : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={shareOutfit}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  className="rounded-lg border-ink-faint px-4 py-2 text-sm font-medium text-ink transition hover:bg-paper-soft"
                 >
                   {saved ? "Link copied" : "Share"}
                 </button>
@@ -307,7 +307,7 @@ function OutfitPage() {
             )}
             <Link
               href="/"
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="rounded-lg border-ink-faint px-4 py-2 text-sm font-medium text-ink transition hover:bg-paper-soft"
             >
               Back to search
             </Link>
@@ -315,14 +315,14 @@ function OutfitPage() {
         </div>
 
         {!productId && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
-            <h2 className="text-xl font-semibold text-red-700">No product selected</h2>
-            <p className="mt-2 text-sm text-red-600">
+          <div className="rounded-2xl border border-error-border bg-error-bg p-8 text-center">
+            <h2 className="text-xl font-semibold text-error">No product selected</h2>
+            <p className="mt-2 text-sm text-error">
               Choose &quot;Style this item&quot; on a product to build an outfit.
             </p>
             <Link
               href="/"
-              className="mt-6 inline-block rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+              className="mt-6 inline-block rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
             >
               Back to search
             </Link>
@@ -330,16 +330,16 @@ function OutfitPage() {
         )}
 
         {state.status === "loading" && (
-          <p className="text-gray-500">Building outfits…</p>
+          <p className="text-ink-soft">Building outfits…</p>
         )}
 
         {state.status === "error" && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
-            <h2 className="text-xl font-semibold text-red-700">Something went wrong</h2>
-            <p className="mt-2 text-sm text-red-600">{state.message}</p>
+          <div className="rounded-2xl border border-error-border bg-error-bg p-8 text-center">
+            <h2 className="text-xl font-semibold text-error">Something went wrong</h2>
+            <p className="mt-2 text-sm text-error">{state.message}</p>
             <Link
               href="/"
-              className="mt-6 inline-block rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+              className="mt-6 inline-block rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
             >
               Back to search
             </Link>
@@ -349,15 +349,15 @@ function OutfitPage() {
         {state.status === "ready" && (
           <>
             {/* REFINE BAR */}
-            <div className="mb-8 flex flex-wrap items-end gap-4 rounded-2xl border border-gray-200 p-5">
+            <div className="mb-8 flex flex-wrap items-end gap-4 rounded-2xl border border-line p-5">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Occasion
                 </label>
                 <select
                   value={occasion}
                   onChange={(e) => setOccasion(e.target.value)}
-                  className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
+                  className="mt-1 block rounded-lg border border-ink-faint px-3 py-2 text-sm outline-none focus:border-ink"
                 >
                   {["Everyday", "University", "Work", "Date", "Party", "Formal", "Sport", "Travel"].map((o) => (
                     <option key={o} value={o}>
@@ -367,13 +367,13 @@ function OutfitPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Style
                 </label>
                 <select
                   value={style}
                   onChange={(e) => setStyle(e.target.value)}
-                  className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
+                  className="mt-1 block rounded-lg border border-ink-faint px-3 py-2 text-sm outline-none focus:border-ink"
                 >
                   <option value="">Any style</option>
                   {["casual", "smart-casual", "sporty", "streetwear", "formal", "classic", "bohemian", "minimalist"].map((s) => (
@@ -384,7 +384,7 @@ function OutfitPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Your size
                 </label>
                 <input
@@ -392,11 +392,11 @@ function OutfitPage() {
                   value={size}
                   onChange={(e) => setSize(e.target.value)}
                   placeholder="e.g. M or 42"
-                  className="mt-1 block w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
+                  className="mt-1 block w-32 rounded-lg border border-ink-faint px-3 py-2 text-sm outline-none focus:border-ink"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Budget (EUR)
                 </label>
                 <div className="mt-1 flex flex-wrap gap-1.5">
@@ -407,8 +407,8 @@ function OutfitPage() {
                       onClick={() => setBudget(String(p))}
                       className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
                         Number(budget) === p
-                          ? "bg-black text-white"
-                          : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                          ? "bg-ink text-paper"
+                          : "border-ink-faint text-ink-soft hover:bg-paper-soft"
                       }`}
                     >
                       €{p}
@@ -420,14 +420,14 @@ function OutfitPage() {
                     value={budget}
                     onChange={(e) => setBudget(e.target.value)}
                     placeholder="Custom"
-                    className="block w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-black"
+                    className="block w-28 rounded-lg border border-ink-faint px-3 py-1.5 text-sm outline-none focus:border-ink"
                   />
                 </div>
               </div>
             </div>
 
             {/* ANCHOR */}
-            <div className="mb-8 flex items-center gap-5 rounded-2xl border border-gray-200 p-5">
+            <div className="mb-8 flex items-center gap-5 rounded-2xl border border-line p-5">
               {state.result.anchor.imageUrl ? (
                 <img
                   src={state.result.anchor.imageUrl}
@@ -435,14 +435,14 @@ function OutfitPage() {
                   className="h-24 w-24 rounded-xl object-cover"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-gray-100 text-gray-400">
+                <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-paper-soft text-ink-faint">
                   No
                 </div>
               )}
               <div>
-                <p className="text-sm text-gray-500">{refName(state.result.anchor.brand)}</p>
+                <p className="text-sm text-ink-soft">{refName(state.result.anchor.brand)}</p>
                 <h2 className="text-xl font-semibold">{state.result.anchor.name}</h2>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-1 text-sm text-ink-soft">
                   {refName(state.result.anchor.category)} · {state.result.anchor.gender}
                   {size.trim() ? ` · size ${size.trim()}` : ""}
                 </p>
@@ -459,8 +459,8 @@ function OutfitPage() {
                     onClick={() => setActiveIndex(i)}
                     className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                       i === activeIndex
-                        ? "bg-black text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        ? "bg-ink text-paper"
+                        : "bg-paper-soft text-ink hover:bg-line"
                     }`}
                   >
                     Look {i + 1}
@@ -486,8 +486,8 @@ function OutfitPage() {
             )}
 
             {state.result.outfits.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-gray-300 p-10 text-center">
-                <p className="text-gray-500">
+              <div className="rounded-2xl border border-dashed border-ink-faint p-10 text-center">
+                <p className="text-ink-soft">
                   We couldn&apos;t build an outfit around this item right now.
                 </p>
               </div>
@@ -529,23 +529,23 @@ function OutfitLook({
     budget !== null ? Math.round((budget - look.totalPriceEur) * 100) / 100 : null;
 
   return (
-    <div className="rounded-2xl border border-gray-200 p-6">
+    <div className="rounded-2xl border border-line p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-ink-soft">
             Look score: {Math.round(look.score * 100)} / 100
           </p>
           <p className="mt-1 text-lg font-bold">
             Total: €{look.totalPriceEur.toFixed(2)}
           </p>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-ink-soft">
             {pieces} of {Math.max(totalPieces, pieces)} pieces ·{" "}
             {look.complete ? "Full outfit" : "Partial outfit"}
           </p>
           {remaining !== null && (
             <p
               className={`mt-1 text-sm font-medium ${
-                remaining < 0 ? "text-red-600" : "text-emerald-700"
+                remaining < 0 ? "text-error" : "text-ink"
               }`}
             >
               {remaining === 0
@@ -559,14 +559,14 @@ function OutfitLook({
         <button
           type="button"
           onClick={() => setShowWhy((s) => !s)}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          className="rounded-lg border-ink-faint px-4 py-2 text-sm font-medium text-ink transition hover:bg-paper-soft"
         >
           {showWhy ? "Hide" : "Why these items?"}
         </button>
       </div>
 
       {look.missingSlots.length > 0 && (
-        <p className="mb-4 rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        <p className="mb-4 rounded-lg bg-warning-bg px-4 py-2 text-sm text-warning">
           Missing: {look.missingSlots.map((s) => SLOT_LABEL[s] ?? s).join(", ")} — no
           matching product in the catalog for this look.
         </p>
@@ -574,13 +574,13 @@ function OutfitLook({
 
       {look.missingSlots.length === 0 &&
         !look.items.some((it) => it.slot === "accessory") && (
-          <p className="mb-4 rounded-lg bg-gray-50 px-4 py-2 text-sm text-gray-500">
+          <p className="mb-4 rounded-lg bg-paper-soft px-4 py-2 text-sm text-ink-soft">
             Accessories unavailable for this look — the outfit is complete without them.
           </p>
         )}
 
       {replaceError && (
-        <p className="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+        <p className="mb-4 rounded-lg bg-error-bg px-4 py-2 text-sm text-error">
           {replaceError}
         </p>
       )}
@@ -590,7 +590,7 @@ function OutfitLook({
         {look.items.map((item) => (
           <div
             key={item.product.id}
-            className="overflow-hidden rounded-2xl border border-gray-200"
+            className="overflow-hidden rounded-2xl border border-line"
           >
             {item.product.imageUrl ? (
               <img
@@ -600,17 +600,17 @@ function OutfitLook({
                 className="h-56 w-full object-cover"
               />
             ) : (
-              <div className="flex h-56 w-full items-center justify-center bg-gray-100 text-gray-400">
+              <div className="flex h-56 w-full items-center justify-center bg-paper-soft text-ink-faint">
                 No image
               </div>
             )}
 
             <div className="p-4">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
                 {item.product.id === anchorId ? "Anchor" : SLOT_LABEL[item.slot] ?? item.slot}
               </span>
               <h3 className="mt-1 text-sm font-semibold">{item.product.name}</h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-soft">
                 {item.color ? item.color.name : "—"} · {money(item.product.price)}{" "}
                 {item.product.currency}
               </p>
@@ -620,7 +620,7 @@ function OutfitLook({
                   href={item.product.productUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-800"
+                  className="rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:bg-ink-soft"
                 >
                   View product
                 </a>
@@ -630,7 +630,7 @@ function OutfitLook({
                       type="button"
                       onClick={() => onReplace(lookIndex, item.slot)}
                       disabled={replacingSlot !== null}
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                      className="rounded-lg border border-ink-faint px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-paper-soft disabled:opacity-50"
                     >
                       {replacingSlot === item.slot ? "Swapping…" : "Replace"}
                     </button>
@@ -638,7 +638,7 @@ function OutfitLook({
                       type="button"
                       onClick={() => onReplace(lookIndex, item.slot, { excludeProductIds: [item.product.id] })}
                       disabled={replacingSlot !== null}
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100 disabled:opacity-50"
+                      className="rounded-lg border border-ink-faint px-3 py-1.5 text-xs font-medium text-ink-soft transition hover:bg-paper-soft disabled:opacity-50"
                       title="Replace this piece with something different from your taste"
                     >
                       Not my style
@@ -646,7 +646,7 @@ function OutfitLook({
                     <button
                       type="button"
                       onClick={() => onRemove(item.slot)}
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                      className="rounded-lg border border-ink-faint px-3 py-1.5 text-xs font-medium text-error transition hover:bg-error-bg"
                     >
                       Remove
                     </button>
@@ -656,7 +656,7 @@ function OutfitLook({
 
               {showWhy &&
                 itemExplanations[item.product.id] && (
-                  <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                  <ul className="mt-3 space-y-1 border-t border-line pt-3 text-xs text-ink-soft">
                     {itemExplanations[item.product.id].map(
                       (e, i) => (
                         <li key={i}>{e.text}</li>
@@ -675,7 +675,7 @@ function OutfitLook({
           type="button"
           onClick={onAdd}
           disabled={replacingSlot !== null}
-          className="mt-5 rounded-xl border border-dashed border-gray-300 px-5 py-4 w-full text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+          className="mt-5 rounded-xl border border-dashed border-ink-faint px-5 py-4 w-full text-sm font-medium text-ink-soft transition hover:bg-paper-soft disabled:opacity-50"
         >
           + Add an item
         </button>
@@ -683,37 +683,37 @@ function OutfitLook({
 
       {/* SHOP THE LOOK */}
       {look.items.length > 0 && (
-        <details className="mt-6 rounded-2xl border border-gray-200">
+        <details className="mt-6 rounded-2xl border border-line">
           <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 rounded-2xl px-5 py-3">
-            <p className="text-sm font-medium text-gray-700">
+            <p className="text-sm font-medium text-ink">
               {look.items.length} items · {look.complete ? "Full outfit" : "Partial outfit"} ·{" "}
               <span className="font-bold">€{look.totalPriceEur.toFixed(2)}</span>
             </p>
             <span className="text-sm text-black">Shop the Look</span>
           </summary>
-          <div className="border-t border-gray-100 px-5 py-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <div className="border-t border-line px-5 py-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-soft">
               Everything in this look — open each item to buy
             </p>
             <ul className="divide-y divide-gray-100">
               {look.items.map((item) => (
                 <li key={item.product.id} className="flex items-center justify-between gap-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-gray-800">{item.product.name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="truncate text-sm text-ink">{item.product.name}</p>
+                    <p className="text-xs text-ink-soft">
                       {SLOT_LABEL[item.slot] ?? item.slot}
                       {item.color ? ` · ${item.color.name}` : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-ink-soft">
                       {money(item.product.price)} {item.product.currency}
                     </span>
                     <a
                       href={item.product.productUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-800"
+                      className="rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:bg-ink-soft"
                     >
                       Open
                     </a>

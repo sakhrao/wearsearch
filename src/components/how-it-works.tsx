@@ -1,3 +1,5 @@
+import { SectionHeading } from "@/components/section-heading";
+
 const STEPS = [
   {
     number: "01",
@@ -22,37 +24,28 @@ export function HowItWorks() {
       id="how-it-works"
       role="region"
       aria-labelledby="how-it-works-title"
-      className="scroll-mt-24 py-16 sm:py-20"
+      className="scroll-mt-24 py-16 sm:py-24"
     >
-      <div className="mx-auto max-w-2xl text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-deep">
-          How it works
-        </p>
-        <h2
-          id="how-it-works-title"
-          className="mt-3 font-display text-3xl font-medium tracking-tight text-ink sm:text-4xl"
-        >
-          From words to a wardrobe, in three steps
-        </h2>
-        <p className="mt-3 text-ink-soft">
-          Describe the piece you have in mind and we&apos;ll bring
-          the matches to you.
-        </p>
-      </div>
+      <SectionHeading
+        id="how-it-works-title"
+        eyebrow="How it works"
+        title="From words to a wardrobe, in three steps"
+        description={
+          "Describe the piece you have in mind and we'll bring " +
+          "the matches to you."
+        }
+      />
 
-      <div className="mt-12 grid gap-4 lg:grid-cols-3">
+      <div className="mt-12 grid gap-px border-y border-line bg-line sm:grid-cols-3">
         {STEPS.map((step) => (
-          <div
-            key={step.number}
-            className="rounded-2xl border border-line bg-surface p-6 transition hover:border-accent/40 hover:shadow-sm"
-          >
-            <p className="font-display text-2xl font-medium text-accent-deep">
+          <div key={step.number} className="bg-paper px-8 py-10 sm:px-10">
+            <p className="font-display text-5xl font-light tracking-tight text-ink-faint">
               {step.number}
             </p>
-            <h3 className="mt-3 text-base font-semibold text-ink">
+            <h3 className="mt-6 text-base font-semibold text-ink">
               {step.title}
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
               {step.copy}
             </p>
           </div>

@@ -316,7 +316,7 @@ function ReviewInner() {
                           className="overflow-hidden rounded-2xl border border-line bg-surface"
                         >
                           {gone ? (
-                            <div className="grid aspect-[4/3] w-full place-items-center bg-red-50 px-6 text-center text-xs text-red-600">
+                            <div className="grid aspect-[4/3] w-full place-items-center bg-error-bg px-6 text-center text-xs text-ink-soft">
                               This product left the catalog and could not be
                               re-verified.
                             </div>
@@ -351,14 +351,14 @@ function ReviewInner() {
                               <button
                                 type="button"
                                 onClick={() => editAt(p.slot)}
-                                className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-soft transition hover:border-accent-deep hover:text-ink"
+                                className="rounded-full border border-line px-4 py-2 text-xs font-medium text-ink-soft transition hover:border-ink hover:text-ink"
                               >
                                 Change
                               </button>
                               <button
                                 type="button"
                                 onClick={() => removePiece(p.slot, p.product.id)}
-                                className="rounded-full border border-line px-4 py-2 text-xs font-medium text-red-500 transition hover:bg-red-50"
+                                className="rounded-full border border-line px-4 py-2 text-xs font-medium text-error transition hover:bg-error-bg"
                               >
                                 Remove
                               </button>
@@ -380,24 +380,24 @@ function ReviewInner() {
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
                         status.complete
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-800"
+                          ? "bg-paper-soft text-ink"
+                          : "bg-warning-bg text-warning"
                       }`}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${
-                          status.complete ? "bg-emerald-600" : "bg-amber-500"
+                          status.complete ? "bg-ink" : "bg-ink-faint"
                         }`}
                       />
                       {status.complete ? "Complete" : "Incomplete"}
                     </span>
                     {reviewError && status.complete && (
-                      <span className="text-xs text-amber-700">(best effort)</span>
+                      <span className="text-xs text-warning">(best effort)</span>
                     )}
                   </div>
                   <div className="mt-3 space-y-1.5 text-sm">
                     {status.missingRequired.map((slot) => (
-                      <p key={slot} className="flex items-center justify-between text-amber-700">
+                      <p key={slot} className="flex items-center justify-between text-warning">
                         <span>Missing: {SLOT_LABELS[slot as keyof typeof SLOT_LABELS] ?? slot}</span>
                         <button type="button" onClick={() => editAt(slot)} className="text-xs font-medium underline underline-offset-2">
                           Fill it
@@ -424,12 +424,12 @@ function ReviewInner() {
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
                           review.fashion.verdict === "strong"
-                            ? "bg-emerald-50 text-emerald-700"
+                            ? "bg-paper-soft text-ink"
                             : review.fashion.verdict === "valid"
-                              ? "bg-blue-50 text-blue-700"
+                              ? "bg-info-bg text-info"
                               : review.fashion.verdict === "soft-mismatch"
-                                ? "bg-amber-50 text-amber-800"
-                                : "bg-red-50 text-red-700"
+                                ? "bg-warning-bg text-warning"
+                                : "bg-error-bg text-error"
                         }`}
                       >
                         {review.fashion.verdict === "hard-invalid"
@@ -465,10 +465,10 @@ function ReviewInner() {
                               <span
                                 className={`font-semibold ${
                                   f.score >= 0.8
-                                    ? "text-emerald-700"
+                                    ? "text-ink"
                                     : f.score >= 0.5
-                                      ? "text-amber-700"
-                                      : "text-red-600"
+                                      ? "text-warning"
+                                      : "text-error"
                                 }`}
                               >
                                 {Math.round(f.score * 100)}%
@@ -490,9 +490,9 @@ function ReviewInner() {
                           {review.fashion.issues.map((i) => (
                             <p
                               key={i}
-                              className="flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-[11px] leading-snug text-red-700"
+                              className="flex items-start gap-1.5 rounded-xl border border-error-border bg-error-bg px-3 py-2 text-[11px] leading-snug text-error"
                             >
-                              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
                               {i}
                             </p>
                           ))}
@@ -504,9 +504,9 @@ function ReviewInner() {
                           {review.fashion.highlights.map((h) => (
                             <p
                               key={h}
-                              className="flex items-start gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] leading-snug text-emerald-700"
+                              className="flex items-start gap-1.5 rounded-xl border border-line bg-paper-soft px-3 py-2 text-[11px] leading-snug text-ink"
                             >
-                              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink/50" />
                               {h}
                             </p>
                           ))}

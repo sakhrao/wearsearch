@@ -911,7 +911,7 @@ function Home({
       return null;
     }
 
-    return parts.join(" â€¢ ");
+    return parts.join(" · ");
   }
 
   const searchDescription = getSearchDescription();
@@ -1123,22 +1123,51 @@ function Home({
           <div
             role="region"
             aria-labelledby="hero-title"
-            className="hero-animate mx-auto max-w-3xl pb-12 text-center"
+            className="hero-animate pb-14 pt-6 sm:pb-20 sm:pt-12"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent-deep">
-              Search fashion your way
-            </p>
-            <h1
-              id="hero-title"
-              className="mt-5 font-display text-4xl font-semibold leading-[1.05] tracking-tight text-ink sm:text-6xl sm:leading-[1.05]"
-            >
-              Find exactly what you&apos;re looking for.
-            </h1>
-            <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">
-              Describe the perfect piece in your own words â€” style,
-              color, size or budget â€” and discover products that
-              match.
-            </p>
+            <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-16">
+              <div className="max-w-2xl lg:col-span-7">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink">
+                  Search fashion your way
+                </p>
+                <h1
+                  id="hero-title"
+                  className="mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl sm:leading-[1.04] lg:text-7xl"
+                >
+                  Find exactly what you&apos;re looking for.
+                </h1>
+                <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">
+                  Describe the perfect piece in your own words &mdash;
+                  style, color, size or budget &mdash; and discover
+                  products that match.
+                </p>
+              </div>
+
+              {featured[0]?.imageUrl && (
+                <div className="hidden lg:col-span-5 lg:block">
+                  <Link
+                    href={featured[0].productUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative block overflow-hidden bg-paper-soft"
+                  >
+                    <img
+                      src={featured[0].imageUrl}
+                      alt={featured[0].name}
+                      className="aspect-[3/4] w-full object-cover transition duration-700 group-hover:scale-[1.03]"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 bg-gradient-to-t from-black/70 to-transparent px-5 py-4">
+                      <p className="text-sm font-medium text-paper">
+                        {featured[0].brand}
+                      </p>
+                      <p className="text-sm font-medium text-paper/85">
+                        {featured[0].price} {featured[0].currency}
+                      </p>
+                    </div>
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1157,7 +1186,7 @@ function Home({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 aria-hidden="true"
-                className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-ink-faint"
+                className="pointer-events-none absolute left-6 top-1/2 size-5 -translate-y-1/2 text-ink-faint"
               >
                 <circle cx="11" cy="11" r="7" />
                 <path d="m20 20-3.5-3.5" />
@@ -1189,7 +1218,7 @@ function Home({
                 }}
                 placeholder="What are you looking for?"
                 aria-label="Search for clothes"
-                className="h-14 w-full rounded-full border border-line bg-surface pl-13 pr-5 text-base text-ink shadow-sm outline-none transition placeholder:text-ink-faint hover:border-ink/30 focus:border-accent/40 focus:ring-4 focus:ring-accent/10 sm:text-lg"
+                className="h-16 w-full rounded-full border border-line bg-surface pl-14 pr-6 text-base text-ink outline-none transition placeholder:text-ink-faint hover:border-ink/40 focus:border-ink focus:ring-4 focus:ring-ink/5 sm:text-lg"
               />
             </label>
 
@@ -1203,7 +1232,7 @@ function Home({
               }
               disabled={loading || !query.trim()}
               aria-label="Run search"
-              className="h-14 rounded-full bg-ink px-9 text-base font-semibold text-paper shadow-sm transition hover:bg-ink-soft hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
+              className="h-16 rounded-full bg-ink px-10 text-base font-semibold text-paper transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[168px]"
             >
               {loading ? "Searching..." : "Search"}
             </button>
@@ -1216,11 +1245,11 @@ function Home({
               <span className="text-sm text-ink-faint">
                 Try:
               </span>
-              {HERO_EXAMPLES.map((example) => (
+{HERO_EXAMPLES.map((example) => (
                 <Link
                   key={example}
                   href={`/?q=${encodeURIComponent(example)}`}
-                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
+                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft transition hover:border-ink hover:text-ink"
                 >
                   {example}
                 </Link>
@@ -1233,7 +1262,7 @@ function Home({
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/find"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-accent-deep/50 bg-surface px-5 text-sm font-medium text-accent-deep transition-all duration-200 hover:border-accent-deep hover:bg-accent-tint active:scale-[0.98]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-ink/30 bg-surface px-5 text-sm font-medium text-ink transition-all duration-200 hover:border-ink hover:bg-paper-soft active:scale-[0.98]"
             >
               Find your match
               <svg
@@ -1264,28 +1293,28 @@ function Home({
             exhausted, surface an explicit error + Retry instead
             of a silent, stuck page. */}
         {waitFxActive && !fxError && (
-          <div className="mx-auto mt-4 max-w-3xl text-center text-sm text-gray-400">
-            Looking up the exchange rateâ€¦
+          <div className="mx-auto mt-4 max-w-3xl text-center text-sm text-ink-faint">
+            Looking up the exchange rate…
           </div>
         )}
 
         {waitFxActive && fxError && (
-          <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
-            <h2 className="text-xl font-semibold text-red-700">
+<div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-error-border bg-error-bg p-8 text-center">
+            <h2 className="text-xl font-semibold text-error">
               Couldn&apos;t load the exchange rate
             </h2>
 
-            <p className="mt-2 text-sm text-red-600">
+            <p className="mt-2 text-sm text-ink-soft">
               Your budget is set in USD, so we need today&apos;s
               exchange rate to search within it. The rate service
-              is unavailable right now â€” please try again.
+              is unavailable right now &mdash; please try again.
             </p>
 
             <button
               type="button"
               onClick={retryFx}
               disabled={fxLoading}
-              className="mt-6 rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
+              className="mt-6 rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft disabled:cursor-wait disabled:opacity-60"
             >
               Retry
             </button>
@@ -1301,11 +1330,11 @@ function Home({
             </Reveal>
 
             <Reveal delay={80}>
-              <DiscoveryCategories categories={categories} />
+              <FeaturedProducts products={featured} />
             </Reveal>
 
             <Reveal delay={80}>
-              <FeaturedProducts products={featured} />
+              <DiscoveryCategories categories={categories} />
             </Reveal>
 
             <Reveal>
@@ -1329,7 +1358,7 @@ function Home({
                 : ""
             }`}
           >
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+            <h1 className="font-display text-3xl font-medium tracking-tight text-ink sm:text-4xl">
               {query}
             </h1>
 
@@ -1347,7 +1376,7 @@ function Home({
                 aria-live="polite"
                 className="mt-2 text-sm text-ink-soft"
               >
-                Finding your matchesâ€¦
+                Finding your matches…
               </p>
             )}
 
@@ -1375,12 +1404,12 @@ function Home({
             {/* ERROR STATE */}
 
             {errorMessage ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-10 text-center">
-                <h2 className="text-xl font-semibold text-red-700">
+<div className="rounded-2xl border border-error-border bg-error-bg p-10 text-center">
+                <h2 className="text-xl font-semibold text-error">
                   Search failed
                 </h2>
 
-                <p className="mt-2 text-sm text-red-600">
+                <p className="mt-2 text-sm text-ink-soft">
                   {errorMessage}
                 </p>
 
@@ -1395,7 +1424,7 @@ function Home({
                       false
                     )
                   }
-                  className="mt-6 rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
+                  className="mt-6 rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                 >
                   Try again
                 </button>
@@ -1406,12 +1435,12 @@ function Home({
                 {/* SEARCH INTERPRETATION */}
 
                 {searchDescription && (
-                  <div className="mb-8 rounded-xl bg-gray-50 px-5 py-4">
-                    <p className="text-sm font-medium text-gray-700">
+                  <div className="mb-8 rounded-xl bg-paper-soft px-5 py-4">
+                    <p className="text-sm font-medium text-ink">
                       Search interpreted as:
                     </p>
 
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-ink-soft">
                       {searchDescription}
                     </p>
                   </div>
@@ -1420,9 +1449,9 @@ function Home({
                 {/* FILTERS */}
 
                 {allProducts.length > 0 && (
-                  <div className="mb-10 rounded-2xl border border-gray-200 p-5">
+                  <div className="mb-10 rounded-2xl border border-line p-5">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">
                         Refine results
                       </h2>
 
@@ -1430,7 +1459,7 @@ function Home({
                         <button
                           type="button"
                           onClick={clearAllFilters}
-                          className="text-xs font-medium text-gray-500 underline transition hover:text-black"
+                          className="text-xs font-medium text-ink-soft underline transition hover:text-ink"
                         >
                           Clear filters
                         </button>
@@ -1452,7 +1481,7 @@ function Home({
 
                           return (
                             <div key={key}>
-                              <p className="text-xs font-semibold text-gray-400">
+                              <p className="text-xs font-semibold text-ink-faint">
                                 {FACET_LABELS[key]}
                               </p>
 
@@ -1463,7 +1492,7 @@ function Home({
 
                                   return (
                                     <div key={section.label}>
-                                      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                                      <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
                                         {section.label}
                                       </p>
 
@@ -1482,7 +1511,7 @@ function Home({
                                               <div key={idx}>
                                                 {multipleColumns &&
                                                   audienceLabel && (
-                                                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
                                                       {audienceLabel}
                                                     </p>
                                                   )}
@@ -1516,10 +1545,10 @@ function Home({
                                                           }
                                                           className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                                                             selected
-                                                              ? "bg-black text-white"
+                                                              ? "bg-ink text-paper"
                                                               : disabled
-                                                                ? "cursor-not-allowed bg-gray-50 text-gray-300"
-                                                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                                                ? "cursor-not-allowed bg-paper-soft text-ink-faint/50"
+                                                                : "bg-paper-soft text-ink-soft hover:bg-line"
                                                           }`}
                                                         >
                                                           {label}{" "}
@@ -1559,7 +1588,7 @@ function Home({
 
                         return (
                           <div key={key}>
-                            <p className="text-xs font-semibold text-gray-400">
+                            <p className="text-xs font-semibold text-ink-faint">
                               {FACET_LABELS[key]}
                             </p>
 
@@ -1594,10 +1623,10 @@ function Home({
                                       }
                                       className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                                         selected
-                                          ? "bg-black text-white"
+                                          ? "bg-ink text-paper"
                                           : disabled
-                                            ? "cursor-not-allowed bg-gray-50 text-gray-300"
-                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                            ? "cursor-not-allowed bg-paper-soft text-ink-faint/50"
+                                            : "bg-paper-soft text-ink-soft hover:bg-line"
                                       }`}
                                     >
                                       {label}{" "}
@@ -1621,11 +1650,11 @@ function Home({
                 {filteredExactProducts.length > 0 && (
                   <>
                     <div className="mb-6">
-                      <h2 className="text-2xl font-semibold">
+                      <h2 className="font-display text-2xl font-medium tracking-tight">
                         Exact matches
                       </h2>
 
-                      <p className="mt-1 text-sm text-gray-500">
+                      <p className="mt-1 text-sm text-ink-soft">
                         {filteredExactProducts.length}{" "}
                         exact{" "}
                         {filteredExactProducts.length ===
@@ -1636,7 +1665,7 @@ function Home({
                       </p>
 
                       {exactHasMore && (
-                        <p className="mt-1 text-xs text-gray-400">
+                        <p className="mt-1 text-xs text-ink-faint">
                           Showing {exactProducts.length}{" "}
                           of {exactTotal} exact
                           matches
@@ -1663,10 +1692,10 @@ function Home({
                             void loadMore("exact")
                           }
                           disabled={loadingMore}
-                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60"
+                          className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft disabled:cursor-wait disabled:opacity-60"
                         >
                           {loadingMore
-                            ? "Loading moreâ€¦"
+                            ? "Loading more…"
                             : "Load more exact matches"}
                         </button>
                       </div>
@@ -1680,7 +1709,7 @@ function Home({
                   similarProducts.length > 0 &&
                   categoryStatus &&
                   categoryStatus.productCount === 0 && (
-                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
+                    <div className="rounded-2xl border border-line p-10 text-center">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -1689,7 +1718,7 @@ function Home({
                         s yet
                       </h2>
 
-                      <p className="mt-2 text-gray-500">
+                      <p className="mt-2 text-ink-soft">
                         We don&apos;t currently carry{" "}
                         {categoryStatus.requested.toLowerCase()}
                         s, but these similar options may
@@ -1700,7 +1729,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
+                          className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1708,7 +1737,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-ink hover:text-ink"
                         >
                           Start a new search
                         </button>
@@ -1721,14 +1750,14 @@ function Home({
                     categoryStatus.productCount >
                       0) &&
                   similarProducts.length > 0 && (
-                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
+                    <div className="rounded-2xl border border-line p-10 text-center">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
                         No exact matches found
                       </h2>
 
-                      <p className="mt-2 text-gray-500">
+                      <p className="mt-2 text-ink-soft">
                         We couldn&apos;t find any products
                         that exactly match your search,
                         but these are close.
@@ -1738,7 +1767,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
+                          className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1746,7 +1775,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-ink hover:text-ink"
                         >
                           Start a new search
                         </button>
@@ -1756,12 +1785,12 @@ function Home({
 
                 {diagnostics.length > 0 &&
                   !filtersHidEverything && (
-                    <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                    <h3 className="text-sm font-semibold text-amber-800">
+                    <div className="mt-8 rounded-2xl border border-warning-border bg-warning-bg p-5">
+                    <h3 className="text-sm font-semibold text-ink">
                       Why is this empty?
                     </h3>
 
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-700">
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-warning">
                       {diagnostics.map((message) => (
                         <li key={message}>{message}</li>
                       ))}
@@ -1782,11 +1811,11 @@ function Home({
                     }
                   >
                     <div className="mb-6">
-                      <h2 className="text-2xl font-semibold">
+                      <h2 className="font-display text-2xl font-medium tracking-tight">
                         Similar options
                       </h2>
 
-                      <p className="mt-1 text-sm text-gray-500">
+                      <p className="mt-1 text-sm text-ink-soft">
                         {
                           filteredSimilarProducts.length
                         }{" "}
@@ -1799,7 +1828,7 @@ function Home({
                       </p>
 
                       {similarHasMore && (
-                        <p className="mt-1 text-xs text-gray-400">
+                        <p className="mt-1 text-xs text-ink-faint">
                           Showing{" "}
                           {similarProducts.length} of{" "}
                           {similarTotal} similar
@@ -1827,10 +1856,10 @@ function Home({
                             void loadMore("similar")
                           }
                           disabled={loadingMore}
-                          className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60"
+                          className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft disabled:cursor-wait disabled:opacity-60"
                         >
                           {loadingMore
-                            ? "Loading moreâ€¦"
+                            ? "Loading more…"
                             : "Load more similar products"}
                         </button>
                       </div>
@@ -1843,12 +1872,12 @@ function Home({
                 {similarMessage &&
                   exactProducts.length === 0 &&
                   similarProducts.length === 0 && (
-                    <div className="mt-6 rounded-2xl border border-dashed border-gray-300 p-10 text-center">
-                      <h2 className="text-2xl font-semibold">
+                    <div className="mt-6 rounded-2xl border border-dashed border-ink-faint p-10 text-center">
+                      <h2 className="font-display text-2xl font-medium tracking-tight">
                         Similar options
                       </h2>
 
-                      <p className="mt-3 text-gray-500">
+                      <p className="mt-3 text-ink-soft">
                         {similarMessage}
                       </p>
 
@@ -1856,7 +1885,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
+                          className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1864,7 +1893,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-ink hover:text-ink"
                         >
                           Start a new search
                         </button>
@@ -1875,7 +1904,7 @@ function Home({
                 {/* FILTERS HIDE EVERYTHING */}
 
                 {filtersHidEverything && (
-                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
+                    <div className="rounded-2xl border border-line p-10 text-center">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -1883,7 +1912,7 @@ function Home({
                         filters
                       </h2>
 
-                      <p className="mt-2 text-gray-500">
+                      <p className="mt-2 text-ink-soft">
                         Try removing one or more
                         filters to see more results.
                       </p>
@@ -1891,7 +1920,7 @@ function Home({
                       <button
                         type="button"
                         onClick={clearAllFilters}
-                        className="mt-6 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+                        className="mt-6 rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                       >
                         Clear filters
                       </button>
@@ -1903,7 +1932,7 @@ function Home({
                 {exactProducts.length === 0 &&
                   similarProducts.length === 0 &&
                   !similarMessage && (
-                    <div className="rounded-2xl border border-gray-200 p-10 text-center">
+                    <div className="rounded-2xl border border-line p-10 text-center">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -1913,14 +1942,14 @@ function Home({
                           : "We couldn't find the right match."}
                       </h2>
 
-                      <p className="mt-2 text-gray-500">
+                      <p className="mt-2 text-ink-soft">
                         {categoryStatus &&
                         categoryStatus.productCount > 0
                           ? `We carry ${categoryStatus.requested.toLowerCase()}s, but none matched everything you asked for.`
                           : "Try changing your color, size, or search terms."}
                       </p>
 
-                      <p className="mt-4 text-sm text-gray-400">
+                      <p className="mt-4 text-sm text-ink-faint">
                         Try searching for another color, brand,
                         category, size, or clothing type.
                       </p>
@@ -1929,7 +1958,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleEditSearch}
-                          className="rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
+                          className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
                         >
                           Edit search
                         </button>
@@ -1937,7 +1966,7 @@ function Home({
                         <button
                           type="button"
                           onClick={handleStartNewSearch}
-                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
+                          className="rounded-xl border border-line px-5 py-3 text-sm font-medium text-ink-soft transition hover:border-ink hover:text-ink"
                         >
                           Start a new search
                         </button>
@@ -1962,7 +1991,7 @@ function Home({
 function EmptyStateIcon() {
   return (
     <svg
-      className="mx-auto h-10 w-10 text-gray-300"
+      className="mx-auto h-10 w-10 text-ink-faint/50"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -2124,11 +2153,11 @@ function ProductCard({
     );
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition duration-300 hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-xl">
+    <article className="group relative flex flex-col overflow-hidden border border-line bg-surface transition duration-300 hover:-translate-y-0.5 hover:border-ink/40 hover:shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)]">
 
       {/* IMAGE */}
 
-      <div className="relative aspect-square overflow-hidden bg-paper-soft">
+      <div className="relative aspect-[4/5] overflow-hidden bg-paper-soft">
         {product.imageUrl ? (
           <ProductCardImage src={product.imageUrl} alt={product.name} />
         ) : (
@@ -2141,7 +2170,7 @@ function ProductCard({
       {/* AVAILABILITY BADGE */}
 
       {outOfStock && (
-        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-accent-deep shadow">
+        <span className="absolute right-3 top-3 rounded-full bg-paper/95 px-3 py-1 text-xs font-semibold text-ink shadow-sm">
           Out of stock
         </span>
       )}
@@ -2158,13 +2187,13 @@ function ProductCard({
 
         {/* NAME */}
 
-        <h3 className="mt-1.5 line-clamp-2 text-base font-medium leading-snug text-ink">
+        <h3 className="mt-1.5 line-clamp-2 font-display text-lg font-medium leading-snug text-ink">
           {product.name}
         </h3>
 
         {/* CATEGORY */}
 
-        <p className="mt-1 text-sm text-ink-faint">
+        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
           {product.category.name}
         </p>
 
@@ -2275,7 +2304,7 @@ function ProductCard({
             {hasProductPage && !outOfStock && (
               <a
                 href={`/outfit?anchor=${encodeURIComponent(product.id)}`}
-                className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-accent-deep hover:text-accent-deep"
+                className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-ink hover:text-ink"
               >
                 Style this item
               </a>

@@ -16,26 +16,26 @@ const LEGAL_LINKS = [
 export function SiteFooter() {
   return (
     <footer className="border-t border-line bg-paper-soft">
-      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 sm:grid-cols-3">
-        <div>
-          <p className="font-display text-lg font-medium tracking-tight text-ink">
+      <div className="mx-auto grid max-w-6xl gap-12 px-6 py-16 sm:grid-cols-12">
+        <div className="sm:col-span-6">
+          <p className="font-display text-xl font-medium tracking-tight text-ink">
             FitWear
           </p>
-          <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-soft">
-            Find what fits your style.
+          <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-soft">
+            Premium fashion discovery. Describe the piece, find the match.
           </p>
         </div>
 
-        <nav aria-label="Explore">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
+        <nav aria-label="Explore" className="sm:col-span-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint">
             Explore
           </p>
-          <ul className="mt-4 space-y-2.5 text-sm">
+          <ul className="mt-5 space-y-3 text-sm">
             {EXPLORE_LINKS.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="text-ink-soft transition hover:text-accent-deep"
+                  className="text-ink-soft transition hover:text-ink"
                 >
                   {link.label}
                 </Link>
@@ -44,16 +44,16 @@ export function SiteFooter() {
           </ul>
         </nav>
 
-        <nav aria-label="Information">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
+        <nav aria-label="Information" className="sm:col-span-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint">
             Information
           </p>
-          <ul className="mt-4 space-y-2.5 text-sm">
+          <ul className="mt-5 space-y-3 text-sm">
             {LEGAL_LINKS.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="text-ink-soft transition hover:text-accent-deep"
+                  className="text-ink-soft transition hover:text-ink"
                 >
                   {link.label}
                 </Link>

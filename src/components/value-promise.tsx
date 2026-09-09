@@ -1,3 +1,5 @@
+import { SectionHeading } from "@/components/section-heading";
+
 const PILLARS = [
   {
     title: "Search by description",
@@ -53,14 +55,23 @@ function PillarIcon({ name }: { name: string }) {
 
 export function ValuePromise() {
   return (
-    <div role="region" aria-label="Why FitWear" className="py-16 sm:py-20">
-      <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-3">
+    <div role="region" aria-label="Why FitWear" className="py-16 sm:py-24">
+      <SectionHeading
+        eyebrow="Why FitWear"
+        title="Honest discovery, zero tricks"
+        description={
+          "Every count is real, every result is ranked against what " +
+          "you asked for, and every link leads to a real product page."
+        }
+      />
+
+      <div className="mt-12 grid gap-px border border-line bg-line sm:grid-cols-3">
         {PILLARS.map((pillar) => (
-          <div key={pillar.title} className="text-center sm:text-left">
-            <span className="inline-grid size-11 place-items-center rounded-xl border border-line bg-surface text-accent-deep">
+          <div key={pillar.title} className="bg-paper p-8 sm:p-10">
+            <span className="inline-grid size-11 place-items-center border border-line text-ink">
               <PillarIcon name={pillar.icon} />
             </span>
-            <h3 className="mt-4 text-base font-semibold text-ink">
+            <h3 className="mt-5 text-base font-semibold text-ink">
               {pillar.title}
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">
