@@ -1139,7 +1139,7 @@ export function FindQuestionnaire({
         {meta && (
           <div key={step} className="step-animate">
             {step === 0 && (
-              <div className="mx-auto grid w-full max-w-lg grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-6 sm:grid-cols-3">
                 {GENDER_OPTIONS.map((value) => (
                   <OptionCard
                     key={value}
