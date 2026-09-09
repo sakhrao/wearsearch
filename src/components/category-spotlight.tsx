@@ -66,12 +66,12 @@ export function CategorySpotlight({
             </div>
 
             {representativeProduct && (
-              <div className="mt-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+              <div className="min-h-0 flex-1 pt-4">
+                <p className="truncate text-xs font-medium uppercase tracking-wide text-ink-faint">
                   {representativeProduct.brand}
                 </p>
 
-                <h3 className="mt-0.5 text-sm text-ink">
+                <h3 className="mt-0.5 line-clamp-2 min-h-[2.5rem] text-sm text-ink">
                   {representativeProduct.name}
                 </h3>
 
@@ -82,7 +82,7 @@ export function CategorySpotlight({
               </div>
             )}
 
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="mt-auto flex flex-col gap-2 pt-4">
               <Link
                 href={`/?q=${encodeURIComponent(name)}`}
                 className="flex-1 rounded-full bg-ink px-4 py-2.5 text-center text-sm font-medium text-paper transition hover:bg-ink-soft"

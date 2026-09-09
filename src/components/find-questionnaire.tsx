@@ -305,8 +305,6 @@ export function FindQuestionnaire({
   const [step, setStep] = useState(0);
   const [answers, setAnswers] =
     useState<Answers>(EMPTY_ANSWERS);
-  const [sessionReady, setSessionReady] =
-    useState(false);
   const [colorFilter, setColorFilter] =
     useState("");
   const [openSection, setOpenSection] =
@@ -320,6 +318,13 @@ export function FindQuestionnaire({
     optionsRef.current?.scrollTo({ top: 0, left: 0 });
   }, [step, openSection]);
 
+  /* A saved draft is a ONE-SHOT handoff, never a persistent answer
+     store. It is read back exactly once on mount (the results-page
+     "Edit search" button writes it just before routing here), then
+     removed immediately. No later effect re-persists answers, so a
+     page refresh or a fresh visit to /find always starts clean, and
+     the embedded home-page questionnaire can never leak its choices
+     into the /find flow after a reload. */
   useEffect(() => {
     const saved = sessionStorage.getItem(
       STORAGE_KEY
@@ -336,24 +341,13 @@ export function FindQuestionnaire({
           attributes:
             parsed.attributes ?? [],
         };
-        // F4: rewrite the restored draft immediately so the
-        // answers-persistence effect (which runs on the first
-        // committed render with the untouched default) can
-        // never clobber it with EMPTY_ANSWERS.
-        sessionStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(restored)
-        );
         // eslint-disable-next-line react-hooks/set-state-in-effect -- restore draft/flags once on mount
         setAnswers(restored);
       } catch {
-        sessionStorage.removeItem(
-          STORAGE_KEY
-        );
+        /* malformed draft - start clean */
       }
+      sessionStorage.removeItem(STORAGE_KEY);
     }
-
-    setSessionReady(true);
 
     fetch("/api/meta")
       .then((response) => {
@@ -400,14 +394,6 @@ export function FindQuestionnaire({
         )
       );
   }, []);
-
-  useEffect(() => {
-    if (!sessionReady) return;
-    sessionStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(answers)
-    );
-  }, [answers, sessionReady]);
 
 /* Build the collapsed category sections for the "Pick a category" step.
    Top level = canonical root (Clothing / Shoes / Accessories / Headwear);

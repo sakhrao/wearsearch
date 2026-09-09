@@ -41,6 +41,21 @@ export function isDemoSource(name: string, type: string): boolean {
   return /dummy|fake|demo/i.test(name);
 }
 
+/** Titles in this band keep every spotlight card visually balanced:
+    too-short names (single-word listings) and eBay-style one-line
+    descriptions are both rejected, and the nearest one to the target
+    length is chosen so the six cards read with matching proportions. */
+const TARGET_TITLE_LENGTH = 34;
+const MIN_TITLE_LENGTH = 12;
+const MAX_TITLE_LENGTH = 90;
+
+function titleScore(length: number): number {
+  if (length < MIN_TITLE_LENGTH || length > MAX_TITLE_LENGTH) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  return Math.abs(length - TARGET_TITLE_LENGTH);
+}
+
 /** The 6 spotlight categories the homepage highlights. */
 export const SPOTLIGHT_CATEGORY_SLUGS = [
   "t-shirts",
@@ -138,7 +153,28 @@ export async function getSpotlightCategories(): Promise<
 
     bucket.count += 1;
 
-    if (!bucket.representative && row.imageUrl) {
+    /* Representative = the product whose title is nearest the target
+       length (newest wins ties because rows come createdAt desc), so a
+       too-long eBay listing or a bare brand name never becomes the
+       spotlight card and every card stays the same height. */
+    if (!row.imageUrl) continue;
+    if (!bucket.representative) {
+      bucket.representative = {
+        id: row.id,
+        name: row.name,
+        brand: row.brand.name,
+        category: row.category.name,
+        price: Number(row.price),
+        currency: row.currency,
+        productUrl: row.productUrl,
+        imageUrl: row.imageUrl,
+      };
+      continue;
+    }
+    if (
+      titleScore(row.name.length) <
+      titleScore(bucket.representative.name.length)
+    ) {
       bucket.representative = {
         id: row.id,
         name: row.name,
