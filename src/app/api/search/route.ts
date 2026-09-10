@@ -20,6 +20,7 @@ import {
   type FacetsBlock,
 } from "@/lib/search-facets";
 import {
+  canonicalColorsFromOffer,
   canonicalColorFromOffer,
   expandOfferSizeChips,
 } from "@/lib/catalog/offer-vocab";
@@ -1948,7 +1949,11 @@ export async function GET(
         /* Phase-0: the sellable offer variants add their real colors
            and sizes to the same evidence sets. The canonical chips
            come from the SAME helpers that build the questionnaire
-           options (/api/meta), so a picked chip round-trips. */
+           options (/api/meta), so a picked chip round-trips. A
+           colourway ("Black / White") contributes EVERY known base
+           colour, so palette-subset Exact can never collapse a
+           multi-colour item into a pure-Black match (spec §5); the
+           single-chip form is for the display/detection surfaces. */
         const offerColors: string[] = [];
         const offerSizes: string[] = [];
         for (const offer of product.offers ?? []) {
@@ -1956,10 +1961,11 @@ export async function GET(
             if (variant.availability !== "AVAILABLE") {
               continue;
             }
-            const color = canonicalColorFromOffer(
+            for (const color of canonicalColorsFromOffer(
               variant.color
-            );
-            if (color) offerColors.push(color);
+            )) {
+              offerColors.push(color);
+            }
             for (const chip of expandOfferSizeChips(
               variant.sizeValue
             )) {

@@ -15,6 +15,7 @@
 
 import {
   canonicalColorFromOffer,
+  canonicalColorsFromOffer,
   expandOfferSizeChips,
 } from "../src/lib/catalog/offer-vocab";
 import {
@@ -127,6 +128,47 @@ const same = (a: string[], b: string[]): boolean =>
       `got ${JSON.stringify(expandOfferSizeChips(input))}`
     );
   }
+}
+
+/* 4. FULL colourway evidence (matching side). The search engine builds
+   per-product colour evidence from EVERY known base colour, so a
+   "Black / White" offer can never be treated as a pure-Black match:
+   palette-subset Exact demotes it to Similar (spec §5). Singles and
+   markers behave exactly like the single-chip form. */
+{
+  const cases: Array<[string | null | undefined, string[]]> = [
+    ["Black", ["Black"]],
+    ["Blacks", ["Black"]],
+    ["black", ["Black"]],
+    ["Black - Medium", ["Black"]],
+    ["Black / White", ["Black", "White"]],
+    ["Black | White", ["Black", "White"]],
+    ["Black / Powder Teal / Blue", ["Black", "Blue"]],
+    ["White/Black", ["White", "Black"]],
+    ["Black & Red", ["Black", "Red"]],
+    ["black and white", ["Black", "White"]],
+    ["Grey", ["Grey"]],
+    ["navy blue", ["Blue"]],
+    ["Multi Color", ["Multi"]],
+    ["Biege", []],
+    ["Buyer Choice", []],
+    [null, []],
+    ["", []],
+  ];
+  for (const [input, expected] of cases) {
+    check(
+      `colors "${input}" -> ${JSON.stringify(expected)}`,
+      same(canonicalColorsFromOffer(input), expected),
+      `got ${JSON.stringify(canonicalColorsFromOffer(input))}`
+    );
+  }
+  check(
+    "colors singleton/primary stays the display chip",
+    canonicalColorsFromOffer("Black / White")[0] ===
+      canonicalColorFromOffer("Black / White") &&
+      canonicalColorFromOffer("Black / White") === "Black",
+    `got ${JSON.stringify(canonicalColorsFromOffer("Black / White"))}`
+  );
 }
 
 console.log(`\n=== RESULT: ${passed}/${passed + failed} passed ===`);

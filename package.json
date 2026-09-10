@@ -31,6 +31,7 @@
     "test:ebay-adapter": "tsx scripts/ebay-adapter.test.mts",
     "test:ebay-integration": "tsx scripts/ebay-integration.test.mts",
     "test:ebay-notifications": "tsx scripts/ebay-notifications.test.mts",
+    "test:colorway-palette": "tsx scripts/colorway-palette.test.mts",
     "sync:providers": "tsx src/lib/providers/sync.ts"
   },
   "prisma": {

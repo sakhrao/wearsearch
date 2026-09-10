@@ -27,7 +27,49 @@ const singleWord = (word: string): string =>
 
 const COLORWAY_SPLIT = /[\s/,|&–—-]+/;
 
-/* Raw offer color -> ONE canonical chip the search engine recognizes.
+/* Raw offer color -> ALL its known base colours, deduped, preserving
+   the multi-colour reality of a colourway ("Black / White" ->
+   ["Black", "White"], "Black - Medium" -> ["Black"]). A colourway
+   with no known colour word yields []. A pure multi-colour marker
+   ("Multi Color", "Mixed") folds to the single "Multi" chip.
+
+   The search engine builds its per-product colour evidence from these
+   chips so that palette-subset Exact admission can never collapse a
+   Black/White item to a pure-Black one (spec §5). */
+export function canonicalColorsFromOffer(
+  color: string | null | undefined
+): string[] {
+  if (!color) return [];
+  const trimmed = cleanText(color);
+  if (!trimmed) return [];
+  const folded = foldToken(trimmed);
+  if (!folded) return [];
+  if (MULTI_COLOR_FOLDS.has(folded)) return ["Multi"];
+
+  /* a single plain known colour first ("Black", "navy blue", "Denim"); */
+  const knownWhole = knownColorChip(folded);
+  if (knownWhole) return [knownWhole];
+
+  /* plurals collapse: "Blacks" -> "Black", "Beiges" -> "Beige" */
+  if (!/\s/.test(folded)) {
+    const singular = knownColorChip(singleWord(folded));
+    if (singular) return [singular];
+  }
+
+  /* a colourway: every known base word stays ("Black / White" ->
+     [Black, White]); tokens that are not known colours are skipped. */
+  const bases: string[] = [];
+  for (const word of trimmed.toLowerCase().split(COLORWAY_SPLIT)) {
+    if (!word) continue;
+    const base =
+      knownColorChip(word) ??
+      knownColorChip(singleWord(word));
+    if (base && !bases.includes(base)) bases.push(base);
+  }
+  return bases;
+}
+
+/* Raw offer color -> ONE canonical chip the form/display surfaces.
 
    The chips are DRIVEN by the known-color table: plurals fold ("Blacks" ->
    "Black"), brand colorways ("Black - Medium", "Black / Powder Teal /
@@ -44,34 +86,7 @@ const COLORWAY_SPLIT = /[\s/,|&–—-]+/;
 export function canonicalColorFromOffer(
   color: string | null | undefined
 ): string | null {
-  if (!color) return null;
-  const trimmed = cleanText(color);
-  if (!trimmed) return null;
-
-  const folded = foldToken(trimmed);
-  if (!folded) return null;
-  if (MULTI_COLOR_FOLDS.has(folded)) return "Multi";
-
-  /* a single plain known colour first ("Black", "navy blue", "Denim"); */
-  const knownWhole = knownColorChip(folded);
-  if (knownWhole) return knownWhole;
-
-  /* plurals collapse: "Blacks" -> "Black", "Beiges" -> "Beige" */
-  if (!/\s/.test(folded)) {
-    const singular = knownColorChip(singleWord(folded));
-    if (singular) return singular;
-  }
-
-  /* a colourway: first known base word wins ("Black / White" -> "Black") */
-  for (const word of trimmed.toLowerCase().split(COLORWAY_SPLIT)) {
-    if (!word) continue;
-    const base =
-      knownColorChip(word) ??
-      knownColorChip(singleWord(word));
-    if (base) return base;
-  }
-
-  return null;
+  return canonicalColorsFromOffer(color)[0] ?? null;
 }
 
 /* ==== Sizes ==== */
