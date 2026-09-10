@@ -1953,7 +1953,15 @@ export async function GET(
            colourway ("Black / White") contributes EVERY known base
            colour, so palette-subset Exact can never collapse a
            multi-colour item into a pure-Black match (spec §5); the
-           single-chip form is for the display/detection surfaces. */
+           single-chip form is for the display/detection surfaces.
+
+           The product TITLE is a third, independent evidence line:
+           sellers describe the full colourway in the listing name
+           ("Black and Navy T-shirt", "White Core Black") even when
+           the aspect colour is single-valued, and users judge by the
+           title. Every known base colour mentioned in the name
+           joins the palette, so a title-advertised two-colour item
+           can never sit in Exact for one of its own colours. */
         const offerColors: string[] = [];
         const offerSizes: string[] = [];
         for (const offer of product.offers ?? []) {
@@ -1974,6 +1982,11 @@ export async function GET(
           }
         }
 
+        const titleColors =
+          canonicalColorsFromOffer(
+            product.name
+          ).map((color) => normalizeText(color));
+
         const productColors = [
           ...new Set([
             ...purchasableVariants.map((variant) =>
@@ -1982,6 +1995,7 @@ export async function GET(
             ...offerColors.map((color) =>
               normalizeText(color)
             ),
+            ...titleColors,
           ]),
         ].filter(Boolean);
 

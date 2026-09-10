@@ -71,6 +71,10 @@ async function main() {
     { id: "fixture-pure-black", name: "Fixture Pure Black Sneaker", offerColor: "Black" },
     { id: "fixture-black-white", name: "Fixture Black White Colorway Sneaker", offerColor: "Black / White" },
     { id: "fixture-white-black", name: "Fixture White Black Colorway Sneaker", offerColor: "White / Black" },
+    /* Title-only colourway: the OFFER aspect is single-valued Black but
+       the listing TITLE advertises two colours ("Black and Navy"). The
+       title line of evidence must demote it from Black Exact too. */
+    { id: "fixture-title-colourway", name: "Fixture Black and Navy Sneaker", offerColor: "Black" },
   ];
 
   const createdProductIds: string[] = [];
@@ -153,6 +157,16 @@ async function main() {
       similar.some((p) => p.name.includes("White Black Colorway")),
       `similar=${similar.map((p) => p.name).join(" | ")}`
     );
+    check(
+      "title-advertised Black-and-Navy is absent from Exact",
+      !exact.some((p) => p.name.includes("Black and Navy")),
+      `exact=${exact.map((p) => p.name).join(" | ")}`
+    );
+    check(
+      "title-advertised Black-and-Navy is demoted to Similar",
+      similar.some((p) => p.name.includes("Black and Navy")),
+      `similar=${similar.map((p) => p.name).join(" | ")}`
+    );
 
     const debug = await search("black sneaker&debug=1");
     const dbgExact = (debug.exactProducts ?? []) as Row[];
@@ -170,8 +184,10 @@ async function main() {
       "Exact membership identical with and without debug",
       dbgExact.some((p) => p.name.includes("Fixture Pure Black")) &&
         !dbgExact.some((p) => p.name.includes("Colorway")) &&
+        !dbgExact.some((p) => p.name.includes("Black and Navy")) &&
         dbgSimilar.some((p) => p.name.includes("Black White Colorway")) &&
-        dbgSimilar.some((p) => p.name.includes("White Black Colorway")),
+        dbgSimilar.some((p) => p.name.includes("White Black Colorway")) &&
+        dbgSimilar.some((p) => p.name.includes("Black and Navy")),
       `dbgExact=${dbgExact.map((p) => p.name).join(" | ")} dbgSim=${dbgSimilar.map((p) => p.name).join(" | ")}`
     );
   } finally {
