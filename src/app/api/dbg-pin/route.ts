@@ -4,24 +4,54 @@ import { getSpotlightCategories } from "@/lib/discovery";
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
-  const slug = request.nextUrl.searchParams.get("slug");
-  const row = await prisma.product.findFirst({
+  const rows = await prisma.product.findMany({
     where: {
-      ...(id ? { id } : { category: { slug: slug ?? "" } }),
       availability: "AVAILABLE",
+      source: { type: { not: "DEMO" } },
     },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      currency: true,
+      productUrl: true,
+      imageUrl: true,
+      createdAt: true,
+      source: { select: { name: true, type: true } },
+      brand: { select: { name: true } },
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          parent: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
   });
+
+  const pinnedMatches = rows.filter(
+    (p) =>
+      (id && p.id === id) ||
+      (p.productUrl ?? "").includes("256468968056")
+  );
 
   const spotlight = await getSpotlightCategories();
   const tshirts = spotlight.find((s) => s.slug === "t-shirts") ?? null;
 
   return NextResponse.json({
-    pinnedExists: !!row,
-    pinnedId: row?.id ?? null,
-    pinnedName: row?.name ?? null,
-    pinnedUrl: row?.productUrl ?? null,
-    spotlightCount: spotlight.length,
-    sliderSlugs: spotlight.map((s) => s.slug),
+    totalRows: rows.length,
+    pinnedMatches: pinnedMatches.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.category.slug,
+      imageUrl: !!p.imageUrl,
+      sourceName: p.source.name,
+      sourceType: p.source.type,
+      urlHasItem: (p.productUrl ?? "").includes("256468968056"),
+      createdAt: p.createdAt.toISOString(),
+    })),
     tshirts,
   });
 }
