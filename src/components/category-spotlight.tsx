@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CategorySpotlight } from "@/lib/discovery";
 import { SectionHeading } from "@/components/section-heading";
+import { Reveal } from "@/components/reveal";
 
 export function CategorySpotlight({
   spotlights,
@@ -29,8 +30,13 @@ export function CategorySpotlight({
       />
 
       <div className="mt-12 grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
-        {spotlights.map(({ id, name, group, count, representativeProduct }) => (
-          <article key={id} className="group flex flex-col">
+        {spotlights.map(({ id, name, group, count, representativeProduct }, index) => (
+          <Reveal
+            key={id}
+            delay={(index % 3) * 80}
+            className="h-full"
+          >
+          <article className="group flex h-full flex-col">
             <Link
               href={`/?q=${encodeURIComponent(name)}`}
               className="flex items-baseline justify-between gap-4"
@@ -102,13 +108,15 @@ export function CategorySpotlight({
               )}
             </div>
           </article>
+          </Reveal>
         ))}
       </div>
 
-      <Link
-        href="/find"
-        className="group mt-12 flex items-center justify-between gap-6 rounded-2xl border border-line bg-surface px-6 py-8 transition hover:border-ink/30 sm:px-8"
-      >
+      <Reveal delay={160}>
+        <Link
+          href="/find"
+          className="group mt-12 flex items-center justify-between gap-6 rounded-2xl border border-line bg-surface px-6 py-8 transition hover:border-ink/30 sm:px-8"
+        >
         <span>
           <span className="block font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">
             Not sure where to start?
@@ -135,6 +143,7 @@ export function CategorySpotlight({
           </svg>
         </span>
       </Link>
+      </Reveal>
     </div>
   );
 }

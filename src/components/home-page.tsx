@@ -1273,22 +1273,25 @@ function Home({
             className="absolute inset-0 bg-ink/65"
           />
           <div className="relative mx-auto max-w-3xl px-6 pb-20 pt-16 sm:pt-24">
-            <div
+<div
               role="region"
               aria-labelledby="hero-title"
-              className="hero-animate"
             >
               <div className="text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-paper/80">
+                <p className="hero-animate text-[11px] font-semibold uppercase tracking-[0.3em] text-paper/80">
                   Search fashion your way
                 </p>
                 <h1
                   id="hero-title"
-                  className="mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-paper sm:text-6xl sm:leading-[1.04] lg:text-7xl"
+                  className="hero-animate mt-6 font-display text-[2.75rem] font-medium leading-[1.04] tracking-tight text-paper sm:text-6xl sm:leading-[1.04] lg:text-7xl"
+                  style={{ animationDelay: "120ms" }}
                 >
                   Find exactly what you&apos;re looking for.
                 </h1>
-                <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-paper/90 sm:text-lg">
+                <p
+                  className="hero-animate mx-auto mt-6 max-w-xl text-base leading-relaxed text-paper/90 sm:text-lg"
+                  style={{ animationDelay: "240ms" }}
+                >
                   Describe the perfect piece in your own words &mdash;
                   style, color, size or budget &mdash; and discover
                   products that match.
@@ -1298,9 +1301,10 @@ function Home({
 
             <div
               id="search"
-              className="mx-auto mt-10 w-full max-w-3xl scroll-mt-24 sm:mt-12"
+              className="hero-animate mx-auto mt-10 w-full max-w-3xl scroll-mt-24 sm:mt-12"
+              style={{ animationDelay: "360ms" }}
             >
-{renderSearchContent(true)}
+              {renderSearchContent(true)}
             </div>
           </div>
         </div>

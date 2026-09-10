@@ -1,4 +1,5 @@
 import { SectionHeading } from "@/components/section-heading";
+import { Reveal } from "@/components/reveal";
 
 const STEPS = [
   {
@@ -42,23 +43,26 @@ export function HowItWorks() {
           className="absolute inset-x-0 top-16 hidden h-0 border-t-2 border-dashed border-ink/15 sm:block"
         />
         <div className="relative grid gap-5 sm:grid-cols-3">
-          {STEPS.map((step) => (
-            <div
+          {STEPS.map((step, index) => (
+            <Reveal
               key={step.number}
-              className="rounded-2xl border border-ink/15 bg-paper-soft p-8 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] transition-colors duration-300 hover:border-ink/30 sm:p-10"
+              delay={index * 80}
+              className="h-full"
             >
-              <span className="inline-grid size-12 place-items-center rounded-full bg-ink text-paper shadow-md">
-                <span className="font-display text-lg font-medium tracking-tight">
-                  {step.number}
+              <div className="flex h-full flex-col rounded-2xl border border-ink/15 bg-paper-soft p-8 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] transition-colors duration-300 hover:border-ink/30 sm:p-10">
+                <span className="inline-grid size-12 place-items-center rounded-full bg-ink text-paper shadow-md">
+                  <span className="font-display text-lg font-medium tracking-tight">
+                    {step.number}
+                  </span>
                 </span>
-              </span>
-              <h3 className="mt-6 text-lg font-semibold text-ink">
-                {step.title}
-              </h3>
-              <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                {step.copy}
-              </p>
-            </div>
+                <h3 className="mt-6 text-lg font-semibold text-ink">
+                  {step.title}
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+                  {step.copy}
+                </p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </div>
