@@ -131,6 +131,10 @@ export async function getSpotlightCategories(): Promise<
     group: string;
     count: number;
     representative: FeaturedProduct | null;
+    /* Tracks whether the current representative is a hand-picked
+       pinned listing so the title-length fallback can never replace
+       it with a plain product. */
+    representativePinned: boolean;
   };
 
   const buckets = new Map<string, Bucket>();
@@ -172,11 +176,14 @@ export async function getSpotlightCategories(): Promise<
       !!pinnedItem &&
       row.productUrl.includes(pinnedItem);
 
-    /* Representative = the pinned listing when one exists for the
-       category; otherwise the product whose title is nearest the
-       target length (newest wins ties because rows come createdAt
-       desc), so a too-long eBay listing or a bare brand name never
-       becomes the spotlight card and every card stays the same height. */
+/* Representative = the pinned listing when one exists for the
+   category; otherwise the product whose title is nearest the
+   target length (newest wins ties because rows come createdAt
+   desc), so a too-long eBay listing or a bare brand name never
+   becomes the spotlight card and every card stays the same height.
+   A pinned listing can never be displaced by the title-length
+   fallback: rows arrive newest-first, so without the guard a newer
+   (or shorter/cleaner) title could otherwise replace it. */
     if (!bucket.representative) {
       bucket.representative = {
         id: row.id,
@@ -188,6 +195,7 @@ export async function getSpotlightCategories(): Promise<
         productUrl: row.productUrl,
         imageUrl: row.imageUrl,
       };
+      bucket.representativePinned = isPinned;
       continue;
     }
     if (isPinned) {
@@ -201,11 +209,13 @@ export async function getSpotlightCategories(): Promise<
         productUrl: row.productUrl,
         imageUrl: row.imageUrl,
       };
+      bucket.representativePinned = true;
       continue;
     }
     if (
+      !bucket.representativePinned &&
       titleScore(row.name.length) <
-      titleScore(bucket.representative.name.length)
+        titleScore(bucket.representative.name.length)
     ) {
       bucket.representative = {
         id: row.id,
