@@ -181,10 +181,10 @@ const PRIMARY_BTN =
   "inline-flex h-12 items-center justify-center gap-2 rounded-full bg-ink px-7 text-sm font-semibold text-paper shadow-sm transition-all duration-200 hover:bg-ink-soft hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none";
 
 const SECONDARY_BTN =
-  "inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 text-sm font-medium text-ink-soft transition-all duration-200 hover:border-accent-deep hover:text-ink active:scale-[0.98] disabled:invisible";
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-paper-soft px-5 text-sm font-medium text-ink transition-all duration-200 hover:border-ink hover:shadow-sm active:scale-[0.98] disabled:invisible";
 
 const TERTIARY_BTN =
-  "inline-flex h-12 items-center justify-center gap-1 rounded-full px-4 text-sm font-medium text-ink-faint transition-colors hover:text-accent-deep";
+  "inline-flex h-12 items-center justify-center gap-1 rounded-full px-4 text-sm font-medium text-ink-soft transition-colors hover:text-ink";
 
 function OptionCard({
   label,
@@ -202,13 +202,13 @@ function OptionCard({
       onClick={onClick}
       className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border px-5 py-3.5 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
         selected
-          ? "border-accent-deep bg-accent-tint text-ink"
-          : "border-line bg-surface text-ink-soft hover:-translate-y-px hover:border-accent/60 hover:text-ink hover:shadow-md"
+          ? "border-ink bg-ink text-paper shadow-md"
+          : "border-line bg-paper-soft text-ink-soft hover:-translate-y-px hover:border-ink/40 hover:text-ink hover:shadow-md"
       }`}
     >
       <span>{label}</span>
       {selected && (
-        <span className="text-accent-deep">
+        <span className="text-paper">
           <CheckIcon />
         </span>
       )}
@@ -232,12 +232,12 @@ function OptionPill({
       onClick={onClick}
       className={`flex min-h-12 items-center gap-1.5 rounded-full border px-4 py-3 text-sm font-medium transition-all duration-150 ${
         selected
-          ? "border-accent-deep bg-accent-tint text-ink"
-          : "border-line bg-surface text-ink-soft hover:border-accent/50 hover:text-ink"
+          ? "border-ink bg-ink text-paper"
+          : "border-line bg-paper-soft text-ink-soft hover:border-ink/40 hover:text-ink"
       }`}
     >
       {selected && (
-        <span className="text-accent-deep">
+        <span className="text-paper">
           <CheckIcon />
         </span>
       )}
@@ -282,7 +282,7 @@ function FieldInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={`h-11 w-full rounded-full border border-line bg-surface text-sm text-ink shadow-sm outline-none transition placeholder:text-ink-faint hover:border-ink/30 focus:border-accent/40 focus:ring-4 focus:ring-accent/10 ${
+        className={`h-11 w-full rounded-full border border-line bg-paper-soft text-sm text-ink shadow-sm outline-none transition placeholder:text-ink-faint hover:border-ink/40 focus:border-ink/70 focus:ring-4 focus:ring-ink/10 ${
           icon ? "pl-11 pr-4" : "px-4"
         }`}
       />
@@ -539,13 +539,13 @@ export function FindQuestionnaire({
     return (
       <div
         key={section.key}
-        className="overflow-hidden rounded-2xl border border-line bg-surface"
+        className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_10px_30px_-20px_rgba(0,0,0,0.3)]"
       >
         <button
           type="button"
           aria-expanded={open}
           onClick={() => toggleSection(section.key)}
-          className="flex w-full items-center justify-between gap-2 bg-surface px-5 py-4 text-left transition-colors hover:bg-ink/[0.02]"
+          className="flex w-full items-center justify-between gap-2 bg-paper-soft px-5 py-4 text-left transition-colors hover:bg-line"
         >
           <span
             className={`flex items-center gap-2 text-sm font-medium ${selectedIn ? "text-ink" : "text-ink-soft"}`}
@@ -569,7 +569,7 @@ export function FindQuestionnaire({
           </span>
         </button>
         {open && (
-          <div className="border-t border-line p-4">
+          <div className="border-t border-line bg-surface p-4">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {section.categories.map((category) => (
                 <OptionCard
@@ -1240,7 +1240,7 @@ export function FindQuestionnaire({
 
 {step === 1 && (
               categorySections.length === 0 ? (
-                <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
+                <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                   <p className="text-sm text-ink-soft">
                     There are no categories in
                     stock for that audience yet —
@@ -1391,7 +1391,7 @@ export function FindQuestionnaire({
                     )}
                   </div>
                 ) : (
-                  <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-6 text-center">
+                  <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       No sizes are available for your
                       picks right now — you can skip
@@ -1449,7 +1449,7 @@ export function FindQuestionnaire({
                         String(value)
                       );
                     }}
-                    className="w-full accent-[var(--accent)]"
+                    className="w-full accent-[var(--ink)]"
                   />
                 </div>
                 <div>
@@ -1497,7 +1497,7 @@ export function FindQuestionnaire({
                         String(value)
                       );
                     }}
-                    className="w-full accent-[var(--accent)]"
+                    className="w-full accent-[var(--ink)]"
                   />
                 </div>
                 <p className="text-center text-xs leading-relaxed text-ink-faint">
@@ -1589,7 +1589,7 @@ export function FindQuestionnaire({
                   </div>
                 ))}
                 {detailGroups.length === 0 && (
-                  <p className="mx-auto max-w-sm rounded-2xl border border-line bg-surface px-5 py-4 text-center text-sm text-ink-soft">
+                  <p className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-4 text-center text-sm text-ink-soft">
                     This category has no structured details
                     yet — describe what matters in your own
                     words above.
