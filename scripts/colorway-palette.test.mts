@@ -11,7 +11,6 @@
    catalog only carries them during this script, so the pinned counts in
    the other suites are unaffected after cleanup. */
 
-import { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 
 let passed = 0;
@@ -37,7 +36,7 @@ async function search(q: string) {
 
 type Row = { id: string; name: string };
 
-const MONEY = new Prisma.Decimal(90.0);
+
 
 async function main() {
   const source = await prisma.source.findFirst();
@@ -82,7 +81,7 @@ async function main() {
         name: p.name,
         slug: `${p.id}-slug`,
         description: null,
-        price: MONEY,
+        price: 90.0,
         currency: "EUR",
         productUrl: `https://fixture-store.test-ok.com/itm/${p.id}`,
         imageUrl: null,
@@ -98,9 +97,9 @@ async function main() {
               externalListingId: `${p.id}-listing`,
               externalTitle: p.name,
               sourceProductUrl: `https://fixture-store.test-ok.com/itm/${p.id}`,
-              originalPrice: MONEY,
+              originalPrice: 90.0,
               originalCurrency: "EUR",
-              normalizedEur: MONEY,
+              normalizedEur: 90.0,
               availability: "AVAILABLE",
               variants: {
                 create: [
@@ -110,9 +109,9 @@ async function main() {
                     sizeValue: "42",
                     sizeSystem: "EU",
                     availability: "AVAILABLE",
-                    originalPrice: MONEY,
+                    originalPrice: 90.0,
                     originalCurrency: "EUR",
-                    normalizedEur: MONEY,
+                    normalizedEur: 90.0,
                   },
                 ],
               },
