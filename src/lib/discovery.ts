@@ -147,6 +147,7 @@ export async function getSpotlightCategories(): Promise<
       group: "",
       count: 0,
       representative: null,
+      representativePinned: false,
     });
   }
 
