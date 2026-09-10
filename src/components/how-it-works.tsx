@@ -36,23 +36,31 @@ export function HowItWorks() {
         }
       />
 
-      <div className="mt-12 grid gap-4 sm:grid-cols-3">
-        {STEPS.map((step) => (
-          <div
-            key={step.number}
-            className="rounded-2xl border border-ink/15 bg-surface px-8 py-10 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] sm:px-10"
-          >
-            <p className="font-display text-5xl font-light tracking-tight text-ink-faint">
-              {step.number}
-            </p>
-            <h3 className="mt-6 text-base font-semibold text-ink">
-              {step.title}
-            </h3>
-            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-              {step.copy}
-            </p>
-          </div>
-        ))}
+      <div className="relative mt-12">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-16 hidden h-0 border-t-2 border-dashed border-ink/15 sm:block"
+        />
+        <div className="relative grid gap-5 sm:grid-cols-3">
+          {STEPS.map((step) => (
+            <div
+              key={step.number}
+              className="rounded-2xl border border-ink/15 bg-paper-soft p-8 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] transition-colors duration-300 hover:border-ink/30 sm:p-10"
+            >
+              <span className="inline-grid size-12 place-items-center rounded-full bg-ink text-paper shadow-md">
+                <span className="font-display text-lg font-medium tracking-tight">
+                  {step.number}
+                </span>
+              </span>
+              <h3 className="mt-6 text-lg font-semibold text-ink">
+                {step.title}
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+                {step.copy}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
