@@ -36,9 +36,12 @@ export function HowItWorks() {
         }
       />
 
-      <div className="mt-12 grid gap-px border-y border-line bg-line sm:grid-cols-3">
+      <div className="mt-12 grid gap-4 sm:grid-cols-3">
         {STEPS.map((step) => (
-          <div key={step.number} className="bg-paper px-8 py-10 sm:px-10">
+          <div
+            key={step.number}
+            className="rounded-2xl border border-ink/15 bg-surface px-8 py-10 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] sm:px-10"
+          >
             <p className="font-display text-5xl font-light tracking-tight text-ink-faint">
               {step.number}
             </p>
