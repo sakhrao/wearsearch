@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { hasRealProductPage } from "@/lib/product-url";
-import { isDemoSource } from "@/lib/discovery";
+import { getSpotlightCategories } from "@/lib/discovery";
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
@@ -11,46 +10,18 @@ export async function GET(request: NextRequest) {
       ...(id ? { id } : { category: { slug: slug ?? "" } }),
       availability: "AVAILABLE",
     },
-    select: {
-      id: true,
-      name: true,
-      price: true,
-      currency: true,
-      productUrl: true,
-      imageUrl: true,
-      createdAt: true,
-      source: { select: { name: true, type: true, priority: true } },
-      brand: { select: { name: true } },
-      category: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          parent: { select: { name: true } },
-        },
-      },
-    },
   });
 
-  if (!row) {
-    return NextResponse.json({ found: false });
-  }
+  const spotlight = await getSpotlightCategories();
+  const tshirts = spotlight.find((s) => s.slug === "t-shirts") ?? null;
 
   return NextResponse.json({
-    found: true,
-    id: row.id,
-    name: row.name,
-    slug: row.category.slug,
-    imageUrl: !!row.imageUrl,
-    hasRealProductPage: hasRealProductPage(row.productUrl),
-    isDemoSource: isDemoSource(row.source.name, row.source.type),
-    sourceName: row.source.name,
-    sourceType: row.source.type,
-    priority: row.source.priority,
-    brand: row.brand.name,
-    productUrl: row.productUrl,
-    price: Number(row.price),
-    currency: row.currency,
-    createdAt: row.createdAt.toISOString(),
+    pinnedExists: !!row,
+    pinnedId: row?.id ?? null,
+    pinnedName: row?.name ?? null,
+    pinnedUrl: row?.productUrl ?? null,
+    spotlightCount: spotlight.length,
+    sliderSlugs: spotlight.map((s) => s.slug),
+    tshirts,
   });
 }
