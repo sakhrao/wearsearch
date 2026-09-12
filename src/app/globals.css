@@ -229,6 +229,55 @@ body {
   animation: step-in 0.35s ease-out both;
 }
 
+/*
+   Brand marquee. A seamless infinite logomark scroll with softened
+   edges (mask) that pauses on hover and stops for reduced-motion
+   clients. The track holds two copies of the roster so the -50%
+   translate loop never jumps.
+*/
+.brand-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    black 10%,
+    black 90%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    black 10%,
+    black 90%,
+    transparent
+  );
+}
+.brand-marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 3.5rem;
+  width: max-content;
+  padding-block: 0.75rem;
+  animation: brand-scroll 34s linear infinite;
+}
+.brand-marquee:hover .brand-marquee-track {
+  animation-play-state: paused;
+}
+.brand-slide {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  transition: opacity 0.25s ease;
+}
+.brand-slide:hover {
+  opacity: 1;
+}
+
+@keyframes brand-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -247,6 +296,9 @@ body {
   .skeleton {
     animation: none;
     background: var(--paper-soft);
+  }
+  .brand-marquee-track {
+    animation: none;
   }
   *,
   *::before,

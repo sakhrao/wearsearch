@@ -40,12 +40,11 @@ import { HowItWorks } from "@/components/how-it-works";
 import { CategorySpotlight } from "@/components/category-spotlight";
 import { ValuePromise } from "@/components/value-promise";
 import { OutfitPromo } from "@/components/outfit-promo";
-import { BrandsCoveredSection } from "@/components/brands-covered-section";
+import { BrandsMarquee } from "@/components/brands-marquee";
 import { FindQuestionnaire } from "@/components/find-questionnaire";
 import { SectionHeading } from "@/components/section-heading";
 import type {
   CategorySpotlight as CategorySpotlightType,
-  BrandHighlight,
 } from "@/lib/discovery";
 
 const HERO_EXAMPLES = [
@@ -241,19 +240,13 @@ const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
 export default function HomePage({
   spotlights,
   liveBrands,
-  brandHighlights,
 }: {
   spotlights: CategorySpotlightType[];
   liveBrands: string[];
-  brandHighlights: BrandHighlight[];
 }) {
   return (
     <Suspense fallback={<HomeFallback />}>
-      <Home
-        spotlights={spotlights}
-        liveBrands={liveBrands}
-        brandHighlights={brandHighlights}
-      />
+      <Home spotlights={spotlights} liveBrands={liveBrands} />
     </Suspense>
   );
 }
@@ -265,11 +258,9 @@ function HomeFallback() {
 function Home({
   spotlights,
   liveBrands,
-  brandHighlights,
 }: {
   spotlights: CategorySpotlightType[];
   liveBrands: string[];
-  brandHighlights: BrandHighlight[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1405,10 +1396,7 @@ function Home({
             </Reveal>
 
             <Reveal delay={160}>
-              <BrandsCoveredSection
-                highlights={brandHighlights}
-                liveBrands={liveBrands}
-              />
+              <BrandsMarquee liveBrands={liveBrands} />
             </Reveal>
 
             <Reveal>
