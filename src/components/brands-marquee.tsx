@@ -5,28 +5,24 @@ import { SectionHeading } from "@/components/section-heading";
 import { PLAN_BRANDS } from "@/lib/catalog/import-plan";
 import { brandLogoSlug } from "@/lib/brand-logos";
 
-/* Brand mark in a marquee slide: the Simple Icons logo when the
-   brand resolves, otherwise a typographic wordmark. The onError
-   swap keeps missing/unverified icons invisible-safe. */
+/* A marquee slide renders the verified brand glyph and nothing
+   else — no name text. Brands without a verified logo are filtered
+   from the roster entirely, so the strip is logos only. */
 function BrandMark({ name }: { name: string }) {
   const slug = brandLogoSlug(name);
   const [fellBack, setFellBack] = useState(false);
 
   if (!slug || fellBack) {
-    return (
-      <span className="font-display text-2xl font-semibold tracking-tight text-ink">
-        {name}
-      </span>
-    );
+    return null;
   }
 
   return (
     <img
       src={`https://cdn.simpleicons.org/${slug}`}
-      alt={`${name} logo`}
+      alt={name}
       loading="lazy"
       onError={() => setFellBack(true)}
-      className="h-8 w-auto max-w-44 object-contain"
+      className="h-9 w-auto max-w-44 object-contain"
     />
   );
 }
@@ -36,16 +32,17 @@ export function BrandsMarquee({
 }: {
   liveBrands: string[];
 }) {
-  const roster = [
-    ...new Set([...PLAN_BRANDS, ...liveBrands]),
-  ].sort((a, b) => a.localeCompare(b));
+  const roster = [...new Set([...PLAN_BRANDS, ...liveBrands])]
+    .filter((brand) => brandLogoSlug(brand) !== null)
+    .sort((a, b) => a.localeCompare(b));
 
   if (roster.length === 0) {
     return null;
   }
 
   /* Duplicated track makes a seamless infinite loop (translateX
-     -50% needs two copies side by side). */
+     -50% needs two copies side by side). Runs continuously and
+     ignores pointer interaction by design. */
   const track = [...roster, ...roster];
 
   return (
@@ -57,7 +54,7 @@ export function BrandsMarquee({
         id="brands-marquee-title"
         eyebrow="The catalog"
         title="Brands we cover"
-        description={`From sportswear giants to luxury houses — ${roster.length} named brands, one catalog.`}
+        description={`${roster.length} named brands in the catalog, rendered as a pure logo strip.`}
       />
 
       <div
