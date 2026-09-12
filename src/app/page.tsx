@@ -9,6 +9,9 @@ export default async function HomePageRoute() {
   const data = await getHomepageData();
 
   return (
-    <HomePage spotlights={data.spotlights} />
+    <HomePage
+      spotlights={data.spotlights}
+      liveBrands={data.liveBrands}
+    />
   );
 }

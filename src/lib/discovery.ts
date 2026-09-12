@@ -246,5 +246,12 @@ export async function getSpotlightCategories(): Promise<
 export async function getHomepageData() {
   const spotlights = await getSpotlightCategories();
 
-  return { spotlights };
+  const liveBrands = (
+    await prisma.brand.findMany({
+      select: { name: true },
+      orderBy: { name: "asc" },
+    })
+  ).map((brand) => brand.name);
+
+  return { spotlights, liveBrands };
 }

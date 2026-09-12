@@ -40,6 +40,7 @@ import { HowItWorks } from "@/components/how-it-works";
 import { CategorySpotlight } from "@/components/category-spotlight";
 import { ValuePromise } from "@/components/value-promise";
 import { OutfitPromo } from "@/components/outfit-promo";
+import { BrandsCoveredSection } from "@/components/brands-covered-section";
 import { FindQuestionnaire } from "@/components/find-questionnaire";
 import { SectionHeading } from "@/components/section-heading";
 import type {
@@ -238,12 +239,14 @@ const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
 
 export default function HomePage({
   spotlights,
+  liveBrands,
 }: {
   spotlights: CategorySpotlightType[];
+  liveBrands: string[];
 }) {
   return (
     <Suspense fallback={<HomeFallback />}>
-      <Home spotlights={spotlights} />
+      <Home spotlights={spotlights} liveBrands={liveBrands} />
     </Suspense>
   );
 }
@@ -254,8 +257,10 @@ function HomeFallback() {
 
 function Home({
   spotlights,
+  liveBrands,
 }: {
   spotlights: CategorySpotlightType[];
+  liveBrands: string[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1388,6 +1393,10 @@ function Home({
 
             <Reveal delay={80}>
               <CategorySpotlight spotlights={spotlights} />
+            </Reveal>
+
+            <Reveal delay={160}>
+              <BrandsCoveredSection liveBrands={liveBrands} />
             </Reveal>
 
             <Reveal>
