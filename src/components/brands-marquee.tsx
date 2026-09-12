@@ -48,30 +48,32 @@ export function BrandsMarquee({
   return (
     <section
       aria-labelledby="brands-marquee-title"
-      className="mx-auto w-full max-w-4xl px-4 py-6 sm:py-10"
+      className="scroll-mt-24 border-y border-line bg-paper-soft py-16 sm:py-24"
     >
-      <SectionHeading
-        id="brands-marquee-title"
-        eyebrow="The catalog"
-        title="Brands we cover"
-        description={`Search and shop every mark you see — straight from the catalog.`}
-      />
+      <div className="mx-auto w-full max-w-4xl px-4">
+        <SectionHeading
+          id="brands-marquee-title"
+          eyebrow="The catalog"
+          title="Brands we cover"
+          description={`Search and shop every mark you see — straight from the catalog.`}
+        />
 
-      <div
-        className="brand-marquee mt-8"
-        role="list"
-        aria-label="Brand logos"
-      >
-        <div className="brand-marquee-track">
-          {track.map((brand, index) => (
-            <div
-              key={`${brand}-${index}`}
-              className="brand-slide"
-              role="listitem"
-            >
-              <BrandMark name={brand} />
-            </div>
-          ))}
+        <div
+          className="brand-marquee mt-12"
+          role="list"
+          aria-label="Brand logos"
+        >
+          <div className="brand-marquee-track">
+            {track.map((brand, index) => (
+              <div
+                key={`${brand}-${index}`}
+                className="brand-slide"
+                role="listitem"
+              >
+                <BrandMark name={brand} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
