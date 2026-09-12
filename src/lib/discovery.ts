@@ -253,5 +253,106 @@ export async function getHomepageData() {
     })
   ).map((brand) => brand.name);
 
-  return { spotlights, liveBrands };
+  const brandHighlights = await getBrandHighlights();
+
+  return { spotlights, liveBrands, brandHighlights };
+}
+
+/* ------------------------------------------------------------------ */
+/* BRAND HIGHLIGHTS (per-category top houses)                         */
+/* ------------------------------------------------------------------ */
+
+export type BrandHighlight = {
+  id: string;
+  name: string;
+  slug: string;
+  count: number;
+  /* The two most prominent brands in the category, by product
+     count, both named only if they actually hold inventory. */
+  brands: Array<{ name: string; count: number }>;
+};
+
+/** Per-category "top N brands" aggregates. Same honest-catalog rules
+    as the rest of the homepage: AVAILABLE products from non-demo
+    sources with a real, placeable product page. Categories are
+    ranked by total products and clipped to the top MAX so the
+    section stays tight. */
+const MAX_HIGHLIGHT_CATEGORIES = 6;
+const MAX_BRANDS_PER_CATEGORY = 2;
+
+export async function getBrandHighlights(): Promise<
+  BrandHighlight[]
+> {
+  const products = await prisma.product.findMany({
+    where: {
+      availability: "AVAILABLE",
+      source: { type: { not: "DEMO" } },
+    },
+    select: {
+      categoryId: true,
+      brandId: true,
+      productUrl: true,
+    },
+  });
+
+  const categoryNames = new Map<
+    string,
+    { name: string; slug: string }
+  >(
+    (
+      await prisma.category.findMany({
+        select: { id: true, name: true, slug: true },
+      })
+    ).map((c) => [c.id, { name: c.name, slug: c.slug }])
+  );
+
+  const brandNames = new Map<string, string>(
+    (
+      await prisma.brand.findMany({
+        select: { id: true, name: true },
+      })
+    ).map((b) => [b.id, b.name])
+  );
+
+  type Acc = {
+    count: number;
+    brands: Map<string, number>;
+  };
+  const acc = new Map<string, Acc>();
+
+  for (const product of products) {
+    if (!product.brandId || !product.categoryId) continue;
+    if (!hasRealProductPage(product.productUrl)) continue;
+    let bucket = acc.get(product.categoryId);
+    if (!bucket) {
+      bucket = { count: 0, brands: new Map() };
+      acc.set(product.categoryId, bucket);
+    }
+    bucket.count += 1;
+    bucket.brands.set(
+      product.brandId,
+      (bucket.brands.get(product.brandId) ?? 0) + 1
+    );
+  }
+
+  return [...acc.entries()]
+    .map(([categoryId, bucket]) => {
+      const meta = categoryNames.get(categoryId);
+      return {
+        id: categoryId,
+        name: meta?.name ?? categoryId,
+        slug: meta?.slug ?? "",
+        count: bucket.count,
+        brands: [...bucket.brands.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, MAX_BRANDS_PER_CATEGORY)
+          .map(([brandId, count]) => ({
+            name: brandNames.get(brandId) ?? brandId,
+            count,
+          })),
+      };
+    })
+    .filter((row) => row.count > 0 && row.brands.length > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, MAX_HIGHLIGHT_CATEGORIES);
 }

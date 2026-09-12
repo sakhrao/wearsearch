@@ -12,6 +12,7 @@ export default async function HomePageRoute() {
     <HomePage
       spotlights={data.spotlights}
       liveBrands={data.liveBrands}
+      brandHighlights={data.brandHighlights}
     />
   );
 }

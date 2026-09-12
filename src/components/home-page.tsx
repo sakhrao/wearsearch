@@ -45,6 +45,7 @@ import { FindQuestionnaire } from "@/components/find-questionnaire";
 import { SectionHeading } from "@/components/section-heading";
 import type {
   CategorySpotlight as CategorySpotlightType,
+  BrandHighlight,
 } from "@/lib/discovery";
 
 const HERO_EXAMPLES = [
@@ -240,13 +241,19 @@ const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
 export default function HomePage({
   spotlights,
   liveBrands,
+  brandHighlights,
 }: {
   spotlights: CategorySpotlightType[];
   liveBrands: string[];
+  brandHighlights: BrandHighlight[];
 }) {
   return (
     <Suspense fallback={<HomeFallback />}>
-      <Home spotlights={spotlights} liveBrands={liveBrands} />
+      <Home
+        spotlights={spotlights}
+        liveBrands={liveBrands}
+        brandHighlights={brandHighlights}
+      />
     </Suspense>
   );
 }
@@ -258,9 +265,11 @@ function HomeFallback() {
 function Home({
   spotlights,
   liveBrands,
+  brandHighlights,
 }: {
   spotlights: CategorySpotlightType[];
   liveBrands: string[];
+  brandHighlights: BrandHighlight[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1396,7 +1405,10 @@ function Home({
             </Reveal>
 
             <Reveal delay={160}>
-              <BrandsCoveredSection liveBrands={liveBrands} />
+              <BrandsCoveredSection
+                highlights={brandHighlights}
+                liveBrands={liveBrands}
+              />
             </Reveal>
 
             <Reveal>
