@@ -54,7 +54,7 @@ export function BrandsMarquee({
         id="brands-marquee-title"
         eyebrow="The catalog"
         title="Brands we cover"
-        description={`${roster.length} named brands in the catalog, rendered as a pure logo strip.`}
+        description={`Search and shop every mark you see — straight from the catalog.`}
       />
 
       <div
