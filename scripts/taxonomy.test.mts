@@ -15,6 +15,7 @@ import {
   CROSS_TAG_TOKENS,
 } from "../src/lib/catalog/taxonomy";
 import {
+  branchHasStock,
   decideNext,
   deriveQuery,
   editablePath,
@@ -1109,6 +1110,76 @@ function drill(
       leaf[leaf.length - 1] ?? ""
     ).join(",") === leaf.join(","),
     "path no longer replays"
+  );
+}
+
+/* The stock filter must never strip a fit/style node: those carry no
+   category of their own, they describe the pick inside a stocked parent.
+   Getting this wrong empties the jeans screen at runtime, which no pure
+   flow assertion can catch. */
+{
+  const men = getGenderTree("men");
+  const fits = drill("men", ["Bottoms", "Jeans"]);
+
+  /* Exactly the production catalog shape: Jeans is offered, and no fit
+     names a category because no fit ever does. */
+  const stockedInProd = (name: string) => name === "Jeans";
+
+  check(
+    "C1 the jeans branch is reachable in the production catalog shape",
+    branchHasStock(men, fits[fits.length - 1] ?? "", stockedInProd),
+    "the parent category is stocked but the fit looks empty"
+  );
+  check(
+    "C1 every fit on the jeans screen survives the stock filter",
+    fits.every((id) => branchHasStock(men, id, stockedInProd)),
+    "at least one fit was hidden, so the screen would look empty"
+  );
+  check(
+    "C1 the screen is not empty for any of the three genders",
+    ["men", "women", "kids"].every((gender) => {
+      const path = drill(gender, ["Bottoms", "Jeans"]);
+      return (
+        path.length > 1 &&
+        path.every((id) =>
+          branchHasStock(getGenderTree(gender), id, stockedInProd)
+        )
+      );
+    }),
+    "a gender lost its jeans fits"
+  );
+  check(
+    "C2 a branch with no stocked category anywhere is still hidden",
+    !branchHasStock(men, drill("men", ["Accessories", "Watches"])[1] ?? "", stockedInProd),
+    "an empty branch was offered"
+  );
+  check(
+    "C2 the fit of a hidden branch is hidden with it",
+    !branchHasStock(
+      men,
+      drill("men", ["Bottoms", "Jeans", "Slim"])[2] ?? "",
+      () => false
+    ),
+    "a branch nothing stocks was still shown"
+  );
+  check(
+    "C3 an ancestor that maps to a stocked category carries its children",
+    branchHasStock(
+      men,
+      drill("men", ["Bottoms", "Jeans"])[1] ?? "",
+      (name) => name === "Jeans"
+    ),
+    "ancestor lookup regressed"
+  );
+  check(
+    "C3 a node whose own mapTo is stocked needs no ancestor",
+    branchHasStock(men, "mens_suits", (name) => name === "Suits"),
+    "direct mapTo lookup regressed"
+  );
+  check(
+    "C4 a missing tree keeps everything visible",
+    branchHasStock(null, "anything", () => false),
+    "a missing taxonomy must not hide the catalog"
   );
 }
 

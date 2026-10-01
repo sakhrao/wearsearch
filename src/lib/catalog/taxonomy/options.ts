@@ -11,6 +11,7 @@ export type {
   TaxonomyNode,
 } from "./definition";
 export {
+  branchHasStock,
   decideNext,
   deriveQuery,
   editablePath,

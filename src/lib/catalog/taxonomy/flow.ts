@@ -186,6 +186,48 @@ export function editablePath(
   return path.slice(0, -1);
 }
 
+/**
+ * Does a branch lead to a category the catalog actually offers?
+ *
+ * A style/fit node maps to nothing by itself - it only describes the
+ * pick inside its parent category. So the answer is inherited from the
+ * nearest ancestor that does map to a stocked category. Without this the
+ * jeans screen would render an empty list even though Jeans is in stock,
+ * because none of the fits carry a category of their own.
+ */
+export function branchHasStock(
+  tree: TaxonomyGenderTree | null,
+  nodeId: string,
+  hasCategory: (name: string) => boolean
+): boolean {
+  if (!tree) return true;
+  const node = tree.nodes[nodeId];
+  if (!node) return true;
+
+  /* Start at the deepest node that actually names a category. */
+  let seedId: string = node.id;
+  let current: TaxonomyNode | undefined = node;
+  while (current.mapTo.length === 0 && current.parentId) {
+    const parent: TaxonomyNode | undefined =
+      tree.nodes[current.parentId];
+    if (!parent) break;
+    current = parent;
+    seedId = parent.id;
+  }
+
+  const queue: string[] = [seedId];
+  while (queue.length > 0) {
+    const node2: TaxonomyNode | undefined =
+      tree.nodes[queue.shift() ?? ""];
+    if (!node2) continue;
+    for (const name of node2.mapTo) {
+      if (hasCategory(name)) return true;
+    }
+    queue.push(...node2.children);
+  }
+  return false;
+}
+
 /** The full ancestor chain for a node id, root first. */
 export function pathToNode(
   tree: TaxonomyGenderTree | null,

@@ -29,6 +29,7 @@ import {
 } from "@/lib/catalog/detail-options";
 import {
   KIDS_AGE_OPTIONS,
+  branchHasStock as taxonomyBranchHasStock,
   decideNext as taxonomyDecideNext,
   deriveQuery as taxonomyDeriveQuery,
   editablePath as taxonomyEditablePath,
@@ -130,39 +131,24 @@ function taxonomyTreeFromMeta(
 }
 
 /**
- * True when any node in the subtree maps to a category the catalog
- * actually offers this audience. Used to hide branches with no stock so
- * the drill-down never dead-ends. Purely structural - no category is
- * named anywhere.
+ * True when a branch leads to a category the catalog actually offers
+ * this audience. Used to hide branches with no stock so the drill-down
+ * never dead-ends. The structural walk lives in the taxonomy engine
+ * (branchHasStock) where it is unit tested; this only supplies the
+ * audience-specific answer to "is this category stocked?".
  */
-function taxonomySubtreeHasStock(
-  tree: TaxonomyGenderTree | null,
-  node: TaxonomyNodeView,
+function taxonomyBranchHasCategory(
   meta: Meta | null,
   audience: "MEN" | "WOMEN" | "KIDS" | "UNISEX" | null
-): boolean {
-  if (!tree || !meta) return true;
-  const queue: string[] = [node.id];
-  while (queue.length > 0) {
-    const current = tree.nodes[queue.shift() ?? ""];
-    if (!current) continue;
-    for (const name of current.mapTo) {
-      if (
-        meta.categories.some(
-          (category) =>
-            category.name === name &&
-            categoryGendersCompatible(
-              category,
-              audience ?? "UNISEX"
-            )
-        )
-      ) {
-        return true;
-      }
-    }
-    queue.push(...current.children);
-  }
-  return false;
+): (name: string) => boolean {
+  if (!meta) return () => true;
+  const wanted = audience ?? "UNISEX";
+  return (name: string) =>
+    meta.categories.some(
+      (category) =>
+        category.name === name &&
+        categoryGendersCompatible(category, wanted)
+    );
 }
 
 const STORAGE_KEY = "wearsearch-find-answers";
@@ -889,7 +875,11 @@ export function FindQuestionnaire({
 
   const taxonomyRenderOptions =
     taxonomyOptionsAt(taxonomyTree, taxonomyRenderPath).filter((node) =>
-      taxonomySubtreeHasStock(taxonomyTree, node, meta, genderAudience)
+      taxonomyBranchHasStock(
+        taxonomyTree,
+        node.id,
+        taxonomyBranchHasCategory(meta, genderAudience)
+      )
     );
 
   /* Size is skipped - not blocked - when the finished selection needs no
