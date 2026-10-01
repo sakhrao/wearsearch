@@ -15,6 +15,7 @@
     "test:gender-order": "node scripts/gender-order.test.mjs",
     "test:questionnaire": "tsx scripts/questionnaire-policy.test.mjs",
     "test:facet-policy": "tsx scripts/facet-policy.test.mjs",
+    "test:taxonomy": "tsx scripts/taxonomy.test.mts",
     "test:e2e": "node scripts/spec-e2e.test.mjs",
     "test:currency": "tsx scripts/currency.test.mts",
     "test:catalog": "tsx scripts/catalog-integrity.test.mts",

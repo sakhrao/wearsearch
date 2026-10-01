@@ -24,6 +24,10 @@ import {
   canonicalColorFromOffer,
   expandOfferSizeChips,
 } from "@/lib/catalog/offer-vocab";
+import {
+  CROSS_TAG_TOKENS,
+  crossTagCategoryNames,
+} from "@/lib/catalog/taxonomy";
 
 /* F1 (Post-Audit Product Readiness): demo/playground items have
    no real product page, so they must never surface in
@@ -1260,6 +1264,9 @@ export async function GET(
         ...Object.keys(
           CATEGORY_ALIAS_WORDS
         ),
+        ...Object.keys(
+          CROSS_TAG_TOKENS
+        ),
       ]);
 
     const detectedCategory =
@@ -1270,6 +1277,25 @@ export async function GET(
             )
           ] ?? detectedCategoryRaw)
         : null;
+
+    /* Taxonomy cross-tag: "activewear" is not a DB category row but a
+       label spanning Joggers/Leggings/Sports Tops/... . When the query
+       asks for it, the category intent resolves to the union of the
+       taxonomy leaves carrying that cross-tag, so every member stays
+       admissible while anything outside the union stays excluded. */
+    const detectedCrossTag = detectedCategoryRaw
+      ? CROSS_TAG_TOKENS[
+          looseNormalize(
+            detectedCategoryRaw
+          )
+        ] ?? null
+      : null;
+
+    const detectedCategoryScope = detectedCrossTag
+      ? crossTagCategoryNames(detectedCrossTag)
+      : detectedCategory
+        ? [detectedCategory]
+        : [];
 
     const detectedColors =
       detectEntities(colorNames);
@@ -2097,8 +2123,11 @@ export async function GET(
 
         const categoryMatches =
           !detectedCategory ||
-          productCategoryChainNames.includes(
-            detectedCategory
+          productCategoryChainNames.some(
+            (name) =>
+              detectedCategoryScope.includes(
+                name
+              )
           );
 
         const selectedColorSet = new Set(
@@ -2798,8 +2827,11 @@ Boolean(
             product.category &&
             getCategoryChainNames(
               product.category.id
-            ).includes(
-              detectedCategory
+            ).some(
+              (name) =>
+                detectedCategoryScope.includes(
+                  name
+                )
             )
         )
       : products;

@@ -2,6 +2,11 @@ import {
   EMPTY_ANSWERS,
   type QuestionnaireAnswers,
 } from "./questionnaire";
+import {
+  findNodeByCategoryName,
+  getGenderTree,
+  pathToNode,
+} from "./catalog/taxonomy";
 
 export type StructuredQueryShape = {
   gender?: string | null;
@@ -74,6 +79,18 @@ export function buildEditAnswers(
 
   if (structuredQuery?.category) {
     answers.category = structuredQuery.category;
+    /* Also resolve where the restored category lives in the taxonomy
+       tree, so Back/Edit reopens the drill-down on the same branch the
+       user had picked instead of resetting to the top level. */
+    const tree = getGenderTree(answers.gender);
+    const node = findNodeByCategoryName(
+      tree,
+      structuredQuery.category
+    );
+    answers.categoryId = node?.id ?? null;
+    answers.categoryPath = node
+      ? pathToNode(tree, node.id)
+      : [];
   }
 
   /* The bare size token restores the value only: the QR string carries

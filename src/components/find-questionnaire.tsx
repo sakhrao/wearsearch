@@ -27,6 +27,17 @@ import {
   detailOptionGroupsFor,
   type DetailOptionGroup,
 } from "@/lib/catalog/detail-options";
+import {
+  KIDS_AGE_OPTIONS,
+  decideNext as taxonomyDecideNext,
+  deriveQuery as taxonomyDeriveQuery,
+  editablePath as taxonomyEditablePath,
+  nextStepIndex as taxonomyNextStepIndex,
+  optionsAt as taxonomyOptionsAt,
+  type DerivedQuery,
+  type TaxonomyGenderTree,
+  type TaxonomyNode as TaxonomyNodeView,
+} from "@/lib/catalog/taxonomy/options";
 
 type Meta = {
   success: boolean;
@@ -56,6 +67,17 @@ type Meta = {
      sizes its sliders against this so the Maximum covers the most
      expensive product in the picked category. */
   priceMaxEurByCategory: Record<string, number>;
+  /* Additive taxonomy tree (stable IDs per gender). The category step
+     drills down this tree; the flat `categories` array above stays the
+     source of every legacy display name the engine understands. */
+  taxonomy?: {
+    version: string;
+    trees: Record<
+      "MEN" | "WOMEN" | "KIDS",
+      TaxonomyGenderTree
+    >;
+    migrationMap: Record<string, string[]>;
+  };
   fx: {
     rate: number | null;
     asOf: string | null;
@@ -78,6 +100,70 @@ type FindIntent = {
 };
 
 type Answers = QuestionnaireAnswers;
+
+/**
+ * The tokens a taxonomy path contributes to the query: the node tokens
+ * plus any cross-tags. Cross-tags widen the search (an "activewear"
+ * pick admits every tagged category) without ever becoming a step of
+ * their own.
+ */
+function taxonomyTokensFor(
+  derived: DerivedQuery
+): string[] {
+  return [
+    ...derived.tokens,
+    ...derived.crossTags,
+  ];
+}
+
+/* The taxonomy tree for the picked gender, or null when the payload is
+   unavailable / the audience has no tree (the legacy flat list is then
+   used as the fallback). */
+function taxonomyTreeFromMeta(
+  meta: Meta | null,
+  gender: string | null
+): TaxonomyGenderTree | null {
+  if (!meta?.taxonomy) return null;
+  const audience = genderToAudience(gender);
+  if (!audience || audience === "UNISEX") return null;
+  return meta.taxonomy.trees[audience] ?? null;
+}
+
+/**
+ * True when any node in the subtree maps to a category the catalog
+ * actually offers this audience. Used to hide branches with no stock so
+ * the drill-down never dead-ends. Purely structural - no category is
+ * named anywhere.
+ */
+function taxonomySubtreeHasStock(
+  tree: TaxonomyGenderTree | null,
+  node: TaxonomyNodeView,
+  meta: Meta | null,
+  audience: "MEN" | "WOMEN" | "KIDS" | "UNISEX" | null
+): boolean {
+  if (!tree || !meta) return true;
+  const queue: string[] = [node.id];
+  while (queue.length > 0) {
+    const current = tree.nodes[queue.shift() ?? ""];
+    if (!current) continue;
+    for (const name of current.mapTo) {
+      if (
+        meta.categories.some(
+          (category) =>
+            category.name === name &&
+            categoryGendersCompatible(
+              category,
+              audience ?? "UNISEX"
+            )
+        )
+      ) {
+        return true;
+      }
+    }
+    queue.push(...current.children);
+  }
+  return false;
+}
 
 const STORAGE_KEY = "wearsearch-find-answers";
 
@@ -418,6 +504,58 @@ export function FindQuestionnaire({
     );
   }, [meta, genderAudience]);
 
+  /* ---- Taxonomy drill-down -------------------------------------------
+     The category step is a generic walk down the taxonomy tree. Nothing
+     here knows about Jeans or Shirts: the path state is the only source
+     of truth, and the options for the current level come straight from
+     the selected node's `children`. The number of levels is whatever the
+     data says it is - one, three or five.
+
+     Selecting a node that HAS selectable children drills into them and
+     does not advance. Only reaching a leaf resolves the answer and lets
+     the flow continue to Size (or to the next attribute when the leaf
+     needs no conventional size). */
+  const taxonomyTree = useMemo(
+    () => taxonomyTreeFromMeta(meta, answers.gender),
+    [meta, answers.gender]
+  );
+
+  /* A gender switch starts a different tree, so the drill path is
+     dropped (never via an effect, so a restored draft isn't wiped). */
+  const [lastDrillGender, setLastDrillGender] = useState<string | null>(answers.gender);
+  if (lastDrillGender !== answers.gender) {
+    setLastDrillGender(answers.gender);
+  }
+
+  /* The path actually rendered: the restored/stored one, clamped to what
+     still exists in the current tree. */
+  const taxonomyPath = useMemo(() => {
+    const path = answers.categoryPath ?? [];
+    if (!taxonomyTree || path.length === 0) return [];
+    const valid = path.filter((id) => taxonomyTree.nodes[id]);
+    /* a truncated path must still end on a real node */
+    return valid.length > 0 ? valid : [];
+  }, [answers.categoryPath, taxonomyTree]);
+
+  /* Data-driven decision: children -> keep drilling, leaf -> advance. */
+  const taxonomyDecision = useMemo(
+    () => taxonomyDecideNext(taxonomyTree, taxonomyPath),
+    [taxonomyTree, taxonomyPath]
+  );
+
+  const taxonomyAtLeaf =
+    taxonomyDecision.kind !== "children" &&
+    taxonomyPath.length > 0;
+
+  /* Labels for the breadcrumb, root first. */
+  const taxonomyTrail = useMemo(
+    () =>
+      taxonomyPath
+        .map((id) => taxonomyTree?.nodes[id])
+        .filter((node): node is TaxonomyNodeView => Boolean(node)),
+    [taxonomyPath, taxonomyTree]
+  );
+
   const categorySections = useMemo(() => {
     const rootMap = new Map<string, { leaves: Meta["categories"]; subgroups: Map<string, Meta["categories"]> }>();
     for (const category of visibleCategories) {
@@ -722,7 +860,50 @@ export function FindQuestionnaire({
     answers
   );
 
-  const canProceed = stepState.canNext;
+  /* The single source of truth for "which step comes next": the taxonomy
+     shape decides whether Size applies and whether the selection is
+     finished, the questionnaire only knows the step order. */
+  const nextStep = taxonomyNextStepIndex({
+    steps: STEP_KEYS,
+    currentIndex: step,
+    decision: taxonomyDecision,
+  });
+
+  /* Leaf-only gate: the category step can only advance once the
+     selection has reached a node with no selectable children. Any branch
+     still offering children keeps the user on the step - this is read
+     from the taxonomy shape, never from a category name. */
+  const categoryNeedsDeeperPick =
+    stepKey === "category" &&
+    taxonomyTree !== null &&
+    taxonomyDecision.kind === "children" &&
+    taxonomyPath.length > 0;
+
+  /* On the category step a finished leaf selection is released one level
+     so the options behind the pick stay visible and re-pickable. */
+  const taxonomyRenderPath = taxonomyEditablePath(
+    taxonomyTree,
+    taxonomyPath,
+    stepKey
+  );
+
+  const taxonomyRenderOptions =
+    taxonomyOptionsAt(taxonomyTree, taxonomyRenderPath).filter((node) =>
+      taxonomySubtreeHasStock(taxonomyTree, node, meta, genderAudience)
+    );
+
+  /* Size is skipped - not blocked - when the finished selection needs no
+     conventional size, so the step can never dead-end. */
+  const sizeIsSkipped =
+    stepKey === "size" && nextStep !== null && nextStep > step;
+
+  const sizeStepApplies =
+    stepKey === "size"
+      ? taxonomyPath.length === 0 || !taxonomyAtLeaf || sizeIsSkipped
+      : true;
+
+  const canProceed =
+    stepState.canNext && !categoryNeedsDeeperPick && sizeStepApplies;
 
   /* Conversation-style ask + helper line per step. */
   const stepCopy: Record<
@@ -731,11 +912,11 @@ export function FindQuestionnaire({
   > = {
     0: {
       ask: "Who is it for?",
-      hint: "For Women, Men or Kids — we'll tailor the categories, sizes and results to the person you're shopping for.",
+      hint: "For Women, Men or Kids � we'll tailor the categories, sizes and results to the person you're shopping for.",
     },
     1: {
       ask: "What are you shopping for?",
-      hint: "Pick a category tuned to your pick — you can change it later.",
+      hint: "Pick a category tuned to your pick � you can change it later.",
     },
     2: {
       ask: "What size do you need?",
@@ -782,7 +963,7 @@ export function FindQuestionnaire({
   /* A detail chip is attribute-backed only when its group maps to an
      attribute group the catalog ACTUALLY exposes; such picks become
      soft filters. Every other chip is added to detailTokens and turns
-     into a real query token on submit — never a UI-only filter. */
+     into a real query token on submit � never a UI-only filter. */
   function toggleDetail(
     optionGroup: DetailOptionGroup,
     value: string
@@ -837,9 +1018,89 @@ export function FindQuestionnaire({
       return {
         ...previous,
         category: cleared ? null : name,
+        categoryId: cleared ? null : (previous.categoryPath.at(-1) ?? null),
         size: cleared ? previous.size : null,
       };
     });
+  }
+
+  /**
+   * The one and only selection handler for the category step.
+   *
+   * It never decides what comes next from a category name: it appends
+   * the node to the path and re-derives the answer from the resulting
+   * path. A node with selectable children stays on the step (the caller
+   * renders those children); only a leaf resolves the answer, because a
+   * leaf is the single state allowed to advance to Size.
+   */
+  function pickTaxonomyNode(node: TaxonomyNodeView) {
+    const alreadyPicked =
+      answers.categoryPath[answers.categoryPath.length - 1] ===
+      node.id;
+    /* Tapping the current leaf again clears the whole selection;
+       tapping any other node restarts the tail from that node. */
+    const path = alreadyPicked
+      ? answers.categoryPath.slice(0, -1)
+      : [...answers.categoryPath, node.id];
+
+    const decision = taxonomyDecideNext(taxonomyTree, path);
+
+    setAnswers((previous) => {
+      const derived = taxonomyDeriveQuery(taxonomyTree, path);
+      return {
+        ...previous,
+        category: derived.category,
+        categoryId: path[path.length - 1] ?? null,
+        categoryPath: path,
+        size: null,
+        taxonomyTokens: taxonomyTokensFor(derived),
+      };
+    });
+
+    /* A node with selectable children keeps the user on this step; a
+       finished selection (no selectable children) moves straight on to
+       the next applicable attribute. The engine derives that from the
+       path shape - no category is named here. */
+    if (
+      decision.kind !== "children" &&
+      path.length > 0 &&
+      stepKey === "category"
+    ) {
+      const target = taxonomyNextStepIndex({
+        steps: STEP_KEYS,
+        currentIndex: step,
+        decision,
+      });
+      if (target !== null) setStep(target);
+    }
+  }
+
+  /** Step back one level, keeping the staged answer consistent. */
+  function stepBackTaxonomy() {
+    setAnswers((previous) => {
+      const tree = taxonomyTreeFromMeta(meta, previous.gender);
+      if (!tree) return previous;
+      const path = previous.categoryPath.slice(0, -1);
+      const derived = taxonomyDeriveQuery(tree, path);
+      return {
+        ...previous,
+        category: derived.category,
+        categoryId: path[path.length - 1] ?? null,
+        categoryPath: path,
+        size: null,
+        taxonomyTokens: taxonomyTokensFor(derived),
+      };
+    });
+  }
+
+  function pickKidsAge(value: string) {
+    setAnswers((previous) => ({
+      ...previous,
+      kidsAge:
+        previous.kidsAge === value
+          ? null
+          : value,
+    }));
   }
 
   function pickGender(value: string) {
@@ -973,6 +1234,18 @@ export function FindQuestionnaire({
   function back() {
     if (step > 0) {
       const landingStep = STEP_KEYS[step - 1];
+      /* Editing the category steps back INSIDE the drill-down (the level
+         above the current selection) instead of wiping it, so the
+         hierarchy the user already answered is still there. */
+      if (
+        landingStep === "category" &&
+        taxonomyTree !== null &&
+        taxonomyPath.length > 0
+      ) {
+        stepBackTaxonomy();
+        setStep(step - 1);
+        return;
+      }
       clearAnswerFor(landingStep);
       if (landingStep === "category" || landingStep === "gender") {
         setOpenSection(null);
@@ -985,8 +1258,8 @@ export function FindQuestionnaire({
   }
 
   function next() {
-    if (canProceed && step < totalSteps - 1) {
-      setStep(step + 1);
+    if (canProceed && nextStep !== null) {
+      setStep(nextStep);
     }
   }
 
@@ -1033,11 +1306,28 @@ export function FindQuestionnaire({
         parts.push(token.trim());
       }
     }
+    /* Taxonomy-derived tokens (style/fit words picked in the drill-down
+       plus any cross-tag) travel with the query the same way. */
+    for (const token of answers.taxonomyTokens ?? []) {
+      if (token.trim()) {
+        parts.push(token.trim());
+      }
+    }
     if (answers.searchText.trim()) {
       parts.push(answers.searchText.trim());
     }
     if (answers.category) {
       parts.push(answers.category);
+    }
+    /* The kids age bracket is a real query token, never a UI-only
+       filter: a "kids" search narrows to the bracket named. */
+    if (answers.kidsAge) {
+      const option = KIDS_AGE_OPTIONS.find(
+        (item) => item.id === answers.kidsAge
+      );
+      if (option) {
+        parts.push(option.tokens[0]);
+      }
     }
 
     if (parts.length === 0) {
@@ -1238,12 +1528,89 @@ export function FindQuestionnaire({
               </div>
             )}
 
-{step === 1 && (
+{step === 1 && answers.gender === "kids" && (
+              <div className="mx-auto mb-6 w-full max-w-2xl">
+                <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
+                  Age group
+                </p>
+                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+                  {KIDS_AGE_OPTIONS.map((option) => (
+                    <OptionCard
+                      key={option.id}
+                      label={option.label}
+                      selected={
+                        answers.kidsAge === option.id
+                      }
+                      onClick={() =>
+                        pickKidsAge(option.id)
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {step === 1 &&
+            taxonomyTree !== null ? (
+              <div className="mx-auto w-full max-w-3xl">
+                {taxonomyRenderPath.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={stepBackTaxonomy}
+                    className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-accent-deep"
+                  >
+                    <ChevronIcon open={false} />
+                    {taxonomyRenderPath.length > 1
+                      ? taxonomyTree?.nodes[
+                          taxonomyRenderPath[
+                            taxonomyRenderPath.length - 2
+                          ] ?? ""
+                        ]?.label
+                      : "All categories"}
+                  </button>
+                )}
+                {taxonomyTrail.length > 0 && (
+                  <p className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
+                    {taxonomyTrail
+                      .map((node) => node.label)
+                      .join(" / ")}
+                  </p>
+                )}
+                <p className="mb-4 text-sm text-ink-soft">
+                  {taxonomyRenderPath.length === 0
+                    ? "Pick a category"
+                    : `Pick a ${taxonomyTrail[taxonomyTrail.length - 1]?.type === "fit" ? "fit" : "detail"}`}
+                </p>
+                {taxonomyRenderOptions.length === 0 ? (
+                  <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
+                    <p className="text-sm text-ink-soft">
+                      Nothing in stock here yet � go
+                      back and pick another.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {taxonomyRenderOptions.map((node) => (
+                      <OptionCard
+                        key={node.id}
+                        label={node.label}
+                        selected={
+                          answers.categoryId === node.id
+                        }
+                        onClick={() =>
+                          pickTaxonomyNode(node)
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : step === 1 && (
               categorySections.length === 0 ? (
                 <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                   <p className="text-sm text-ink-soft">
                     There are no categories in
-                    stock for that audience yet —
+                    stock for that audience yet �
                     go back and pick another.
                   </p>
                 </div>
@@ -1279,7 +1646,7 @@ export function FindQuestionnaire({
                     id="find-color-filter"
                     value={colorFilter}
                     onChange={setColorFilter}
-                    placeholder="Search colors…"
+                    placeholder="Search colors⬦"
                     icon
                   />
                 </div>
@@ -1323,13 +1690,13 @@ export function FindQuestionnaire({
                       )
                   ).length === 0 && (
                     <p className="mt-4 text-center text-sm text-ink-faint">
-                      No colors match “{colorFilter}”.
+                      No colors match �S{colorFilter}⬝.
                     </p>
                   )}
                 {meta.colors.length === 0 && (
                   <p className="mt-4 text-center text-sm text-ink-faint">
                     No colors are available from the
-                    current catalog right now — you
+                    current catalog right now � you
                     can skip this step.
                   </p>
                 )}
@@ -1394,7 +1761,7 @@ export function FindQuestionnaire({
                   <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       No sizes are available for your
-                      picks right now — you can skip
+                      picks right now � you can skip
                       this step.
                     </p>
                   </div>
@@ -1503,21 +1870,21 @@ export function FindQuestionnaire({
                 <p className="text-center text-xs leading-relaxed text-ink-faint">
                   {budgetCurrencyLabel === "USD"
                     ? `Your budget is compared fairly across currencies
-                       using the ECB reference rate (1 EUR ≈
-                       ${fxRate?.toFixed(4) ?? "—"} USD,
+                       using the ECB reference rate (1 EUR �0�
+                       ${fxRate?.toFixed(4) ?? "�"} USD,
                        ${meta?.fx?.asOf ?? "latest"}). Cards
                        always show each product's original price.
                        Matches just outside your range appear under
                        Similar.`
                     : `Prices are matched at their listed value. No
                        rate is needed for ${budgetCurrencyLabel}{" "}
-                       budgets — nothing is invented or converted.`}
+                       budgets � nothing is invented or converted.`}
                 </p>
                 {!fxRate && budgetCurrencyLabel === "USD" && (
                   <p className="text-center text-xs text-warning">
                     No reliable USD rate is available right now, so
                     your budget is matched at its listed value. Nothing
-                    is invented — conversion applies automatically once
+                    is invented � conversion applies automatically once
                     a rate is reachable.
                   </p>
                 )}
@@ -1591,7 +1958,7 @@ export function FindQuestionnaire({
                 {detailGroups.length === 0 && (
                   <p className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-4 text-center text-sm text-ink-soft">
                     This category has no structured details
-                    yet — describe what matters in your own
+                    yet � describe what matters in your own
                     words above.
                   </p>
                 )}
@@ -1610,13 +1977,13 @@ export function FindQuestionnaire({
               aria-hidden="true"
             />
             <p className="text-sm text-ink-soft">
-              Finding your options…
+              Finding your options⬦
             </p>
           </div>
         )}
       </section>
 
-      {/* Bottom navigation — stays pinned at the bottom of the window */}
+      {/* Bottom navigation � stays pinned at the bottom of the window */}
       <div className="mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-6">
         <button
           type="button"

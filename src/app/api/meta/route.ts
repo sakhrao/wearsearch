@@ -28,6 +28,7 @@ import {
   expandOfferSizeChips,
 } from "../../../lib/catalog/offer-vocab";
 import { semanticSizeRowsFor } from "../../../lib/catalog/size-vocabulary";
+import { taxonomyForApi } from "../../../lib/catalog/taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -528,6 +529,10 @@ export async function GET() {
         brands: snapshot.brands,
         attributeGroups: snapshot.attributeGroups,
         priceMaxEurByCategory,
+        /* ADDITIVE taxonomy payload (new stable-ID tree per gender).
+           The flat `categories` array above is untouched, so every
+           existing consumer keeps working exactly as before. */
+        taxonomy: taxonomyForApi(),
         fx: {
           rate: fx.rate,
           asOf: fx.asOf,

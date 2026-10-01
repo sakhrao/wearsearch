@@ -56,6 +56,21 @@ export function genderToAudience(
 
 export type QuestionnaireAnswers = {
   category: string | null;
+  /* Stable taxonomy ID of the deepest picked node (e.g.
+     "mens_bottoms_jeans_skinny"). It is additive: `category` remains
+     the legacy display-name token every downstream consumer already
+     understands. */
+  categoryId: string | null;
+  /* The chain of taxonomy node ids from the root down to `categoryId`.
+     The questionnaire replays this path on Back/Edit. */
+  categoryPath: string[];
+  /* Query tokens derived from the taxonomy path (style/fit words plus
+     cross-tags). Kept separate from `detailTokens` so a taxonomy change
+     recomputes them without disturbing the user's own detail chips. */
+  taxonomyTokens: string[];
+  /* Kids age bracket (Babies 0-3 / Kids 4-14), the filterable kids
+     attribute. */
+  kidsAge: string | null;
   gender: string | null;
   colors: string[];
   searchText: string;
@@ -85,6 +100,10 @@ export type SizeAnswer = {
 
 export const EMPTY_ANSWERS: QuestionnaireAnswers = {
   category: null,
+  categoryId: null,
+  categoryPath: [],
+  taxonomyTokens: [],
+  kidsAge: null,
   gender: null,
   colors: [],
   searchText: "",

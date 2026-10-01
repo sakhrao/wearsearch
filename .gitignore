@@ -44,3 +44,9 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# local dev / tooling artifacts
+dev.log
+cv.err
+cv.out
+*.dump
