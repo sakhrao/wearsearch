@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -16,7 +22,6 @@ import {
   genderToAudience,
   getStepState,
   type QuestionnaireAnswers,
-  type StepKey,
 } from "@/lib/questionnaire";
 import {
   sizeSectionsFor,
@@ -36,7 +41,6 @@ import {
   branchHasStock as taxonomyBranchHasStock,
   decideNext as taxonomyDecideNext,
   deriveQuery as taxonomyDeriveQuery,
-  editablePath as taxonomyEditablePath,
   nextStepIndex as taxonomyNextStepIndex,
   optionsAt as taxonomyOptionsAt,
   type DerivedQuery,
@@ -159,6 +163,20 @@ function taxonomyBranchHasCategory(
     );
 }
 
+/* One question the user actually saw, recorded so Back can replay the
+   real presentation history instead of walking the taxonomy hierarchy.
+   The path is the full category drill path (a resolved leaf included);
+   an attribute step carries whatever path was on screen. */
+/* One presented view. `drill` is the node whose children were on screen
+   (empty at the taxonomy root) and `selection` is the child picked at that
+   level, so Back can restore the exact question the user answered - and
+   its highlighted pick - instead of guessing a taxonomy parent. */
+type NavView = {
+  step: number;
+  drill: string[];
+  selection: string | null;
+};
+
 const STORAGE_KEY = "wearsearch-find-answers";
 
 /* Top-level branches of the category tree, in display order. These are
@@ -280,7 +298,7 @@ function OptionCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl border px-4 py-3.5 text-center text-sm font-medium transition-all duration-200 active:scale-[0.98] sm:px-5 ${
+      className={`flex h-full min-h-0 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-xl border px-2 py-1 text-center text-[13px] font-medium leading-tight transition-all duration-200 active:scale-[0.98] sm:gap-2 sm:rounded-2xl sm:px-4 sm:py-2.5 sm:text-sm ${
         selected
           ? "border-ink bg-ink text-paper shadow-md"
           : "border-line bg-paper-soft text-ink-soft hover:-translate-y-px hover:border-ink/40 hover:text-ink hover:shadow-md"
@@ -288,7 +306,7 @@ function OptionCard({
     >
       <span className="min-w-0 break-words">{label}</span>
       {selected && (
-        <span className="text-paper">
+        <span className="shrink-0 text-paper">
           <CheckIcon />
         </span>
       )}
@@ -310,31 +328,123 @@ function OptionPill({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex min-h-12 items-center gap-1.5 rounded-full border px-4 py-3 text-sm font-medium transition-all duration-150 ${
+      className={`flex h-full min-h-0 w-full items-center justify-center gap-1.5 overflow-hidden rounded-full border px-2 py-1 text-[13px] font-medium leading-tight transition-all duration-150 sm:px-4 sm:py-2 sm:text-sm ${
         selected
           ? "border-ink bg-ink text-paper"
           : "border-line bg-paper-soft text-ink-soft hover:border-ink/40 hover:text-ink"
       }`}
     >
       {selected && (
-        <span className="text-paper">
+        <span className="shrink-0 text-paper">
           <CheckIcon />
         </span>
       )}
-      {label}
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }
 
-/* Adaptive option layout: a handful of choices read best as roomy
-   cards, but a long list becomes an endless column on a phone. Match
-   the grid to the option count so 5+ choices stay compact. */
-function optionGridClass(count: number): string {
-  if (count <= 4) {
-    return "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3";
-  }
-  return "grid w-full grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4";
+/* Pick a column count from the option count (the design's 3 -> 1x3,
+   4 -> 2x2, 5-6 -> 2x3, 7-8 -> 2x4, 9-12 -> 3x3/3x4 mapping) and the
+   measured width, so a narrow phone drops a column instead of letting
+   the labels crush together. */
+function computeColumns(
+  count: number,
+  width: number,
+  gap: number,
+  minCell: number,
+  maxCols: number
+): number {
+  const byWidth = Math.max(
+    1,
+    Math.floor((width + gap) / (minCell + gap))
+  );
+  let desired: number;
+  if (count <= 3) desired = count;
+  else if (count === 4) desired = 2;
+  else if (count <= 6) desired = 3;
+  else if (count <= 8) desired = 4;
+  else if (count <= 10) desired = 3;
+  else desired = maxCols;
+  return Math.max(
+    1,
+    Math.min(count, desired, byWidth, maxCols)
+  );
 }
+
+/* Fills its flex box with every option visible at once: columns come
+   from the count and measured width, row height from the measured
+   height, so a step never scrolls. Rows shrink to fit and are centred
+   when they are capped. */
+function FitGrid({
+  count,
+  minCell,
+  maxCols = 6,
+  className,
+  children,
+}: {
+  count: number;
+  minCell: number;
+  maxCols?: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setSize((previous) =>
+        previous.w === rect.width && previous.h === rect.height
+          ? previous
+          : { w: rect.width, h: rect.height }
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const gap = size.w >= 640 ? 12 : 8;
+  const columns = computeColumns(
+    count,
+    size.w,
+    gap,
+    minCell,
+    maxCols
+  );
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const rawRow =
+    size.h > 0
+      ? (size.h - (rows - 1) * gap) / rows
+      : 0;
+  const maxRow = size.w >= 640 ? 96 : 72;
+  const rowHeight = Math.max(0, Math.min(rawRow, maxRow));
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        display: "grid",
+        gap: `${gap}px`,
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        gridAutoRows:
+          rowHeight > 0
+            ? `${rowHeight}px`
+            : "1.5rem",
+        alignContent: rowHeight > 0 ? "center" : "start",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 
 function FieldInput({
   id,
@@ -393,6 +503,23 @@ export function FindQuestionnaire({
   >(null);
 
   const [step, setStep] = useState(0);
+  /* The exact sequence of views the user has seen. Back restores the
+     previous presented question - with its own drill level and answer -
+     never a taxonomy parent guessed from the current selection. */
+  const [history, setHistory] = useState<NavView[]>([
+    { step: 0, drill: [], selection: null },
+  ]);
+  /* The taxonomy question currently on screen: `categoryDrill` is the
+     node whose children are rendered (empty = root) and
+     `categorySelection` is the child picked at this level, used for the
+     highlight. Kept separate from answers.categoryPath, because while
+     drilling a branch the answer path and the presented level are not the
+     same thing. */
+  const [categoryDrill, setCategoryDrill] = useState<string[]>(
+    []
+  );
+  const [categorySelection, setCategorySelection] =
+    useState<string | null>(null);
   /* Which way the last step change moved, so the step carousel slides
      in from the direction of travel (presentation only). */
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -401,6 +528,12 @@ export function FindQuestionnaire({
   const [colorFilter, setColorFilter] =
     useState("");
   const [openSection, setOpenSection] =
+    useState<string | null>(null);
+  /* Details is a multi-group filter (up to ~55 chips). One group is
+     shown at a time behind a compact switcher so every chip in the
+     active group stays visible on one screen; stored by name so a
+     category change falls back to the first group cleanly. */
+  const [detailGroupName, setDetailGroupName] =
     useState<string | null>(null);
   const optionsRef = useRef<HTMLElement | null>(null);
 
@@ -422,6 +555,7 @@ export function FindQuestionnaire({
     const saved = sessionStorage.getItem(
       STORAGE_KEY
     );
+    let restoredDraft: Answers | null = null;
     if (saved) {
       try {
         const parsed = JSON.parse(
@@ -434,8 +568,21 @@ export function FindQuestionnaire({
           attributes:
             parsed.attributes ?? [],
         };
+        restoredDraft = restored;
         // eslint-disable-next-line react-hooks/set-state-in-effect -- restore draft/flags once on mount
         setAnswers(restored);
+        /* A restored draft is a finished selection, so the level it was
+           answered from is everything before the leaf. */
+        setCategoryDrill(
+          restored.categoryPath.slice(0, -1)
+        );
+        setCategorySelection(
+          restored.categoryPath.length > 0
+            ? (restored.categoryPath[
+                restored.categoryPath.length - 1
+              ] ?? null)
+            : null
+        );
       } catch {
         /* malformed draft - start clean */
       }
@@ -457,29 +604,34 @@ export function FindQuestionnaire({
            the restored gender no longer stocks (e.g. UNISEX + Bras).
            Remove that invalid selection exactly once, when the options
            land - without touching anything else the user staged. */
-        setAnswers((previous) => {
+        if (restoredDraft?.category) {
           const audience = genderToAudience(
-            previous.gender
+            restoredDraft.gender
           );
-          if (!audience || !previous.category) {
-            return previous;
+          const compatible =
+            !audience ||
+            data.categories.some(
+              (category) =>
+                category.name ===
+                  restoredDraft?.category &&
+                categoryGendersCompatible(
+                  category,
+                  audience
+                )
+            );
+          if (!compatible) {
+            setAnswers((previous) => ({
+              ...previous,
+              category: null,
+              size: null,
+              categoryId: null,
+              categoryPath: [],
+              taxonomyTokens: [],
+            }));
+            setCategoryDrill([]);
+            setCategorySelection(null);
           }
-          const compatible = data.categories.some(
-            (category) =>
-              category.name === previous.category &&
-              categoryGendersCompatible(
-                category,
-                audience
-              )
-          );
-          return compatible
-            ? previous
-            : {
-                ...previous,
-                category: null,
-                size: null,
-              };
-        });
+        }
       })
       .catch(() =>
         setMetaError(
@@ -684,13 +836,13 @@ export function FindQuestionnaire({
     return (
       <div
         key={section.key}
-        className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_10px_30px_-20px_rgba(0,0,0,0.3)]"
+        className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_10px_30px_-20px_rgba(0,0,0,0.3)]"
       >
         <button
           type="button"
           aria-expanded={open}
           onClick={() => toggleSection(section.key)}
-          className="flex w-full items-center justify-between gap-2 bg-paper-soft px-5 py-4 text-left transition-colors hover:bg-line"
+          className="flex min-h-0 w-full flex-1 items-center justify-between gap-2 bg-paper-soft px-5 py-4 text-left transition-colors hover:bg-line"
         >
           <span
             className={`flex items-center gap-2 text-sm font-medium ${selectedIn ? "text-ink" : "text-ink-soft"}`}
@@ -846,17 +998,40 @@ export function FindQuestionnaire({
       return {
         name: optionGroup.name,
         attributeKey: optionGroup.attributeKey,
-        values: attributeValues
-          ? [
-              ...new Set([
-                ...attributeValues,
-                ...optionGroup.values,
-              ]),
-            ]
-          : optionGroup.values,
+        values: (
+          attributeValues
+            ? [
+                ...new Set([
+                  ...attributeValues,
+                  ...optionGroup.values,
+                ]),
+              ]
+            : optionGroup.values
+        ).filter(
+          (value) =>
+            value.trim().toLowerCase() !== "n/a" &&
+            value.trim() !== ""
+        ),
       };
     });
   }, [meta, answers.category]);
+
+  const activeDetailGroup =
+    detailGroups.find(
+      (group) => group.name === detailGroupName
+    ) ??
+    detailGroups[0] ??
+    null;
+
+  const filteredColors = useMemo(() => {
+    if (!meta) return [];
+    const needle = colorFilter.trim().toLowerCase();
+    return needle
+      ? meta.colors.filter((color) =>
+          color.toLowerCase().includes(needle)
+        )
+      : meta.colors;
+  }, [meta, colorFilter]);
 
   const totalSteps = STEP_KEYS.length;
 
@@ -886,13 +1061,10 @@ export function FindQuestionnaire({
     taxonomyDecision.kind === "children" &&
     taxonomyPath.length > 0;
 
-  /* On the category step a finished leaf selection is released one level
-     so the options behind the pick stay visible and re-pickable. */
-  const taxonomyRenderPath = taxonomyEditablePath(
-    taxonomyTree,
-    taxonomyPath,
-    stepKey
-  );
+  /* On the category step the options are exactly the children of the
+     level currently on screen (`categoryDrill`); the picked child is
+     highlighted from `categorySelection`. */
+  const taxonomyRenderPath = categoryDrill;
 
   const taxonomyRenderOptions =
     taxonomyOptionsAt(taxonomyTree, taxonomyRenderPath).filter((node) =>
@@ -1045,36 +1217,53 @@ export function FindQuestionnaire({
    * leaf is the single state allowed to advance to Size.
    */
   function pickTaxonomyNode(node: TaxonomyNodeView) {
-    const alreadyPicked =
-      answers.categoryPath[answers.categoryPath.length - 1] ===
-      node.id;
-    /* Tapping the current leaf again clears the whole selection;
-       tapping any other node restarts the tail from that node. */
-    const path = alreadyPicked
-      ? answers.categoryPath.slice(0, -1)
-      : [...answers.categoryPath, node.id];
+    /* The displayed level is `categoryDrill`; the picked child is
+       `node`. Tapping the already-picked child clears it (staying on the
+       same level); any other tap selects from the level on screen, so a
+       re-pick never stacks onto a stale deeper pick. */
+    const leafPicked = categorySelection === node.id;
+    const selection = leafPicked ? null : node.id;
+    const answerPath = selection
+      ? [...categoryDrill, selection]
+      : categoryDrill;
 
-    const decision = taxonomyDecideNext(taxonomyTree, path);
+    const decision = taxonomyDecideNext(taxonomyTree, answerPath);
 
     setAnswers((previous) => {
-      const derived = taxonomyDeriveQuery(taxonomyTree, path);
+      const derived = taxonomyDeriveQuery(
+        taxonomyTree,
+        answerPath
+      );
       return {
         ...previous,
         category: derived.category,
-        categoryId: path[path.length - 1] ?? null,
-        categoryPath: path,
+        categoryId: selection,
+        categoryPath: answerPath,
         size: null,
         taxonomyTokens: taxonomyTokensFor(derived),
       };
     });
 
-    /* A node with selectable children keeps the user on this step; a
-       finished selection (no selectable children) moves straight on to
-       the next applicable attribute. The engine derives that from the
-       path shape - no category is named here. */
+    /* A branch keeps the user on the category step but opens its
+       children: remember the question just answered (with the branch
+       highlighted) so Back can return to it. */
+    if (selection && decision.kind === "children") {
+      setHistory((entries) => [
+        ...entries,
+        { step, drill: categoryDrill, selection },
+      ]);
+      setCategoryDrill([...categoryDrill, selection]);
+      setCategorySelection(null);
+      return;
+    }
+
+    /* A finished leaf selection moves straight on to the next applicable
+       attribute. Record the answered picker view before the automatic
+       advance, so Back lands on the question the user answered - with the
+       leaf still selected. */
     if (
-      decision.kind !== "children" &&
-      path.length > 0 &&
+      selection &&
+      answerPath.length > 0 &&
       stepKey === "category"
     ) {
       const target = taxonomyNextStepIndex({
@@ -1083,28 +1272,25 @@ export function FindQuestionnaire({
         decision,
       });
       if (target !== null) {
+        setHistory((entries) => [
+          ...entries,
+          { step, drill: categoryDrill, selection },
+          { step: target, drill: categoryDrill, selection },
+        ]);
+        setCategorySelection(selection);
         setDirection(1);
         setStep(target);
+        return;
       }
     }
-  }
 
-  /** Step back one level, keeping the staged answer consistent. */
-  function stepBackTaxonomy() {
-    setAnswers((previous) => {
-      const tree = taxonomyTreeFromMeta(meta, previous.gender);
-      if (!tree) return previous;
-      const path = previous.categoryPath.slice(0, -1);
-      const derived = taxonomyDeriveQuery(tree, path);
-      return {
-        ...previous,
-        category: derived.category,
-        categoryId: path[path.length - 1] ?? null,
-        categoryPath: path,
-        size: null,
-        taxonomyTokens: taxonomyTokensFor(derived),
-      };
-    });
+    /* Clearing a pick (or a level with no next step) stays on the picker:
+       that cleared view is itself something Back can return to. */
+    setHistory((entries) => [
+      ...entries,
+      { step, drill: categoryDrill, selection },
+    ]);
+    setCategorySelection(selection);
   }
 
   function pickKidsAge(value: string) {
@@ -1118,6 +1304,26 @@ export function FindQuestionnaire({
   }
 
   function pickGender(value: string) {
+    /* The drill level and the category answer are cleared together when a
+       real gender switch invalidates the category, so no stale taxonomy
+       node is left on screen. */
+    const audienceForView = genderToAudience(
+      answers.gender === value ? null : value
+    );
+    const categoryStillValidForView =
+      !answers.category ||
+      !audienceForView ||
+      meta?.categories.some(
+        (category) =>
+          category.name === answers.category &&
+          categoryGendersCompatible(
+            category,
+            audienceForView
+          )
+      );
+    const categoryClearedForView =
+      answers.category !== null &&
+      !categoryStillValidForView;
     setAnswers((previous) => {
       const cleared = previous.gender === value;
       const nextGender = cleared ? null : value;
@@ -1151,8 +1357,24 @@ export function FindQuestionnaire({
         category: categoryCleared
           ? null
           : previous.category,
+        /* A real gender switch moves to a different taxonomy tree, so
+           the old drill path can never apply; clear it with the
+           category instead of leaving stale ids behind. */
+        categoryId: categoryCleared
+          ? null
+          : previous.categoryId,
+        categoryPath: categoryCleared
+          ? []
+          : previous.categoryPath,
+        taxonomyTokens: categoryCleared
+          ? []
+          : previous.taxonomyTokens,
       };
     });
+    if (categoryClearedForView) {
+      setCategoryDrill([]);
+      setCategorySelection(null);
+    }
   }
 
   /* The canonical SizeCategoryId of the picked category, reusing the
@@ -1271,72 +1493,60 @@ export function FindQuestionnaire({
     });
   }
 
-  /* Revisiting a step on Back never carries the old picks forward: the
-     user is redoing that step, so its answer (and anything that depends
-     on it) is cleared the moment we land on it. */
-  function clearAnswerFor(key: StepKey) {
-    setAnswers((previous) => {
-      switch (key) {
-        case "gender":
-          /* Redoing Who restarts the funnel: category options and the
-             size context both hang off the gender, so they reset with
-             it instead of riding along as stale picks. */
-          return {
-            ...previous,
-            gender: null,
-            category: null,
-            size: null,
-          };
-        case "category":
-          return { ...previous, category: null, size: null };
-        case "size":
-          return { ...previous, size: null };
-        case "colors":
-          return { ...previous, colors: [] };
-        case "budget":
-          return {
-            ...previous,
-            budgetMin: "",
-            budgetMax: "",
-            budgetCurrency: null,
-          };
-        case "details":
-          return { ...previous, attributes: [], detailTokens: [] };
-        default:
-          return previous;
-      }
-    });
-  }
-
+  /* Back replays the real presentation history: it restores the exact
+     previous view (step + category drill level) and leaves every answer
+     in place, so the user can change it. Downstream answers are only
+     invalidated by the change handlers when a change actually makes them
+     stale - never by the act of going back. */
   function back() {
-    if (step > 0) {
-      setDirection(-1);
-      const landingStep = STEP_KEYS[step - 1];
-      /* Editing the category steps back INSIDE the drill-down (the level
-         above the current selection) instead of wiping it, so the
-         hierarchy the user already answered is still there. */
-      if (
-        landingStep === "category" &&
-        taxonomyTree !== null &&
-        taxonomyPath.length > 0
-      ) {
-        stepBackTaxonomy();
-        setStep(step - 1);
-        return;
-      }
-      clearAnswerFor(landingStep);
-      if (landingStep === "category" || landingStep === "gender") {
-        setOpenSection(null);
-      }
-      if (landingStep === "colors") {
-        setColorFilter("");
-      }
-      setStep(step - 1);
+    if (history.length <= 1) {
+      return;
     }
+    const previous = history[history.length - 2];
+    const previousPath = previous.selection
+      ? [...previous.drill, previous.selection]
+      : previous.drill;
+    setHistory((entries) => entries.slice(0, -1));
+    setDirection(-1);
+    setStep(previous.step);
+    setCategoryDrill(previous.drill);
+    setCategorySelection(previous.selection);
+    setAnswers((current) => {
+      if (
+        current.categoryPath.length ===
+          previousPath.length &&
+        current.categoryPath.every(
+          (id, index) => id === previousPath[index]
+        )
+      ) {
+        return current;
+      }
+      const tree = taxonomyTreeFromMeta(meta, current.gender);
+      const derived = taxonomyDeriveQuery(
+        tree,
+        previousPath
+      );
+      return {
+        ...current,
+        category: derived.category,
+        categoryId: previous.selection,
+        categoryPath: previousPath,
+        taxonomyTokens: taxonomyTokensFor(derived),
+      };
+    });
+    setOpenSection(null);
   }
 
   function next() {
     if (canProceed && nextStep !== null) {
+      setHistory((entries) => [
+        ...entries,
+        {
+          step: nextStep,
+          drill: categoryDrill,
+          selection: categorySelection,
+        },
+      ]);
       setDirection(1);
       setStep(nextStep);
     }
@@ -1528,7 +1738,7 @@ export function FindQuestionnaire({
       }
     >
       {/* Small header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="wizard-head flex items-center justify-between gap-4">
         {embedded ? (
           <span />
         ) : (
@@ -1546,7 +1756,7 @@ export function FindQuestionnaire({
       </div>
 
       {/* Minimal progress */}
-      <div className="mt-5 flex items-center gap-4">
+      <div className="wizard-progress mt-5 flex items-center gap-4">
         <span className="shrink-0 text-sm font-medium text-ink-soft">
           Step {step + 1} of {totalSteps}
         </span>
@@ -1570,7 +1780,7 @@ export function FindQuestionnaire({
       </div>
 
       {/* Question */}
-      <div className="mt-5 text-center">
+      <div className="wizard-question mt-5 text-center">
         <Heading className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">
           {copy.ask}
         </Heading>
@@ -1581,18 +1791,23 @@ export function FindQuestionnaire({
 
       <section
         ref={optionsRef}
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-hidden"
         aria-busy={!meta}
       >
         {meta && (
           <div
             key={step}
-            className={`flex min-h-full w-full flex-col justify-center ${
+            className={`flex h-full min-h-0 w-full flex-col ${
               direction === -1 ? "step-slide-prev" : "step-slide-next"
             }`}
           >
             {step === 0 && (
-              <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-6 sm:grid-cols-3">
+              <FitGrid
+                count={GENDER_OPTIONS.length}
+                minCell={88}
+                maxCols={3}
+                className="mx-auto min-h-0 w-full max-w-2xl flex-1"
+              >
                 {GENDER_OPTIONS.map((value) => (
                   <OptionCard
                     key={value}
@@ -1607,15 +1822,15 @@ export function FindQuestionnaire({
                     }
                   />
                 ))}
-              </div>
+              </FitGrid>
             )}
 
-{step === 1 && answers.gender === "kids" && (
-              <div className="mx-auto mb-6 w-full max-w-2xl">
-                <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
+            {step === 1 && answers.gender === "kids" && (
+              <div className="mx-auto w-full max-w-2xl shrink-0 pb-3">
+                <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                   Age group
                 </p>
-                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid w-full auto-rows-[2.5rem] grid-cols-2 gap-2">
                   {KIDS_AGE_OPTIONS.map((option) => (
                     <OptionCard
                       key={option.id}
@@ -1634,12 +1849,12 @@ export function FindQuestionnaire({
 
             {step === 1 &&
             taxonomyTree !== null ? (
-              <div className="mx-auto w-full max-w-3xl">
+              <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
                 {taxonomyRenderPath.length > 0 && (
                   <button
                     type="button"
-                    onClick={stepBackTaxonomy}
-                    className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-accent-deep"
+                    onClick={back}
+                    className="mb-2 inline-flex shrink-0 items-center gap-2 text-sm font-medium text-accent-deep"
                   >
                     <ChevronIcon open={false} />
                     {taxonomyRenderPath.length > 1
@@ -1658,37 +1873,38 @@ export function FindQuestionnaire({
                       .join(" / ")}
                   </p>
                 )}
-                <p className="mb-4 text-sm text-ink-soft">
+                <p className="mb-2 shrink-0 text-sm text-ink-soft">
                   {taxonomyRenderPath.length === 0
                     ? "Pick a category"
                     : `Pick a ${taxonomyTrail[taxonomyTrail.length - 1]?.type === "fit" ? "fit" : "detail"}`}
                 </p>
                 {taxonomyRenderOptions.length === 0 ? (
-                  <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
+                  <div className="m-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       Nothing in stock here yet — go
                       back and pick another.
                     </p>
                   </div>
                 ) : (
-                  <div
-                    className={optionGridClass(
-                      taxonomyRenderOptions.length
-                    )}
+                  <FitGrid
+                    count={taxonomyRenderOptions.length}
+                    minCell={88}
+                    maxCols={6}
+                    className="min-h-0 w-full flex-1"
                   >
                     {taxonomyRenderOptions.map((node) => (
                       <OptionCard
                         key={node.id}
                         label={node.label}
                         selected={
-                          answers.categoryId === node.id
+                          categorySelection === node.id
                         }
                         onClick={() =>
                           pickTaxonomyNode(node)
                         }
                       />
                     ))}
-                  </div>
+                  </FitGrid>
                 )}
               </div>
             ) : step === 1 && (
@@ -1702,14 +1918,10 @@ export function FindQuestionnaire({
                 </div>
               ) : openKey === null ? (
                 <div className="mx-auto w-full max-w-3xl">
-                  <p className="mb-4 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
+                  <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                     Tap a section to expand it
                   </p>
-                  <div
-                    className={optionGridClass(
-                      categorySections.length
-                    )}
-                  >
+                  <div className="grid w-full auto-rows-[3.25rem] grid-cols-2 gap-2 sm:grid-cols-3">
                     {categorySections.map((section) =>
                       renderSection(section)
                     )}
@@ -1730,8 +1942,8 @@ export function FindQuestionnaire({
             )}
 
             {step === 3 && (
-              <div>
-                <div className="mx-auto mb-4 max-w-sm">
+              <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+                <div className="mx-auto mb-2 w-full max-w-sm shrink-0">
                   <FieldInput
                     id="find-color-filter"
                     value={colorFilter}
@@ -1740,20 +1952,24 @@ export function FindQuestionnaire({
                     icon
                   />
                 </div>
-                <div className="flex flex-wrap justify-center gap-3">
-                  {meta.colors
-                    .filter((color) =>
-                      colorFilter.trim()
-                        ? color
-                            .toLowerCase()
-                            .includes(
-                              colorFilter
-                                .trim()
-                                .toLowerCase()
-                            )
-                        : true
-                    )
-                    .map((color) => (
+                {meta.colors.length === 0 ? (
+                  <p className="m-auto max-w-sm text-center text-sm text-ink-faint">
+                    No colors are available from the
+                    current catalog right now — you
+                    can skip this step.
+                  </p>
+                ) : filteredColors.length === 0 ? (
+                  <p className="m-auto text-center text-sm text-ink-faint">
+                    No colors match “{colorFilter}”.
+                  </p>
+                ) : (
+                  <FitGrid
+                    count={filteredColors.length}
+                    minCell={72}
+                    maxCols={8}
+                    className="min-h-0 w-full flex-1"
+                  >
+                    {filteredColors.map((color) => (
                       <OptionPill
                         key={color}
                         label={color}
@@ -1768,64 +1984,28 @@ export function FindQuestionnaire({
                         }
                       />
                     ))}
-                </div>
-                {colorFilter.trim() !== "" &&
-                  meta.colors.filter((color) =>
-                    color
-                      .toLowerCase()
-                      .includes(
-                        colorFilter
-                          .trim()
-                          .toLowerCase()
-                      )
-                  ).length === 0 && (
-                    <p className="mt-4 text-center text-sm text-ink-faint">
-                      No colors match “{colorFilter}”.
-                    </p>
-                  )}
-                {meta.colors.length === 0 && (
-                  <p className="mt-4 text-center text-sm text-ink-faint">
-                    No colors are available from the
-                    current catalog right now — you
-                    can skip this step.
-                  </p>
+                  </FitGrid>
                 )}
               </div>
             )}
 
             {step === 2 && (
-              <div>
+              <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2">
                 {sizeSections.length > 0 ? (
-                  <div className="space-y-8">
-                    {sizeSections.map((section) =>
-                      section.label !== null ? (
-                        <div key={section.label}>
-                          <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                            {section.label}
-                          </h2>
-                          <div className="flex flex-wrap justify-center gap-3.5">
-                            {section.values.map((size) => (
-                              <OptionPill
-                                key={size}
-                                label={size}
-                                selected={isSizeChipSelected(
-                                  section,
-                                  size
-                                )}
-                                onClick={() =>
-                                  pickSize(
-                                    section,
-                                    size
-                                  )
-                                }
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          key="sizes"
-                          className="flex flex-wrap justify-center gap-2.5"
+                  sizeSections.map((section) =>
+                    section.label !== null ? (
+                      <div
+                        key={section.label}
+                        className="flex min-h-0 flex-1 flex-col"
+                      >
+                        <h2 className="mb-1 shrink-0 text-center text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                          {section.label}
+                        </h2>
+                        <FitGrid
+                          count={section.values.length}
+                          minCell={56}
+                          maxCols={8}
+                          className="min-h-0 w-full flex-1"
                         >
                           {section.values.map((size) => (
                             <OptionPill
@@ -1843,12 +2023,37 @@ export function FindQuestionnaire({
                               }
                             />
                           ))}
-                        </div>
-                      )
-                    )}
-                  </div>
+                        </FitGrid>
+                      </div>
+                    ) : (
+                      <FitGrid
+                        key="sizes"
+                        count={section.values.length}
+                        minCell={56}
+                        maxCols={8}
+                        className="min-h-0 w-full flex-1"
+                      >
+                        {section.values.map((size) => (
+                          <OptionPill
+                            key={size}
+                            label={size}
+                            selected={isSizeChipSelected(
+                              section,
+                              size
+                            )}
+                            onClick={() =>
+                              pickSize(
+                                section,
+                                size
+                              )
+                            }
+                          />
+                        ))}
+                      </FitGrid>
+                    )
+                  )
                 ) : (
-                  <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
+                  <div className="m-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       No sizes are available for your
                       picks right now — you can skip
@@ -1860,7 +2065,7 @@ export function FindQuestionnaire({
             )}
 
             {step === 4 && (
-              <div className="mx-auto max-w-md space-y-6">
+              <div className="mx-auto flex h-full min-h-0 w-full max-w-md flex-col justify-center gap-4 overflow-hidden">
                 <div>
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span className="font-medium text-ink">
@@ -1982,12 +2187,12 @@ export function FindQuestionnaire({
             )}
 
             {step === 5 && (
-              <div className="space-y-8">
-                <div className="mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-accent/20 bg-accent-tint px-5 py-4">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-deep text-paper">
+                <div className="wizard-details mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col gap-3">
+                <div className="wizard-details-banner flex shrink-0 items-center gap-2 rounded-xl border border-accent/20 bg-accent-tint px-3 py-2">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-deep text-paper">
                     <CheckIcon />
                   </span>
-                  <p className="text-sm leading-snug">
+                  <p className="text-xs leading-snug">
                     <span className="font-semibold text-ink">
                       We&apos;ve got your preferences.
                     </span>{" "}
@@ -1997,10 +2202,10 @@ export function FindQuestionnaire({
                   </p>
                 </div>
 
-                <div>
+                <div className="shrink-0">
                   <label
                     htmlFor="find-search-text"
-                    className="mb-3 block text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint"
+                    className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint"
                   >
                     Your own words
                   </label>
@@ -2014,43 +2219,75 @@ export function FindQuestionnaire({
                   />
                 </div>
 
-                {detailGroups.map((group) => (
-                  <div key={group.name}>
-                    <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                      {group.name}
-                    </h2>
-                    <div className="flex flex-wrap gap-3.5">
-                      {group.values
-                        .filter(
-                          (value) =>
-                            value.trim().toLowerCase() !==
-                              "n/a" &&
-                            value.trim() !== ""
-                        )
-                        .map((value) => (
-                          <OptionPill
-                            key={value}
-                            label={value}
-                            selected={isDetailSelected(
-                              value
-                            )}
-                            onClick={() =>
-                              toggleDetail(
-                                group,
-                                value
-                              )
-                            }
-                          />
-                        ))}
-                    </div>
-                  </div>
-                ))}
-                {detailGroups.length === 0 && (
-                  <p className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-4 text-center text-sm text-ink-soft">
+                {detailGroups.length === 0 ? (
+                  <p className="m-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-4 text-center text-sm text-ink-soft">
                     This category has no structured details
                     yet — describe what matters in your own
                     words above.
                   </p>
+                ) : (
+                  <>
+                    <div
+                      role="tablist"
+                      aria-label="Detail groups"
+                      className="wizard-detail-tabs flex shrink-0 flex-wrap gap-1.5"
+                    >
+                      {detailGroups.map((group) => {
+                        const active =
+                          group.name ===
+                          activeDetailGroup?.name;
+                        return (
+                          <button
+                            key={group.name}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            onClick={() =>
+                              setDetailGroupName(
+                                group.name
+                              )
+                            }
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                              active
+                                ? "border-ink bg-ink text-paper"
+                                : "border-line bg-paper-soft text-ink-soft hover:border-ink/40 hover:text-ink"
+                            }`}
+                          >
+                            {group.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {activeDetailGroup && (
+                      <FitGrid
+                        key={activeDetailGroup.name}
+                        count={
+                          activeDetailGroup.values.length
+                        }
+                        minCell={64}
+                        maxCols={8}
+                        className="min-h-0 w-full flex-1"
+                      >
+                        {activeDetailGroup.values.map(
+                          (value) => (
+                            <OptionPill
+                              key={value}
+                              label={value}
+                              selected={isDetailSelected(
+                                value
+                              )}
+                              onClick={() =>
+                                toggleDetail(
+                                  activeDetailGroup,
+                                  value
+                                )
+                              }
+                            />
+                          )
+                        )}
+                      </FitGrid>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -2101,6 +2338,14 @@ export function FindQuestionnaire({
               <button
                 type="button"
                 onClick={() => {
+                  setHistory((entries) => [
+                    ...entries,
+                    {
+                      step: step + 1,
+                      drill: categoryDrill,
+                      selection: categorySelection,
+                    },
+                  ]);
                   setDirection(1);
                   setStep(step + 1);
                 }}
