@@ -326,6 +326,16 @@ function OptionPill({
   );
 }
 
+/* Adaptive option layout: a handful of choices read best as roomy
+   cards, but a long list becomes an endless column on a phone. Match
+   the grid to the option count so 5+ choices stay compact. */
+function optionGridClass(count: number): string {
+  if (count <= 4) {
+    return "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3";
+  }
+  return "grid w-full grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4";
+}
+
 function FieldInput({
   id,
   value,
@@ -1661,7 +1671,11 @@ export function FindQuestionnaire({
                     </p>
                   </div>
                 ) : (
-                  <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div
+                    className={optionGridClass(
+                      taxonomyRenderOptions.length
+                    )}
+                  >
                     {taxonomyRenderOptions.map((node) => (
                       <OptionCard
                         key={node.id}
@@ -1691,7 +1705,11 @@ export function FindQuestionnaire({
                   <p className="mb-4 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
                     Tap a section to expand it
                   </p>
-                  <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div
+                    className={optionGridClass(
+                      categorySections.length
+                    )}
+                  >
                     {categorySections.map((section) =>
                       renderSection(section)
                     )}
