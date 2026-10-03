@@ -422,7 +422,9 @@ function FitGrid({
     size.h > 0
       ? (size.h - (rows - 1) * gap) / rows
       : 0;
-  const maxRow = size.w >= 640 ? 96 : 72;
+  /* Cards grow into the reclaimed height (larger phones breathe more)
+     but stay capped so a one-row question never becomes a giant slab. */
+  const maxRow = size.w >= 640 ? 168 : 144;
   const rowHeight = Math.max(0, Math.min(rawRow, maxRow));
 
   return (
@@ -1734,7 +1736,7 @@ export function FindQuestionnaire({
       className={
         embedded
           ? "flex min-h-0 w-full flex-1 flex-col"
-          : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-5 pb-6 pt-7"
+          : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-5 pb-3 pt-4"
       }
     >
       {/* Small header */}
@@ -1755,13 +1757,14 @@ export function FindQuestionnaire({
         </p>
       </div>
 
-      {/* Minimal progress */}
-      <div className="wizard-progress mt-5 flex items-center gap-4">
-        <span className="shrink-0 text-sm font-medium text-ink-soft">
-          Step {step + 1} of {totalSteps}
+      {/* Minimal progress: a tiny step count and a hairline bar. It is
+          deliberately low-contrast and steals no height from the options. */}
+      <div className="wizard-progress mt-2 flex items-center gap-2.5">
+        <span className="shrink-0 text-xs font-medium tabular-nums text-ink-faint">
+          {step + 1} / {totalSteps}
         </span>
         <div
-          className="h-1 w-full overflow-hidden rounded-full bg-line"
+          className="h-0.5 w-full overflow-hidden rounded-full bg-line"
           role="progressbar"
           aria-valuenow={step + 1}
           aria-valuemin={1}
@@ -1779,12 +1782,14 @@ export function FindQuestionnaire({
         </div>
       </div>
 
-      {/* Question */}
-      <div className="wizard-question mt-5 text-center">
-        <Heading className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">
+      {/* Question title: compact and immediately followed by the options.
+          The hint is supporting copy and is dropped on small viewports
+          (see globals.css) so it can never push the grid down. */}
+      <div className="wizard-question mt-2">
+        <Heading className="wizard-title font-display font-medium tracking-tight text-ink">
           {copy.ask}
         </Heading>
-        <p className="mt-3 text-ink-soft">
+        <p className="wizard-hint mt-1 text-ink-soft">
           {copy.hint}
         </p>
       </div>
@@ -2311,7 +2316,7 @@ export function FindQuestionnaire({
       </section>
 
       {/* Bottom navigation — stays pinned at the bottom of the window */}
-      <div className="wizard-actions mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-6">
+      <div className="wizard-actions mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-3">
         <button
           type="button"
           onClick={back}

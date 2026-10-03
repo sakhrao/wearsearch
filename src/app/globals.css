@@ -130,16 +130,42 @@ body {
 }
 
 /*
+   The options are the primary content: the question chrome is intentionally
+   tiny. The title is responsive (roughly one or two lines) and the
+   supporting hint is dropped on phones and short viewports so it can never
+   push the option grid down.
+*/
+.wizard-title {
+  font-size: clamp(1.0625rem, 0.95rem + 1.4vw, 1.5rem);
+  line-height: 1.2;
+}
+.wizard-hint {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 480px) {
+  .wizard-head {
+    display: none;
+  }
+  .wizard-hint {
+    display: none;
+  }
+}
+
+/*
    Short viewports (small phones and landscape): keep the single screen,
    but reclaim vertical space from the chrome - smaller question, and on
    the shortest screens drop the eyebrow header and the helper line - so
    the option grid still fits without scrolling.
 */
 @media (max-height: 700px) {
-  .wizard-question h1,
-  .wizard-question h2 {
-    font-size: 1.25rem;
+  .wizard-title {
+    font-size: 1.0625rem;
     line-height: 1.2;
+  }
+  .wizard-hint {
+    display: none;
   }
   .wizard-details-banner {
     display: none;
@@ -150,40 +176,32 @@ body {
     display: none;
   }
   .wizard-progress {
-    margin-top: 0.5rem;
+    margin-top: 0.375rem;
   }
   .wizard-question {
-    margin-top: 0.5rem;
+    margin-top: 0.375rem;
   }
-  .wizard-question h1,
-  .wizard-question h2 {
-    font-size: 1.1rem;
-  }
-  .wizard-question > p {
-    display: none;
+  .wizard-title {
+    font-size: 1rem;
   }
 }
 @media (max-height: 480px) {
   .wizard-window {
-    padding-top: 0.5rem;
-    padding-bottom: 0.25rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.125rem;
   }
   .wizard-progress {
-    margin-top: 0.375rem;
+    margin-top: 0.25rem;
   }
   .wizard-question {
     margin-top: 0.25rem;
   }
-  .wizard-question h1,
-  .wizard-question h2 {
-    font-size: 1rem;
+  .wizard-title {
+    font-size: 0.9375rem;
     line-height: 1.15;
   }
-  .wizard-question > p {
-    display: none;
-  }
   .wizard-actions {
-    padding-top: 0.5rem;
+    padding-top: 0.375rem;
     padding-bottom: 0;
   }
   .wizard-details {
