@@ -13,7 +13,7 @@ export function StaticPage({
 }) {
   return (
     <main className="flex-1 bg-paper text-ink">
-      <article className="mx-auto max-w-2xl px-6 py-16 sm:py-20">
+      <article className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-20">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent-deep">
           {eyebrow}
         </p>

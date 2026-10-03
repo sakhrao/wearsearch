@@ -2,6 +2,7 @@ import {
   normalizeAudience,
   parseSizeIdentity,
   productSizeTriples,
+  resolvedCanonicalSize,
   type SizeSectionInput,
 } from "./size-sections";
 
@@ -42,6 +43,8 @@ export type FacetProduct = {
       value: string;
       system?: string | null;
     } | null;
+    canonicalSizeOptionId?: string | null;
+    sizeResolutionStatus?: string | null;
   }[];
 };
 
@@ -89,15 +92,17 @@ export function getProductFacets(
       });
     }
 
+    const resolved = resolvedCanonicalSize(variant);
+
     if (
-      variant.size &&
+      resolved &&
       !entries.size.some(
-        (entry) => entry.value === variant.size!.value
+        (entry) => entry.value === resolved.identity
       )
     ) {
       entries.size.push({
-        value: variant.size.value,
-        label: variant.size.value,
+        value: resolved.identity,
+        label: resolved.displayValue,
       });
     }
   }

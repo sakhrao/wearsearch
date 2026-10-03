@@ -29,6 +29,11 @@ export type SearchIntentParams = {
   budgetCurrency: BudgetCurrency | null;
   budgetDisplayMin: string | null;
   budgetDisplayMax: string | null;
+  /* H2: canonical size filter carried by the URL. `size` holds resolved
+     canonical identities; `sizeSystem` holds the system pins for
+     unresolved picks. Empty arrays mean "no size filter". */
+  size: string[];
+  sizeSystem: string[];
 };
 
 export type SearchIntent = {
@@ -42,6 +47,8 @@ export type SearchUrlDecoded = {
   max: string | null;
   cur: BudgetCurrency | null;
   soft: string | null;
+  size: string[];
+  sizeSystem: string[];
 };
 
 function toNullableNumber(raw: string | null): number | null {
@@ -66,6 +73,22 @@ function normalizeCur(raw: string | null): BudgetCurrency | null {
   return null;
 }
 
+/* Repeated params (size / sizeSystem), trimmed, de-blanked and
+   de-duplicated in first-seen order so a URL round-trip is stable. */
+function repeatedValues(search: URLSearchParams, key: string): string[] {
+  const seen = new Set<string>();
+  const values: string[] = [];
+  for (const raw of search.getAll(key)) {
+    const value = raw.trim();
+    if (value === "" || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    values.push(value);
+  }
+  return values;
+}
+
 export function decodeSearchUrl(
   search: URLSearchParams
 ): SearchUrlDecoded {
@@ -81,6 +104,8 @@ export function decodeSearchUrl(
     max: maxNum !== null ? String(maxNum) : null,
     cur: hasBudget ? normalizeCur(search.get("cur")) : null,
     soft,
+    size: repeatedValues(search, "size"),
+    sizeSystem: repeatedValues(search, "sizeSystem"),
   };
 }
 
@@ -94,7 +119,7 @@ export function parseSearchUrl(
   fxRate: number | null
 ): ParseResult {
   const decoded = decodeSearchUrl(search);
-  const { query, min, max, cur, soft } = decoded;
+  const { query, min, max, cur, soft, size, sizeSystem } = decoded;
 
   if (!query) {
     return { kind: "empty", intent: null, needsFx: false };
@@ -149,6 +174,8 @@ export function parseSearchUrl(
         budgetCurrency,
         budgetDisplayMin: min,
         budgetDisplayMax: max,
+        size,
+        sizeSystem,
       },
     },
     needsFx: false,
@@ -162,6 +189,8 @@ export function searchIntentKey(intent: SearchIntent): string {
     priceMin ?? "",
     priceMax ?? "",
     soft ?? "",
+    (intent.params.size ?? []).join("\u0001"),
+    (intent.params.sizeSystem ?? []).join("\u0001"),
   ].join("\u0000");
 }
 
@@ -175,6 +204,8 @@ export function encodeSearchUrl(
     max: params.budgetDisplayMax,
     cur: params.budgetCurrency,
     soft: params.soft,
+    size: [...(params.size ?? [])],
+    sizeSystem: [...(params.sizeSystem ?? [])],
   };
 }
 
@@ -198,6 +229,12 @@ export function buildSearchQueryString(
   }
   if (decoded.soft) {
     params.set("soft", decoded.soft);
+  }
+  for (const identity of decoded.size ?? []) {
+    params.append("size", identity);
+  }
+  for (const system of decoded.sizeSystem ?? []) {
+    params.append("sizeSystem", system);
   }
 
   return params.toString();

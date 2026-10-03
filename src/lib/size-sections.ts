@@ -1,7 +1,5 @@
-import {
-  SHOE_CATEGORY_NAMES,
-  categoryDiscipline,
-} from "./facets";
+import { SHOE_CATEGORY_NAMES } from "./facets";
+import { canonicalReadState } from "./size-domain/query";
 
 /* F19b: the client-side Size facet is split into per-family
    sections that reflect what the CURRENT result products actually
@@ -100,8 +98,56 @@ export type SizeSectionInput = {
       value: string | null | undefined;
       system?: string | null;
     } | null;
+    /* H1: canonical persistence fields (Stage E) — the size identity
+       is read from these, never from the raw legacy label. */
+    canonicalSizeOptionId?: string | null;
+    sizeResolutionStatus?: string | null;
   }[];
 };
+
+/* H1: THE identity source for a sized variant. Returns the canonical
+   identity and its canonical value only for RESOLVED rows; the display
+   label is the untouched source label so the UI never rewrites it
+   (`Medium` stays `Medium`, its identity is `...|INTERNATIONAL|M`).
+   UNRESOLVED / NOT_BACKFILLED rows yield null: no invented identity. */
+export function resolvedCanonicalSize(variant: {
+  size?: { value?: string | null } | null;
+  canonicalSizeOptionId?: string | null;
+  sizeResolutionStatus?: string | null;
+}): {
+  identity: string;
+  canonicalValue: string;
+  displayValue: string;
+} | null {
+  const state = canonicalReadState({
+    canonicalSizeOptionId:
+      variant.canonicalSizeOptionId ?? null,
+    sizeResolutionStatus:
+      variant.sizeResolutionStatus ?? null,
+    sizeResolutionProvenance: null,
+    sizeResolutionSystem: null,
+  });
+
+  if (state !== "RESOLVED" || !variant.canonicalSizeOptionId) {
+    return null;
+  }
+
+  const parsed = parseSizeIdentity(
+    variant.canonicalSizeOptionId
+  );
+
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    identity: variant.canonicalSizeOptionId,
+    canonicalValue: parsed.value,
+    displayValue:
+      variant.size?.value ??
+      variant.canonicalSizeOptionId,
+  };
+}
 
 /* --- Stage 3-B: contextual size identity -------------------------
    A physical size is referenced by audience + productType + system
@@ -169,6 +215,10 @@ export function parseSizeIdentity(
 export type SizeSectionChip = {
   identity: string;
   value: string;
+  /* H1: unfiltered count supplied by the server when it renders the
+     size facet over the full ranked set (search integration). The
+     window-scoped client fallback leaves it undefined. */
+  count?: number;
 };
 
 export type SizeSectionColumn = {
@@ -187,7 +237,10 @@ const MAIN_AUDIENCES = ["MEN", "WOMEN", "KIDS"];
 type SizeRow = {
   productType: string;
   system: string | null;
+  /* Canonical value (the identity component). */
   value: string;
+  /* Untouched source label rendered in the UI. */
+  displayValue: string;
 };
 
 type SizeEntry = {
@@ -208,9 +261,6 @@ function productSizeRows(
   const audience = normalizeAudience(
     product.gender ?? null
   );
-  const productType = categoryDiscipline(
-    product.category?.name ?? null
-  );
   const seen = new Set<string>();
   const rows: {
     audience: string;
@@ -223,21 +273,35 @@ function productSizeRows(
     if (!size || !size.value) {
       continue;
     }
-    const dedupKey = `${size.system ?? "NONE"}|${size.value}`;
-    if (seen.has(dedupKey)) {
+
+    const resolved = resolvedCanonicalSize(variant);
+    if (!resolved) {
+      /* UNRESOLVED / NOT_BACKFILLED: no canonical identity, so no
+         filterable chip is invented. */
       continue;
     }
-    seen.add(dedupKey);
+
+    if (seen.has(resolved.identity)) {
+      continue;
+    }
+    seen.add(resolved.identity);
+
+    const parsed = parseSizeIdentity(resolved.identity);
+    if (!parsed) {
+      continue;
+    }
+
     rows.push({
       audience,
       section: variantSizeSection(
         kind,
-        size.system ?? null
+        parsed.system
       ),
       row: {
-        productType,
-        system: size.system ?? null,
-        value: size.value,
+        productType: parsed.productType,
+        system: parsed.system,
+        value: parsed.value,
+        displayValue: resolved.displayValue,
       },
     });
   }
@@ -311,7 +375,7 @@ function buildSectionColumns(
           continue;
         }
         seen.add(identity);
-        chips.push({ identity, value: row.value });
+        chips.push({ identity, value: row.displayValue });
       }
     }
 
@@ -334,7 +398,7 @@ function buildSectionColumns(
           continue;
         }
         seen.add(identity);
-        chips.push({ identity, value: row.value });
+        chips.push({ identity, value: row.displayValue });
       }
     }
 
@@ -436,19 +500,10 @@ export function buildSizeSectionValues(
   };
 
   for (const product of products) {
-    const kind = categorySizeGroupKind(
-      product.category?.name ?? null
-    );
-    const seen = new Set<string>();
-    for (const variant of product.variants) {
-      const size = variant.size;
-      if (!size || !size.value || seen.has(size.value)) {
-        continue;
-      }
-      seen.add(size.value);
-      sections[
-        variantSizeSection(kind, size.system ?? null)
-      ].add(size.value);
+    for (const row of productSizeRows(product)) {
+      sections[row.section].add(
+        row.row.displayValue
+      );
     }
   }
 

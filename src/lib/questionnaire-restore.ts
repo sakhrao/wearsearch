@@ -1,12 +1,18 @@
 import {
   EMPTY_ANSWERS,
   type QuestionnaireAnswers,
+  type SizeAnswer,
 } from "./questionnaire";
 import {
   findNodeByCategoryName,
   getGenderTree,
   pathToNode,
 } from "./catalog/taxonomy";
+import type {
+  ContextualSizeAudience,
+  ContextualProductType,
+} from "./sizes";
+import { parseCanonicalSizeOptionId } from "./size-domain/questionnaire";
 
 export type StructuredQueryShape = {
   gender?: string | null;
@@ -22,6 +28,13 @@ export type StructuredQueryShape = {
     min: number | null;
     max: number | null;
   } | null;
+};
+
+/* H2: the canonical size filter the results URL carries, used to
+   restore the size step without re-guessing context. */
+export type CanonicalSizeFilterShape = {
+  size?: string[] | null;
+  sizeSystem?: string[] | null;
 };
 
 export type IntentBudgetShape = {
@@ -50,10 +63,64 @@ function coverWord(
   covered.add(singular(c));
 }
 
+/* H2: rebuild the size answer from the canonical filter the results URL
+   carries. A resolved identity restores the value + system + identity
+   (so the chip preselects by identity, never by a label guess); a bare
+   system pin restores an UNRESOLVED answer with that system. */
+function sizeAnswerFromCanonical(
+  filter: CanonicalSizeFilterShape | null | undefined
+): SizeAnswer | null {
+  const identity = (filter?.size ?? []).find(
+    (entry) => entry.trim() !== ""
+  );
+  if (identity) {
+    const parsed = parseCanonicalSizeOptionId(identity);
+    const audience: ContextualSizeAudience | null =
+      parsed?.audience === "MEN" ||
+      parsed?.audience === "WOMEN" ||
+      parsed?.audience === "KIDS" ||
+      parsed?.audience === "UNISEX"
+        ? parsed.audience
+        : null;
+    const productType: ContextualProductType | null =
+      parsed?.productType === "CLOTHING" ||
+      parsed?.productType === "FOOTWEAR"
+        ? parsed.productType
+        : null;
+    return {
+      value: parsed?.value ?? identity,
+      audience,
+      productType,
+      category: null,
+      system: parsed?.system ?? null,
+      canonicalSizeOptionId: identity,
+      resolutionStatus: "RESOLVED",
+    };
+  }
+
+  const systemPin = (filter?.sizeSystem ?? []).find(
+    (entry) => entry.trim() !== ""
+  );
+  if (systemPin) {
+    return {
+      value: "",
+      audience: null,
+      productType: null,
+      category: null,
+      system: systemPin,
+      canonicalSizeOptionId: null,
+      resolutionStatus: "UNRESOLVED",
+    };
+  }
+
+  return null;
+}
+
 export function buildEditAnswers(
   query: string,
   structuredQuery: StructuredQueryShape | null,
-  intentBudget: IntentBudgetShape
+  intentBudget: IntentBudgetShape,
+  canonicalSize?: CanonicalSizeFilterShape | null
 ): QuestionnaireAnswers {
   const answers: QuestionnaireAnswers = {
     ...EMPTY_ANSWERS,
@@ -93,18 +160,23 @@ export function buildEditAnswers(
       : [];
   }
 
-  /* The bare size token restores the value only: the QR string carries
-     no audience/system/category context, and re-guessing one would be
-     reinterpretation (Stage 3-A forbids inventing context). The chips
-     still pre-select it when the value is unambiguous in the current
-     context (see find/page.tsx). */
-  if (structuredQuery?.size) {
+  /* H2: a canonical size filter (from the results URL) is authoritative.
+     Otherwise fall back to the legacy bare token still present in `q`.
+     A bare token restores the value only: the QR string carries no
+     audience/system/category context, and re-guessing one would be
+     reinterpretation (Stage 3-A forbids inventing context). */
+  const restoredSize = sizeAnswerFromCanonical(canonicalSize);
+  if (restoredSize) {
+    answers.size = restoredSize;
+  } else if (structuredQuery?.size) {
     answers.size = {
       value: structuredQuery.size,
       audience: null,
       productType: null,
       category: null,
       system: null,
+      canonicalSizeOptionId: null,
+      resolutionStatus: "UNRESOLVED",
     };
   }
 
@@ -118,6 +190,7 @@ export function buildEditAnswers(
     structuredQuery?.gender,
     structuredQuery?.category,
     structuredQuery?.size,
+    answers.size?.value,
     ...(structuredQuery?.brand ?? "").split(/\s+/),
     ...(structuredQuery?.colors ?? []),
   ]) {

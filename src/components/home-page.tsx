@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   Suspense,
@@ -17,7 +17,6 @@ import {
   parseSearchUrl,
   searchIntentKey,
 } from "@/lib/search-url";
-import { hasRealProductPage } from "@/lib/product-url";
 import { CANVAS_SIZE, computeZoomFit } from "@/lib/zoom-fitting";
 import {
   FACET_KEYS,
@@ -30,6 +29,8 @@ import {
   SIZE_SECTION_LABELS,
   SIZE_SECTION_ORDER,
   buildSizeSectionColumns,
+  type SizeSectionColumn,
+  type SizeSectionKey,
 } from "@/lib/size-sections";
 import {
   type QuestionnaireAnswers,
@@ -83,6 +84,11 @@ type ProductVariant = {
     normalizedValue: string;
     system: string;
   } | null;
+
+  /* H1: canonical size identity/state (Stage E columns), serialized
+     by the search API. Absent on legacy payloads. */
+  canonicalSizeOptionId?: string | null;
+  sizeResolutionStatus?: string | null;
 };
 
 type Product = {
@@ -201,6 +207,14 @@ type SearchResponse = {
      facet options or their counts. */
   facets: FacetsBlock;
 
+  /* H1: present only when a canonical size filter was applied. The
+     server computes it over the full unfiltered ranked set so the
+     multi-select chips never collapse while filtering. */
+  sizeSections?: Record<
+    SizeSectionKey,
+    SizeSectionColumn[]
+  >;
+
   similarMessage: string | null;
 
   diagnostics: string[];
@@ -235,6 +249,8 @@ const EMPTY_SEARCH_PARAMS: SearchIntent["params"] = {
   budgetCurrency: null,
   budgetDisplayMin: null,
   budgetDisplayMax: null,
+  size: [],
+  sizeSystem: [],
 };
 
 export default function HomePage({
@@ -319,6 +335,15 @@ function Home({
     useState<boolean>(false);
   const [loadingMore, setLoadingMore] =
     useState<boolean>(false);
+
+  /* H1: when a canonical size filter is active, the server returns
+     the size facet block computed over the full unfiltered ranked
+     set. Null means "no server block" -> derive from the window. */
+  const [serverSizeSections, setServerSizeSections] =
+    useState<Record<
+      SizeSectionKey,
+      SizeSectionColumn[]
+    > | null>(null);
 
   /* Loaded offsets drive the next Load-more fetch. */
   const exactOffsetRef = useRef<number>(0);
@@ -447,7 +472,7 @@ function Home({
      button push: while a search is in flight, router.push /
      useSearchParams can re-commit the pre-push urlSearchKey (here
      populated, or an empty "/") several times. Those re-commits are
-     that search's own churn â€” urlSearchKey === searchStartUrlKeyRef â€”
+     that search's own churn — urlSearchKey === searchStartUrlKeyRef —
      and must not bump the F11 epoch, or the bar search would discard
      its own response while the previous results stayed under the new
      URL. A urlSearchKey that actually differs from it is a genuine
@@ -462,7 +487,7 @@ function Home({
      to run and re-execute the previous query. The arm is set on launch
      and cleared the moment a urlSearchKey other than the start key is
      acted on; while armed, the effect treats the start key itself as
-     non-actionable â€” it belongs to the search just launched. */
+     non-actionable — it belongs to the search just launched. */
   const searchLaunchArmedRef = useRef(false);
 
   /* F14-C1: is the current URL stuck waiting for the fx rate?
@@ -531,7 +556,7 @@ function Home({
     }
 
     /* F15-C2: a URL change while a search is in flight must not
-       be recorded as resolved â€” handleSearch would bail on
+       be recorded as resolved — handleSearch would bail on
        `loading` and the old response would then paint under the
        new URL. Defer instead: mark the in-flight response stale
        through the F11 epoch and let this effect re-run once the
@@ -542,8 +567,8 @@ function Home({
        (searchStartUrlKeyRef) AND the parsed intent is not the
        search already in flight. The Search button / Enter launches
        a search directly and pushes its own URL; the router settling
-       that push re-commits the pre-push urlSearchKey â€” never a new
-       navigation â€” and bumping the epoch there (or on the key-match
+       that push re-commits the pre-push urlSearchKey — never a new
+       navigation — and bumping the epoch there (or on the key-match
        early-return) would reject the search it launched and keep
        the previous results under the new query. */
     if (
@@ -578,6 +603,7 @@ function Home({
     setDiagnostics([]);
     setStructuredQuery(null);
     setCategoryStatus(null);
+    setServerSizeSections(null);
     setFacets({
       gender: [],
       category: [],
@@ -639,7 +665,10 @@ function Home({
       gender: new Set(),
       category: new Set(),
       color: new Set(),
-      size: new Set(),
+      /* H2: a size filter carried by the URL/questionnaire seeds the
+         facet selection so the chip renders selected and Load more
+         keeps the same filter. */
+      size: new Set(intent.params.size),
       brand: new Set(),
     });
 
@@ -663,6 +692,13 @@ function Home({
       }
       if (soft) {
         params.set("soft", soft);
+      }
+
+      for (const identity of intent.params.size) {
+        params.append("size", identity);
+      }
+      for (const system of intent.params.sizeSystem) {
+        params.append("sizeSystem", system);
       }
 
       const response = await fetch(
@@ -712,6 +748,7 @@ function Home({
       setSimilarHasMore(
         data.similarHasMore ?? false
       );
+      setServerSizeSections(data.sizeSections ?? null);
       setFacets(
         data.facets ?? {
           gender: [],
@@ -743,6 +780,7 @@ function Home({
       setDiagnostics([]);
       setStructuredQuery(null);
       setCategoryStatus(null);
+      setServerSizeSections(null);
       setActiveFilters({
         gender: new Set(),
         category: new Set(),
@@ -755,6 +793,102 @@ function Home({
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  /* H1: re-run the last intent at page 1 with the canonical size
+     facet applied (or cleared). The canonical decision happens at
+     the DB boundary; the response carries the unfiltered size
+     block so the multi-select chips never collapse. */
+  async function refineBySize(
+    nextSize: Set<string>,
+    options?: { keepSizeSystem?: boolean }
+  ) {
+    const intent = lastSearchIntentRef.current;
+
+    if (!intent || !intent.query.trim()) {
+      return;
+    }
+
+    /* H2: a questionnaire system pin survives chip toggles but is
+       dropped by an explicit "clear all". */
+    const sizeSystems =
+      options?.keepSizeSystem === false
+        ? []
+        : (intent.params.sizeSystem ?? []);
+
+    searchSeqRef.current += 1;
+    const mySeq = searchSeqRef.current;
+
+    setLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const params = new URLSearchParams({
+        q: intent.query.trim(),
+        limit: "30",
+        offset: "0",
+      });
+
+      const priceMin = intent.params.priceMin ?? null;
+      const priceMax = intent.params.priceMax ?? null;
+      const soft = intent.params.soft ?? null;
+
+      if (priceMin) {
+        params.set("priceMin", priceMin);
+      }
+      if (priceMax) {
+        params.set("priceMax", priceMax);
+      }
+      if (soft) {
+        params.set("soft", soft);
+      }
+
+      for (const identity of nextSize) {
+        params.append("size", identity);
+      }
+      for (const system of sizeSystems) {
+        params.append("sizeSystem", system);
+      }
+
+      const response = await fetch(
+        `/api/search?${params.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Search request failed: ${response.status}`
+        );
+      }
+
+      const data: SearchResponse = await response.json();
+
+      if (!data.success) {
+        throw new Error("Search API returned an error");
+      }
+
+      if (mySeq !== searchSeqRef.current) {
+        return;
+      }
+
+      setExactProducts(data.exactProducts ?? []);
+      setSimilarProducts(data.similarProducts ?? []);
+      setExactTotal(data.exactCount ?? 0);
+      setSimilarTotal(data.similarCount ?? 0);
+      setExactHasMore(data.exactHasMore ?? false);
+      setSimilarHasMore(data.similarHasMore ?? false);
+      setServerSizeSections(data.sizeSections ?? null);
+
+      exactOffsetRef.current =
+        data.exactProducts?.length ?? 0;
+      similarOffsetRef.current =
+        data.similarProducts?.length ?? 0;
+    } catch (error) {
+      console.error("Size refine failed:", error);
+    } finally {
+      if (mySeq === searchSeqRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -809,6 +943,13 @@ function Home({
       }
       if (soft) {
         params.set("soft", soft);
+      }
+
+      for (const identity of activeFilters.size) {
+        params.append("size", identity);
+      }
+      for (const system of intent.params.sizeSystem ?? []) {
+        params.append("sizeSystem", system);
       }
 
       const response = await fetch(
@@ -968,8 +1109,20 @@ function Home({
      | value) so EU 42, US 42 and men/women/kids sizes never merge. */
   const sizeSectionColumns = useMemo(
     () =>
+      serverSizeSections ??
       buildSizeSectionColumns(allProducts),
-    [allProducts]
+    [serverSizeSections, allProducts]
+  );
+
+  /* H1: size is filtered at the DB boundary, so the client must not
+     re-apply it (or it would double-filter against a different
+     predicate). Every other facet stays a window-scoped filter. */
+  const clientFilters = useMemo<ActiveFilters>(
+    () => ({
+      ...activeFilters,
+      size: new Set<string>(),
+    }),
+    [activeFilters]
   );
 
   /* F13-1: counts are scoped to the loaded window and recomputed
@@ -993,19 +1146,23 @@ function Home({
 
     return buildWindowFacetCounts(
       allProducts,
-      activeFilters,
+      clientFilters,
       optionValues
     );
   }, [
     allProducts,
-    activeFilters,
+    clientFilters,
     facetOptions,
     sizeSectionColumns,
   ]);
 
   const sizeOptionGroups = useMemo(() => {
     const build = (
-      chips: { identity: string; value: string }[]
+      chips: {
+        identity: string;
+        value: string;
+        count?: number;
+      }[]
     ): {
       value: string;
       label: string;
@@ -1014,7 +1171,10 @@ function Home({
       chips.map((chip) => ({
         value: chip.identity,
         label: chip.value,
-        count: windowCounts.size.get(chip.identity) ?? 0,
+        count:
+          chip.count ??
+          windowCounts.size.get(chip.identity) ??
+          0,
       }));
 
     return SIZE_SECTION_ORDER.flatMap((key) => {
@@ -1040,17 +1200,17 @@ function Home({
   const filteredExactProducts = useMemo(
     () =>
       exactProducts.filter((product) =>
-        productMatchesFilters(product, activeFilters)
+        productMatchesFilters(product, clientFilters)
       ),
-    [exactProducts, activeFilters]
+    [exactProducts, clientFilters]
   );
 
   const filteredSimilarProducts = useMemo(
     () =>
       similarProducts.filter((product) =>
-        productMatchesFilters(product, activeFilters)
+        productMatchesFilters(product, clientFilters)
       ),
-    [similarProducts, activeFilters]
+    [similarProducts, clientFilters]
   );
 
   const hasActiveFilters = FACET_KEYS.some(
@@ -1067,6 +1227,24 @@ function Home({
     key: FacetKey,
     value: string
   ) {
+    if (key === "size") {
+      const nextSize = new Set(activeFilters.size);
+
+      if (nextSize.has(value)) {
+        nextSize.delete(value);
+      } else {
+        nextSize.add(value);
+      }
+
+      setActiveFilters((previous) => ({
+        ...previous,
+        size: nextSize,
+      }));
+
+      void refineBySize(nextSize);
+      return;
+    }
+
     setActiveFilters((previous) => {
       const next = new Set(previous[key]);
 
@@ -1081,6 +1259,8 @@ function Home({
   }
 
   function clearAllFilters() {
+    const hadSize = activeFilters.size.size > 0;
+
     setActiveFilters({
       gender: new Set(),
       category: new Set(),
@@ -1088,13 +1268,22 @@ function Home({
       size: new Set(),
       brand: new Set(),
     });
+
+    if (hadSize) {
+      void refineBySize(new Set(), { keepSizeSystem: false });
+    }
   }
 
   /* P6: from a true no-results state, let users refine
      the same search via the questionnaire. F4: restoration
-     is the pure buildEditAnswers helper (dedup + budget). */
+     is the pure buildEditAnswers helper (dedup + budget).
+     H2: the canonical size filter from the URL restores the size
+     step without re-guessing its context. */
   function questionnaireAnswersFromSearch(): QuestionnaireAnswers {
-    return buildEditAnswers(query, structuredQuery, intentBudget);
+    return buildEditAnswers(query, structuredQuery, intentBudget, {
+      size: searchParams.getAll("size"),
+      sizeSystem: searchParams.getAll("sizeSystem"),
+    });
   }
 
   function handleEditSearch() {
@@ -1277,7 +1466,7 @@ function Home({
             aria-hidden="true"
             className="absolute inset-0 bg-ink/65"
           />
-          <div className="relative mx-auto max-w-3xl px-6 pb-20 pt-16 sm:pt-24">
+          <div className="relative mx-auto max-w-3xl px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
 <div
               role="region"
               aria-labelledby="hero-title"
@@ -1315,7 +1504,7 @@ function Home({
         </div>
       )}
 
-      <div className="mx-auto max-w-6xl px-6 pb-24 pt-10 sm:pt-16">
+      <div className="mx-auto max-w-6xl px-4 pb-24 pt-10 sm:px-6 sm:pt-16">
 
         {/* SEARCH (results view: plain bar above the results) */}
 
@@ -1772,7 +1961,7 @@ function Home({
                   similarProducts.length > 0 &&
                   categoryStatus &&
                   categoryStatus.productCount === 0 && (
-                    <div className="rounded-2xl border border-line p-10 text-center">
+                    <div className="rounded-2xl border border-line p-6 text-center sm:p-10">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -1813,7 +2002,7 @@ function Home({
                     categoryStatus.productCount >
                       0) &&
                   similarProducts.length > 0 && (
-                    <div className="rounded-2xl border border-line p-10 text-center">
+                    <div className="rounded-2xl border border-line p-6 text-center sm:p-10">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -1967,7 +2156,7 @@ function Home({
                 {/* FILTERS HIDE EVERYTHING */}
 
                 {filtersHidEverything && (
-                    <div className="rounded-2xl border border-line p-10 text-center">
+                    <div className="rounded-2xl border border-line p-6 text-center sm:p-10">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -1995,7 +2184,7 @@ function Home({
                 {exactProducts.length === 0 &&
                   similarProducts.length === 0 &&
                   !similarMessage && (
-                    <div className="rounded-2xl border border-line p-10 text-center">
+                    <div className="rounded-2xl border border-line p-6 text-center sm:p-10">
                       <EmptyStateIcon />
 
                       <h2 className="mt-4 text-xl font-semibold">
@@ -2091,7 +2280,7 @@ function EmptyStateIcon() {
    off-centre product) so it fills the frame consistently.
 
    Conservative by design: if content detection is uncertain or the product
-   touches the frame edge, we do NOT zoom (scale 1) â€” it is better for a
+   touches the frame edge, we do NOT zoom (scale 1) — it is better for a
    product to stay slightly smaller than to risk cropping it. Scale is
    bounded so the detected content always stays inside the frame, and the
    transform is a uniform scale so it never distorts. Non-eBay hosts that do
@@ -2157,10 +2346,6 @@ function ProductCard({
 }: {
   product: Product;
 }) {
-  const hasProductPage = hasRealProductPage(
-    product.productUrl
-  );
-
   const hasVariantPriceRange =
     product.variants.some(
       (variant) =>
@@ -2349,22 +2534,14 @@ function ProductCard({
           {/* ACTIONS */}
 
           <div className="mt-4 flex gap-2">
-            {hasProductPage ? (
-              <a
-                href={product.productUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 rounded-full bg-ink px-4 py-2.5 text-center text-sm font-medium text-paper transition hover:bg-ink-soft"
-              >
-                View product
-              </a>
-            ) : (
-              <span className="flex-1 rounded-full bg-paper-soft px-4 py-2.5 text-center text-sm font-medium text-ink-faint">
-                Product page unavailable
-              </span>
-            )}
+            <Link
+              href={`/product/${encodeURIComponent(product.id)}`}
+              className="flex-1 rounded-full bg-ink px-4 py-2.5 text-center text-sm font-medium text-paper transition hover:bg-ink-soft"
+            >
+              View product
+            </Link>
 
-            {hasProductPage && !outOfStock && (
+            {!outOfStock && (
               <a
                 href={`/outfit?anchor=${encodeURIComponent(product.id)}`}
                 className="flex-1 rounded-full border border-line px-4 py-2.5 text-center text-sm font-medium text-ink-soft transition hover:border-ink hover:text-ink"

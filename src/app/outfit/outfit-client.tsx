@@ -296,7 +296,7 @@ export function OutfitClient({
 
   return (
     <main className="min-h-screen bg-paper text-ink">
-      <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="font-display text-3xl font-medium tracking-tight">
             {productId ? "Style this item" : "Outfit Studio"}
@@ -618,14 +618,12 @@ function OutfitLook({
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <a
-                  href={item.product.productUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  href={`/product/${encodeURIComponent(item.product.id)}`}
                   className="rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:bg-ink-soft"
                 >
                   View product
-                </a>
+                </Link>
                 {item.product.id !== anchorId && (
                   <>
                     <button
@@ -711,14 +709,12 @@ function OutfitLook({
                     <span className="text-sm text-ink-soft">
                       {money(item.product.price)} {item.product.currency}
                     </span>
-                    <a
-                      href={item.product.productUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      href={`/product/${encodeURIComponent(item.product.id)}`}
                       className="rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:bg-ink-soft"
                     >
                       Open
-                    </a>
+                    </Link>
                   </div>
                 </li>
               ))}

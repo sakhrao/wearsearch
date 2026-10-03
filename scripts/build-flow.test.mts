@@ -190,10 +190,10 @@ const sized = fixtureProduct({
   name: "Sized Item",
   categorySlug: "t-shirts",
   variants: [
-    { price: "10.00", currency: "EUR", availability: "AVAILABLE", color: { name: "White", hex: null }, size: { system: "eu", value: "M", normalizedValue: "M", productType: "top" } },
-    { price: "10.00", currency: "EUR", availability: "AVAILABLE", color: { name: "Black", hex: null }, size: { system: "eu", value: "S", normalizedValue: "S", productType: "top" } },
-    { price: "10.00", currency: "EUR", availability: "AVAILABLE", color: { name: "Green", hex: null }, size: { system: "eu", value: "M", normalizedValue: "M", productType: "top" } },
-    { price: "10.00", currency: "EUR", availability: "UNAVAILABLE", color: { name: "Red", hex: null }, size: { system: "eu", value: "XL", normalizedValue: "XL", productType: "top" } },
+    { price: "10.00", currency: "EUR", availability: "AVAILABLE", color: { name: "White", hex: null }, size: { system: "eu", value: "M", normalizedValue: "M", productType: "top", state: "NOT_BACKFILLED", canonicalSizeOptionId: null } },
+    { price: "10.00", currency: "EUR", availability: "AVAILABLE", color: { name: "Black", hex: null }, size: { system: "eu", value: "S", normalizedValue: "S", productType: "top", state: "NOT_BACKFILLED", canonicalSizeOptionId: null } },
+    { price: "10.00", currency: "EUR", availability: "AVAILABLE", color: { name: "Green", hex: null }, size: { system: "eu", value: "M", normalizedValue: "M", productType: "top", state: "NOT_BACKFILLED", canonicalSizeOptionId: null } },
+    { price: "10.00", currency: "EUR", availability: "UNAVAILABLE", color: { name: "Red", hex: null }, size: { system: "eu", value: "XL", normalizedValue: "XL", productType: "top", state: "NOT_BACKFILLED", canonicalSizeOptionId: null } },
   ],
 });
 check("availableSizes: deduped available values only",

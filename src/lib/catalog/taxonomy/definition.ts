@@ -7,6 +7,10 @@
  * category name.
  *
  * - Stable IDs are machine keys, decoupled from display labels.
+ * - `styleId` ties a style/fit/variant node to the SHARED style registry
+ *   (see ./styles.ts). Style identity is deliberately gender-free: a style
+ *   is a fashion concept, not a property of a person. Gender decides which
+ *   products match, never which styles exist.
  * - `mapTo` = legacy DB category display names, so the existing
  *   product filtering / search / recommendation logic is untouched.
  * - `tokens` = free-text query tokens contributed by the node.
@@ -16,6 +20,12 @@
  *   `children`, not about `type`.
  * - No DB renames: existing category slugs/names stay as they are.
  */
+
+import {
+  styleByLabel,
+  styleDefinition,
+  stylesInConcept,
+} from "./styles";
 
 /** The role of a node inside the hierarchy. */
 export type TaxonomyNodeType =
@@ -60,6 +70,17 @@ export interface TaxonomyNode {
    * to the next applicable attribute instead of forcing a size.
    */
   requiresSize: boolean;
+  /**
+   * For style/fit/variant nodes: the id of the shared, gender-free style
+   * concept in ./styles.ts. Null on category nodes.
+   *
+   * This is what proves style identity is not per-gender: the same concept
+   * id appears under Men > Bottoms > Jeans and Women > Bottoms > Jeans,
+   * and a category can only reach a concept that names it.
+   */
+  styleId: string | null;
+  /** Concepts a category offers styles from (empty on style nodes). */
+  concepts: string[];
 }
 
 export interface TaxonomyGenderTree {
@@ -91,41 +112,83 @@ type Spec = {
   age?: KidsAge[];
   requiresSize?: boolean;
   children?: Spec[];
+  /**
+   * Concepts whose shared styles this node offers. Expands into style
+   * children at build time, so every gender that reaches this category
+   * is handed the identical vocabulary straight from the shared registry.
+   */
+  concepts?: string[];
+  /** Set by style()/fit(); identifies the shared style entity. */
+  styleId?: string;
 };
 
 /* Nodes whose subtree never needs the Size step (small accessories). */
 const NO_SIZE = false;
 const SIZE = true;
 
-/* Fits/styles shared across genders where the vocabulary is identical. */
-const DENIM_FITS = [
-  "Skinny",
-  "Slim",
-  "Regular",
-  "Straight",
-  "Tapered",
-  "Bootcut",
-  "Relaxed",
-  "Loose/Baggy",
-];
+/**
+ * Build the style children for a concept straight from the shared
+ * registry. This is the ONLY way style lists are declared, so a style can
+ * never come to be owned by one gender: whichever category names the
+ * concept gets the same styles.
+ */
+function styles(...concepts: string[]): Spec[] {
+  const seen = new Set<string>();
+  const specs: Spec[] = [];
+  for (const concept of concepts) {
+    for (const id of stylesInConcept(concept)) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const def = styleDefinition(id);
+      if (!def) {
+        throw new Error(
+          `Concept "${concept}" references unregistered style "${id}". Add it to STYLE_REGISTRY.`
+        );
+      }
+      specs.push({
+        label: def.label,
+        type: def.type,
+        tokens: [...def.tokens],
+        mapTo: [...def.mapTo],
+        crossTags: [...def.crossTags],
+        requiresSize: def.requiresSize,
+        styleId: def.id,
+      });
+    }
+  }
+  return specs;
+}
 
-/* Offered after every suit type, so the type level is never terminal. */
-const SUIT_FITS = ["Slim", "Modern", "Classic"];
-
+/** A style/fit declared inline (category-specific, still registered). */
 function fit(label: string): Spec {
-  return {
-    label,
-    type: "fit",
-    tokens: [label.toLowerCase()],
-  };
+  return styleSpec(label, "fit");
 }
 
 function style(label: string, extra: Partial<Spec> = {}): Spec {
+  return { ...styleSpec(label, "style"), ...extra };
+}
+
+/**
+ * Resolve a label against the shared registry. An unregistered label is
+ * a mistake rather than a new private style, so it fails loudly instead of
+ * quietly forking the vocabulary per gender.
+ */
+function styleSpec(label: string, type: TaxonomyNodeType): Spec {
+  const known = styleByLabel(label);
+  if (!known) {
+    throw new Error(
+      `Style "${label}" is not in the shared STYLE_REGISTRY. Register it in ./styles.ts ` +
+        `so it is shared instead of being owned by whichever gender happened to use it first.`
+    );
+  }
   return {
-    label,
-    type: "style",
-    tokens: [label.toLowerCase()],
-    ...extra,
+    label: known.label,
+    type,
+    tokens: [...known.tokens],
+    mapTo: [...known.mapTo],
+    crossTags: [...known.crossTags],
+    requiresSize: known.requiresSize,
+    styleId: known.id,
   };
 }
 
@@ -154,9 +217,15 @@ function build(
       ? `${parentId}_${slugPart(spec.label)}`
       : `${genderPrefix}_${slugPart(spec.label)}`;
 
+    /* A category names the concepts it offers; the shared registry turns
+       that into the same style children for every gender. */
+    const resolved: Spec[] = [
+      ...(spec.children ?? []),
+      ...(spec.concepts ? styles(...spec.concepts) : []),
+    ];
+
     const childIds: string[] = [];
-    const children = spec.children ?? [];
-    for (const child of children) {
+    for (const child of resolved) {
       childIds.push(walk(child, id));
     }
 
@@ -175,6 +244,8 @@ function build(
       crossTags: spec.crossTags ?? [],
       age: spec.age ?? [],
       requiresSize: spec.requiresSize ?? SIZE,
+      styleId: spec.styleId ?? null,
+      concepts: spec.concepts ?? [],
     };
     return id;
   };
@@ -235,22 +306,13 @@ const MEN_SPECS: Spec[] = [
             label: "Basic T-Shirts",
             type: "subcategory",
             mapTo: ["T-Shirts"],
-            children: [
-              style("Crewneck", { tokens: ["crewneck", "crew neck"] }),
-              style("V-Neck", { tokens: ["v neck", "vneck"] }),
-              style("Henley", { tokens: ["henley"] }),
-              style("Longline", { tokens: ["longline"] }),
-              style("Oversized", { tokens: ["oversized"] }),
-            ],
+            concepts: ["tee"],
           },
           {
             label: "Polo Shirts",
             type: "subcategory",
             mapTo: ["Polo Shirts"],
-            children: [
-              style("Pique Cotton", { tokens: ["pique", "pique cotton"] }),
-              style("Knit Polo", { tokens: ["knit polo", "knitted polo"] }),
-            ],
+            concepts: ["polo"],
           },
           {
             label: "Tank Tops & Sleeveless",
@@ -271,43 +333,27 @@ const MEN_SPECS: Spec[] = [
             label: "Pullovers",
             type: "subcategory",
             mapTo: ["Sweaters", "Jumpers"],
-            children: [
-              style("Turtleneck", { tokens: ["turtleneck", "turtle neck"] }),
-              style("Mock Neck", { tokens: ["mock neck"] }),
-              style("V-Neck Knit", { tokens: ["v neck knit"] }),
-              style("Cable Knit", { tokens: ["cable knit"] }),
-            ],
+            concepts: ["knitwear"],
           },
           {
             label: "Cardigans",
             type: "subcategory",
             mapTo: ["Cardigans"],
-            children: [
-              style("Buttoned", { tokens: ["buttoned cardigan"] }),
-              style("Zippered", { tokens: ["zip cardigan", "zippered"] }),
-              style("Shawl Collar", { tokens: ["shawl collar"] }),
-            ],
+            concepts: ["cardigan"],
           },
           {
             label: "Sweatshirts",
             type: "subcategory",
             mapTo: ["Sweatshirts"],
             crossTags: ["activewear"],
-            children: [
-              style("Crewneck", { tokens: ["crewneck sweatshirt"] }),
-              style("Pullover", { tokens: ["pullover sweatshirt"] }),
-              style("Zip-Up", { tokens: ["zip up sweatshirt"] }),
-            ],
+            concepts: ["sweatshirt"],
           },
           {
             label: "Hoodies",
             type: "subcategory",
             mapTo: ["Hoodies"],
             crossTags: ["activewear"],
-            children: [
-              style("Pullover Hoodies", { tokens: ["pullover hoodie"] }),
-              style("Zip-Up Hoodies", { tokens: ["zip up hoodie"] }),
-            ],
+            concepts: ["hoodie"],
           },
         ],
       },
@@ -339,7 +385,7 @@ const MEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Jeans"],
         tokens: ["jeans", "denim"],
-        children: DENIM_FITS.map((label) => fit(label)),
+        concepts: ["denim"],
       },
       {
         label: "Trousers & Pants",
@@ -370,10 +416,7 @@ const MEN_SPECS: Spec[] = [
             type: "subcategory",
             mapTo: ["Cargo Pants"],
             tokens: ["cargo", "cargo pants"],
-            children: [
-              style("Slim Cargo", { tokens: ["slim cargo"] }),
-              style("Utility Baggy Cargo", { tokens: ["utility cargo", "baggy cargo"] }),
-            ],
+            concepts: ["cargoPants"],
           },
           {
             label: "Parachute Pants",
@@ -400,10 +443,7 @@ const MEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Cargo Pants"],
         tokens: ["cargo", "cargo pants"],
-        children: [
-          style("Slim Cargo", { tokens: ["slim cargo"] }),
-          style("Utility Baggy Cargo", { tokens: ["utility cargo", "baggy cargo"] }),
-        ],
+        concepts: ["cargoPants"],
       },
       {
         label: "Joggers & Sweatpants",
@@ -422,13 +462,7 @@ const MEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Shorts"],
         tokens: ["shorts", "short"],
-        children: [
-          style("Chino Shorts", { tokens: ["chino shorts"] }),
-          style("Denim Shorts", { tokens: ["denim shorts"] }),
-          style("Cargo Shorts", { tokens: ["cargo shorts"] }),
-          style("Sweat Shorts", { tokens: ["sweat shorts"], crossTags: ["activewear"] }),
-          style("Bermuda Shorts", { tokens: ["bermuda shorts", "bermudas"] }),
-        ],
+        concepts: ["shorts"],
       },
       {
         label: "Swim Trunks",
@@ -466,13 +500,13 @@ const MEN_SPECS: Spec[] = [
                     label: "Two-Piece",
                     type: "style",
                     tokens: ["two piece suit", "two piece"],
-                    children: SUIT_FITS.map((label) => fit(label)),
+                    concepts: ["suit"],
                   },
                   {
                     label: "Three-Piece",
                     type: "style",
                     tokens: ["three piece suit", "three piece"],
-                    children: SUIT_FITS.map((label) => fit(label)),
+                    concepts: ["suit"],
                   },
                 ],
               },
@@ -526,25 +560,14 @@ const MEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Jackets"],
         tokens: ["jacket", "jackets"],
-        children: [
-          style("Bomber Jackets", { tokens: ["bomber", "bomber jacket"] }),
-          style("Leather Jackets", { tokens: ["leather jacket"] }),
-          style("Trucker Denim Jackets", { tokens: ["trucker", "denim jacket"] }),
-          style("Windbreakers", { tokens: ["windbreaker"] }),
-          style("Track Jackets", { tokens: ["track jacket"], crossTags: ["activewear"] }),
-        ],
+        concepts: ["jacket"],
       },
       {
         label: "Coats",
         type: "subcategory",
         mapTo: ["Coats", "Parkas", "Puffer Jackets"],
         tokens: ["coat", "coats"],
-        children: [
-          style("Trench Coats", { tokens: ["trench coat", "trench"] }),
-          style("Overcoats/Wool Coats", { tokens: ["wool coat", "overcoat"] }),
-          style("Puffer Coats", { tokens: ["puffer coat"] }),
-          style("Parkas", { tokens: ["parka", "parkas"] }),
-        ],
+        concepts: ["coat"],
       },
       {
         label: "Vests",
@@ -676,11 +699,7 @@ const MEN_SPECS: Spec[] = [
         mapTo: ["Jewelry"],
         requiresSize: NO_SIZE,
         tokens: ["jewelry", "jewellery"],
-        children: [
-          style("Necklaces", { tokens: ["necklace"] }),
-          style("Bracelets", { tokens: ["bracelet"] }),
-          style("Rings", { tokens: ["ring", "rings"] }),
-        ],
+        concepts: ["jewelry"],
       },
       {
         label: "Scarves & Hijabs",
@@ -751,12 +770,7 @@ const WOMEN_SPECS: Spec[] = [
             label: "Basic T-Shirts",
             type: "subcategory",
             mapTo: ["T-Shirts"],
-            children: [
-              style("Crewneck", { tokens: ["crewneck"] }),
-              style("V-Neck", { tokens: ["v neck"] }),
-              style("Longline", { tokens: ["longline"] }),
-              style("Boxy", { tokens: ["boxy"] }),
-            ],
+            concepts: ["tee"],
           },
           {
             label: "Tank Tops & Camisoles",
@@ -764,11 +778,7 @@ const WOMEN_SPECS: Spec[] = [
             mapTo: ["Tank Tops"],
             crossTags: ["activewear"],
             tokens: ["tank", "tanks", "camisole"],
-            children: [
-              style("Camisole", { tokens: ["camisole"] }),
-              style("Tube Top", { tokens: ["tube top"] }),
-              style("Bandeau", { tokens: ["bandeau"] }),
-            ],
+            concepts: ["tank"],
           },
           {
             label: "Corsets & Bodysuits",
@@ -788,20 +798,13 @@ const WOMEN_SPECS: Spec[] = [
             label: "Pullovers",
             type: "subcategory",
             mapTo: ["Sweaters", "Jumpers"],
-            children: [
-              style("Turtleneck", { tokens: ["turtleneck"] }),
-              style("V-Neck Knit", { tokens: ["v neck knit"] }),
-              style("Cropped Knit", { tokens: ["cropped knit"] }),
-            ],
+            concepts: ["knitwear"],
           },
           {
             label: "Cardigans",
             type: "subcategory",
             mapTo: ["Cardigans"],
-            children: [
-              style("Buttoned", { tokens: ["buttoned cardigan"] }),
-              style("Longline", { tokens: ["longline cardigan"] }),
-            ],
+            concepts: ["cardigan"],
           },
           {
             label: "Sweatshirts & Hoodies",
@@ -809,11 +812,7 @@ const WOMEN_SPECS: Spec[] = [
             mapTo: ["Sweatshirts", "Hoodies"],
             crossTags: ["activewear"],
             tokens: ["sweatshirt", "hoodie"],
-            children: [
-              style("Crewneck", { tokens: ["crewneck"] }),
-              style("Pullover Hoodies", { tokens: ["pullover hoodie"] }),
-              style("Zip-Up Hoodies", { tokens: ["zip up hoodie"] }),
-            ],
+            concepts: ["sweatshirt", "hoodie"],
           },
           {
             label: "Yoga & Studio Tops",
@@ -849,17 +848,7 @@ const WOMEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Jeans"],
         tokens: ["jeans", "denim"],
-        children: [
-          "Skinny",
-          "Slim",
-          "Regular",
-          "Straight",
-          "Tapered",
-          "Bootcut & Flare",
-          "Wide-Leg",
-          "Mom Jeans",
-          "Boyfriend Jeans",
-        ].map((label) => fit(label)),
+        concepts: ["denim"],
       },
       {
         label: "Trousers & Pants",
@@ -889,10 +878,7 @@ const WOMEN_SPECS: Spec[] = [
             mapTo: ["Leggings"],
             crossTags: ["activewear"],
             tokens: ["leggings", "jeggings"],
-            children: [
-              style("Classic", { tokens: ["classic leggings"] }),
-              style("Distressed", { tokens: ["distressed"] }),
-            ],
+            concepts: ["leggings"],
           },
           {
             label: "Joggers & Sweatpants",
@@ -912,26 +898,14 @@ const WOMEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Skirts"],
         tokens: ["skirt", "skirts"],
-        children: [
-          style("Pencil", { tokens: ["pencil skirt"] }),
-          style("Pleated", { tokens: ["pleated skirt"] }),
-          style("A-Line", { tokens: ["a line skirt"] }),
-          style("Slit", { tokens: ["slit skirt"] }),
-          style("Tiered & Ruffle", { tokens: ["tiered skirt", "ruffle skirt"] }),
-          style("Denim", { tokens: ["denim skirt"] }),
-        ],
+        concepts: ["skirt"],
       },
       {
         label: "Shorts",
         type: "subcategory",
         mapTo: ["Shorts"],
         tokens: ["shorts", "short"],
-        children: [
-          style("Denim Shorts", { tokens: ["denim shorts"] }),
-          style("Chino Shorts", { tokens: ["chino shorts"] }),
-          style("Cycling Shorts", { tokens: ["cycling shorts"], crossTags: ["activewear"] }),
-          style("Bermuda Shorts", { tokens: ["bermuda shorts"] }),
-        ],
+        concepts: ["shorts"],
       },
       {
         label: "Yoga & Studio Bottoms",
@@ -1004,24 +978,14 @@ const WOMEN_SPECS: Spec[] = [
         type: "subcategory",
         mapTo: ["Jackets", "Blazers"],
         tokens: ["jacket", "jackets"],
-        children: [
-          style("Blazers", { tokens: ["blazer", "blazers"], mapTo: ["Blazers"] }),
-          style("Leather Jackets", { tokens: ["leather jacket"] }),
-          style("Denim Jackets", { tokens: ["denim jacket"] }),
-          style("Bomber & Tweed", { tokens: ["bomber jacket", "tweed jacket"] }),
-        ],
+        concepts: ["jacket"],
       },
       {
         label: "Coats",
         type: "subcategory",
         mapTo: ["Coats", "Parkas", "Puffer Jackets"],
         tokens: ["coat", "coats"],
-        children: [
-          style("Trench Coats", { tokens: ["trench coat"] }),
-          style("Wool Coats", { tokens: ["wool coat"] }),
-          style("Puffer Jackets", { tokens: ["puffer jacket"], mapTo: ["Puffer Jackets"] }),
-          style("Parkas", { tokens: ["parka"], mapTo: ["Parkas"] }),
-        ],
+        concepts: ["coat"],
       },
       {
         label: "Vests",
@@ -1187,11 +1151,7 @@ const WOMEN_SPECS: Spec[] = [
         mapTo: ["Jewelry"],
         requiresSize: NO_SIZE,
         tokens: ["jewelry", "jewellery"],
-        children: [
-          style("Necklaces", { tokens: ["necklace"] }),
-          style("Earrings", { tokens: ["earrings"] }),
-          style("Bracelets", { tokens: ["bracelet"] }),
-        ],
+        concepts: ["jewelry"],
       },
       {
         label: "Belts",
@@ -1301,12 +1261,7 @@ const KIDS_SPECS: Spec[] = [
         age: ["all", "0-3", "4-14"],
         crossTags: ["activewear"],
         tokens: ["sweatshirt", "hoodie"],
-        children: [
-          style("Crewneck", { tokens: ["crewneck"] }),
-          style("Pullover Hoodies", { tokens: ["pullover hoodie"] }),
-          style("Zip-Up Hoodies", { tokens: ["zip up hoodie"] }),
-          style("Fleece", { tokens: ["fleece"] }),
-        ],
+        concepts: ["sweatshirt", "hoodie"],
       },
       {
         label: "Knitwear",
@@ -1346,12 +1301,7 @@ const KIDS_SPECS: Spec[] = [
             mapTo: ["Jeans"],
             age: ["all", "4-14"],
             tokens: ["jeans"],
-            children: [
-              fit("Skinny"),
-              fit("Straight"),
-              fit("Loose/Baggy"),
-              fit("Elastic Waist"),
-            ],
+            concepts: ["denim"],
           },
           {
             label: "Chinos & Cargos",
@@ -1388,13 +1338,7 @@ const KIDS_SPECS: Spec[] = [
         mapTo: ["Shorts"],
         age: ["all", "0-3", "4-14"],
         tokens: ["shorts"],
-        children: [
-          style("Denim Shorts", { tokens: ["denim shorts"] }),
-          style("Cargo Shorts", { tokens: ["cargo shorts"] }),
-          style("Sweat Shorts", { tokens: ["sweat shorts"], crossTags: ["activewear"] }),
-          style("Sports Shorts", { tokens: ["sports short"], mapTo: ["Sports Shorts"] }),
-          style("Bermuda Shorts", { tokens: ["bermuda shorts"] }),
-        ],
+        concepts: ["shorts"],
       },
       {
         label: "Skirts",
@@ -1402,6 +1346,7 @@ const KIDS_SPECS: Spec[] = [
         mapTo: ["Skirts"],
         age: ["all", "4-14"],
         tokens: ["skirt", "skirts"],
+        concepts: ["skirt"],
         children: [
           {
             label: "Skort",
@@ -1414,7 +1359,6 @@ const KIDS_SPECS: Spec[] = [
               style("Jersey", { tokens: ["jersey skirt"] }),
             ],
           },
-          style("Pleated", { tokens: ["pleated skirt"] }),
         ],
       },
     ],

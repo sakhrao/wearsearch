@@ -136,6 +136,48 @@ body {
 }
 
 /*
+   Phones: a strict single-screen window traps the questionnaire in a
+   small nested scroller. Below the sm breakpoint the window relaxes to
+   natural flow (the page itself scrolls) and the bottom action row
+   becomes a sticky, thumb-reachable bar. Tablet and desktop keep the
+   single-screen wizard.
+*/
+@media (max-width: 639px) {
+  .wizard-window {
+    height: auto;
+    overflow: visible;
+  }
+  .wizard-card {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/*
+   Bottom action row: pinned to the viewport while the questionnaire is
+   on screen on phones (above the home indicator via the safe-area
+   inset), then a plain in-flow row again from tablet up.
+*/
+.wizard-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--surface);
+}
+@supports (padding: max(0px)) {
+  .wizard-actions {
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 640px) {
+  .wizard-actions {
+    position: static;
+    background: transparent;
+  }
+}
+
+/*
    Accessibility helpers
 */
 .skip-link {
@@ -230,6 +272,39 @@ body {
 }
 
 /*
+   Step transition. Moving forward, the next question slides in from the
+   trailing edge; moving back, from the leading edge - a restrained
+   horizontal cue that the questionnaire is a carousel of single
+   questions rather than a long page.
+*/
+@keyframes step-slide-next {
+  from {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes step-slide-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.step-slide-next {
+  animation: step-slide-next 0.3s ease-out both;
+}
+.step-slide-prev {
+  animation: step-slide-prev 0.3s ease-out both;
+}
+
+/*
    Brand marquee. A seamless infinite logomark scroll with softened
    edges (mask) that runs continuously and does NOT react to pointer
    interaction; it stops only for reduced-motion clients. The track
@@ -288,7 +363,9 @@ body {
   .hero-animate {
     animation: none;
   }
-  .step-animate {
+  .step-animate,
+  .step-slide-next,
+  .step-slide-prev {
     animation: none;
   }
   .skeleton {

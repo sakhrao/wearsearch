@@ -1,0 +1,476 @@
+id	gender	label	type	parentId	childCount	mapToCount	mapTo	migrationSlugs	proposedConceptId	styleId	requiresSize	age	crossTags	status
+mens_tops_shirts_dress_shirts_formal_fit	MEN	Formal Fit	fit	mens_tops_shirts_dress_shirts	0	0			style:formal_fit	formal_fit	true			KEEP
+mens_tops_shirts_dress_shirts_classic_fit	MEN	Classic Fit	fit	mens_tops_shirts_dress_shirts	0	0			style:classic_fit	classic_fit	true			KEEP
+mens_tops_shirts_dress_shirts_slim_fit	MEN	Slim Fit	fit	mens_tops_shirts_dress_shirts	0	0			style:slim_fit	slim_fit	true			KEEP
+mens_tops_shirts_dress_shirts_super_slim_fit	MEN	Super Slim Fit	fit	mens_tops_shirts_dress_shirts	0	0			style:super_slim_fit	super_slim_fit	true			KEEP
+mens_tops_shirts_dress_shirts_athletic_fit	MEN	Athletic Fit	fit	mens_tops_shirts_dress_shirts	0	0			style:athletic_fit	athletic_fit	true			KEEP
+mens_tops_shirts_dress_shirts	MEN	Dress Shirts	subcategory	mens_tops_shirts	5	0			struct:dress_shirts		true			KEEP
+mens_tops_shirts_casual_shirts_oxford_buttondown	MEN	Oxford Button-Down	style	mens_tops_shirts_casual_shirts	0	0			style:oxford_button_down	oxford_button_down	true			KEEP
+mens_tops_shirts_casual_shirts_flannel_plaid	MEN	Flannel/Plaid	style	mens_tops_shirts_casual_shirts	0	0			style:flannel_plaid	flannel_plaid	true			KEEP
+mens_tops_shirts_casual_shirts_denim	MEN	Denim	style	mens_tops_shirts_casual_shirts	0	0			style:denim	denim	true			KEEP
+mens_tops_shirts_casual_shirts_linen	MEN	Linen	style	mens_tops_shirts_casual_shirts	0	0			style:linen	linen	true			KEEP
+mens_tops_shirts_casual_shirts_cuban_collar	MEN	Cuban Collar	style	mens_tops_shirts_casual_shirts	0	0			style:cuban_collar	cuban_collar	true			KEEP
+mens_tops_shirts_casual_shirts	MEN	Casual Shirts	subcategory	mens_tops_shirts	5	0			struct:casual_shirts		true			KEEP
+mens_tops_shirts	MEN	Shirts	subcategory	mens_tops	2	1	Shirts	shirts	cat:shirts		true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_crewneck	MEN	Crewneck	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:crewneck	crewneck	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_vneck	MEN	V-Neck	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:v_neck	v_neck	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_henley	MEN	Henley	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:henley	henley	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_longline	MEN	Longline	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:longline	longline	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_oversized	MEN	Oversized	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:oversized	oversized	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_boxy	MEN	Boxy	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:boxy	boxy	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts_scoop	MEN	Scoop	style	mens_tops_tshirts_and_polos_basic_tshirts	0	0			style:scoop	scoop	true			KEEP
+mens_tops_tshirts_and_polos_basic_tshirts	MEN	Basic T-Shirts	subcategory	mens_tops_tshirts_and_polos	7	1	T-Shirts	t-shirts	cat:t-shirts		true			KEEP
+mens_tops_tshirts_and_polos_polo_shirts_knit_polo	MEN	Knit Polo	style	mens_tops_tshirts_and_polos_polo_shirts	0	0			style:knit_polo	knit_polo	true			KEEP
+mens_tops_tshirts_and_polos_polo_shirts_pique_cotton	MEN	Pique Cotton	style	mens_tops_tshirts_and_polos_polo_shirts	0	0			style:pique_cotton	pique_cotton	true			KEEP
+mens_tops_tshirts_and_polos_polo_shirts	MEN	Polo Shirts	subcategory	mens_tops_tshirts_and_polos	2	1	Polo Shirts	polos	cat:polos		true			KEEP
+mens_tops_tshirts_and_polos_tank_tops_and_sleeveless	MEN	Tank Tops & Sleeveless	subcategory	mens_tops_tshirts_and_polos	0	1	Tank Tops	tank-tops	cat:tank-tops		true		activewear	KEEP
+mens_tops_tshirts_and_polos	MEN	T-Shirts & Polos	subcategory	mens_tops	3	2	T-Shirts|Polo Shirts		struct:tshirts_and_polos		true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers_cable_knit	MEN	Cable Knit	style	mens_tops_sweaters_and_knitwear_pullovers	0	0			style:cable_knit	cable_knit	true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers_mock_neck	MEN	Mock Neck	style	mens_tops_sweaters_and_knitwear_pullovers	0	0			style:mock_neck	mock_neck	true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers_turtleneck	MEN	Turtleneck	style	mens_tops_sweaters_and_knitwear_pullovers	0	0			style:turtleneck	turtleneck	true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers_vneck_knit	MEN	V-Neck Knit	style	mens_tops_sweaters_and_knitwear_pullovers	0	0			style:v_neck_knit	v_neck_knit	true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers_cropped_knit	MEN	Cropped Knit	style	mens_tops_sweaters_and_knitwear_pullovers	0	0			style:cropped_knit	cropped_knit	true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers_crewneck	MEN	Crewneck	style	mens_tops_sweaters_and_knitwear_pullovers	0	0			style:crewneck	crewneck	true			KEEP
+mens_tops_sweaters_and_knitwear_pullovers	MEN	Pullovers	subcategory	mens_tops_sweaters_and_knitwear	6	2	Sweaters|Jumpers	sweaters	cat:sweaters		true			KEEP
+mens_tops_sweaters_and_knitwear_cardigans_buttoned	MEN	Buttoned	style	mens_tops_sweaters_and_knitwear_cardigans	0	0			style:buttoned	buttoned	true			KEEP
+mens_tops_sweaters_and_knitwear_cardigans_shawl_collar	MEN	Shawl Collar	style	mens_tops_sweaters_and_knitwear_cardigans	0	0			style:shawl_collar	shawl_collar	true			KEEP
+mens_tops_sweaters_and_knitwear_cardigans_zippered	MEN	Zippered	style	mens_tops_sweaters_and_knitwear_cardigans	0	0			style:zippered	zippered	true			KEEP
+mens_tops_sweaters_and_knitwear_cardigans_longline	MEN	Longline	style	mens_tops_sweaters_and_knitwear_cardigans	0	0			style:longline	longline	true			KEEP
+mens_tops_sweaters_and_knitwear_cardigans	MEN	Cardigans	subcategory	mens_tops_sweaters_and_knitwear	4	1	Cardigans	cardigans	cat:cardigans		true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts_crewneck	MEN	Crewneck	style	mens_tops_sweaters_and_knitwear_sweatshirts	0	0			style:crewneck	crewneck	true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts_pullover	MEN	Pullover	style	mens_tops_sweaters_and_knitwear_sweatshirts	0	0			style:pullover	pullover	true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts_zipup	MEN	Zip-Up	style	mens_tops_sweaters_and_knitwear_sweatshirts	0	0			style:zip_up	zip_up	true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts_pullover_hoodies	MEN	Pullover Hoodies	style	mens_tops_sweaters_and_knitwear_sweatshirts	0	0			style:pullover_hoodies	pullover_hoodies	true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts_zipup_hoodies	MEN	Zip-Up Hoodies	style	mens_tops_sweaters_and_knitwear_sweatshirts	0	0			style:zip_up_hoodies	zip_up_hoodies	true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts_fleece	MEN	Fleece	style	mens_tops_sweaters_and_knitwear_sweatshirts	0	0			style:fleece	fleece	true			KEEP
+mens_tops_sweaters_and_knitwear_sweatshirts	MEN	Sweatshirts	subcategory	mens_tops_sweaters_and_knitwear	6	1	Sweatshirts	sweatshirts	cat:sweatshirts		true		activewear	KEEP
+mens_tops_sweaters_and_knitwear_hoodies_pullover_hoodies	MEN	Pullover Hoodies	style	mens_tops_sweaters_and_knitwear_hoodies	0	0			style:pullover_hoodies	pullover_hoodies	true			KEEP
+mens_tops_sweaters_and_knitwear_hoodies_zipup_hoodies	MEN	Zip-Up Hoodies	style	mens_tops_sweaters_and_knitwear_hoodies	0	0			style:zip_up_hoodies	zip_up_hoodies	true			KEEP
+mens_tops_sweaters_and_knitwear_hoodies	MEN	Hoodies	subcategory	mens_tops_sweaters_and_knitwear	2	1	Hoodies	hoodies	cat:hoodies		true		activewear	KEEP
+mens_tops_sweaters_and_knitwear	MEN	Sweaters & Knitwear	subcategory	mens_tops	4	4	Sweaters|Cardigans|Sweatshirts|Hoodies		struct:sweaters_and_knitwear		true			KEEP
+mens_tops_bodysuits	MEN	Bodysuits	subcategory	mens_tops	0	1	Bodysuits	bodysuits	cat:bodysuits		true			KEEP
+mens_tops_performance_tops_compression_tops	MEN	Compression Tops	style	mens_tops_performance_tops	0	0			style:compression_tops	compression_tops	true			KEEP
+mens_tops_performance_tops_gym_tank_tops	MEN	Gym Tank Tops	style	mens_tops_performance_tops	0	1	Tank Tops		style:gym_tank_tops	gym_tank_tops	true			KEEP
+mens_tops_performance_tops	MEN	Performance Tops	subcategory	mens_tops	2	1	Sports Tops	sports-tops	cat:sports-tops		true		activewear	KEEP
+mens_tops	MEN	Tops	category		5	0			struct:tops		true			KEEP
+mens_bottoms_jeans_skinny	MEN	Skinny	fit	mens_bottoms_jeans	0	0			style:skinny	skinny	true			KEEP
+mens_bottoms_jeans_slim	MEN	Slim	fit	mens_bottoms_jeans	0	0			style:slim	slim	true			KEEP
+mens_bottoms_jeans_regular	MEN	Regular	fit	mens_bottoms_jeans	0	0			style:regular	regular	true			KEEP
+mens_bottoms_jeans_straight	MEN	Straight	fit	mens_bottoms_jeans	0	0			style:straight	straight	true			KEEP
+mens_bottoms_jeans_relaxed	MEN	Relaxed	fit	mens_bottoms_jeans	0	0			style:relaxed	relaxed	true			KEEP
+mens_bottoms_jeans_tapered	MEN	Tapered	fit	mens_bottoms_jeans	0	0			style:tapered	tapered	true			KEEP
+mens_bottoms_jeans_bootcut	MEN	Bootcut	fit	mens_bottoms_jeans	0	0			style:bootcut	bootcut	true			KEEP
+mens_bottoms_jeans_bootcut_and_flare	MEN	Bootcut & Flare	fit	mens_bottoms_jeans	0	0			style:bootcut_and_flare	bootcut_and_flare	true			KEEP
+mens_bottoms_jeans_loose_baggy	MEN	Loose/Baggy	fit	mens_bottoms_jeans	0	0			style:loose_baggy	loose_baggy	true			KEEP
+mens_bottoms_jeans_wideleg	MEN	Wide-Leg	fit	mens_bottoms_jeans	0	0			style:wide_leg	wide_leg	true			KEEP
+mens_bottoms_jeans_boyfriend_jeans	MEN	Boyfriend Jeans	fit	mens_bottoms_jeans	0	0			style:boyfriend_jeans	boyfriend_jeans	true			KEEP
+mens_bottoms_jeans_mom_jeans	MEN	Mom Jeans	fit	mens_bottoms_jeans	0	0			style:mom_jeans	mom_jeans	true			KEEP
+mens_bottoms_jeans_elastic_waist	MEN	Elastic Waist	style	mens_bottoms_jeans	0	0			style:elastic_waist	elastic_waist	true			KEEP
+mens_bottoms_jeans	MEN	Jeans	subcategory	mens_bottoms	13	1	Jeans	jeans	cat:jeans		true			KEEP
+mens_bottoms_trousers_and_pants_dress_pants_flat_front	MEN	Flat Front	style	mens_bottoms_trousers_and_pants_dress_pants	0	0			style:flat_front	flat_front	true			KEEP
+mens_bottoms_trousers_and_pants_dress_pants_pleated	MEN	Pleated	style	mens_bottoms_trousers_and_pants_dress_pants	0	0			style:pleated	pleated	true			KEEP
+mens_bottoms_trousers_and_pants_dress_pants	MEN	Dress Pants	subcategory	mens_bottoms_trousers_and_pants	2	1	Trousers		struct:dress_pants		true			KEEP
+mens_bottoms_trousers_and_pants_chinos_classic_chino	MEN	Classic Chino	style	mens_bottoms_trousers_and_pants_chinos	0	0			style:classic_chino	classic_chino	true			KEEP
+mens_bottoms_trousers_and_pants_chinos_slim_chino	MEN	Slim Chino	style	mens_bottoms_trousers_and_pants_chinos	0	0			style:slim_chino	slim_chino	true			KEEP
+mens_bottoms_trousers_and_pants_chinos	MEN	Chinos	subcategory	mens_bottoms_trousers_and_pants	2	1	Chinos	chinos	cat:chinos		true			KEEP
+mens_bottoms_trousers_and_pants_cargo_pants_slim_cargo	MEN	Slim Cargo	style	mens_bottoms_trousers_and_pants_cargo_pants	0	0			style:slim_cargo	slim_cargo	true			KEEP
+mens_bottoms_trousers_and_pants_cargo_pants_utility_baggy_cargo	MEN	Utility Baggy Cargo	style	mens_bottoms_trousers_and_pants_cargo_pants	0	0			style:utility_baggy_cargo	utility_baggy_cargo	true			KEEP
+mens_bottoms_trousers_and_pants_cargo_pants	MEN	Cargo Pants	subcategory	mens_bottoms_trousers_and_pants	2	1	Cargo Pants	cargo	cat:cargo		true			KEEP
+mens_bottoms_trousers_and_pants_parachute_pants	MEN	Parachute Pants	subcategory	mens_bottoms_trousers_and_pants	0	1	Trousers		struct:parachute_pants		true			KEEP
+mens_bottoms_trousers_and_pants_performance_bottoms_compression_bottoms	MEN	Compression Bottoms	style	mens_bottoms_trousers_and_pants_performance_bottoms	0	0			style:compression_bottoms	compression_bottoms	true			KEEP
+mens_bottoms_trousers_and_pants_performance_bottoms_mesh_running_shorts	MEN	Mesh Running Shorts	style	mens_bottoms_trousers_and_pants_performance_bottoms	0	1	Sports Shorts		style:mesh_running_shorts	mesh_running_shorts	true			KEEP
+mens_bottoms_trousers_and_pants_performance_bottoms_track_pants	MEN	Track Pants	style	mens_bottoms_trousers_and_pants_performance_bottoms	0	1	Track Pants		style:track_pants	track_pants	true			KEEP
+mens_bottoms_trousers_and_pants_performance_bottoms	MEN	Performance Bottoms	subcategory	mens_bottoms_trousers_and_pants	3	1	Track Pants	track-pants|sports-shorts	cat:track-pants		true		activewear	KEEP
+mens_bottoms_trousers_and_pants	MEN	Trousers & Pants	subcategory	mens_bottoms	5	3	Trousers|Chinos|Cargo Pants	trousers	cat:trousers		true			KEEP
+mens_bottoms_cargo_pants_slim_cargo	MEN	Slim Cargo	style	mens_bottoms_cargo_pants	0	0			style:slim_cargo	slim_cargo	true			KEEP
+mens_bottoms_cargo_pants_utility_baggy_cargo	MEN	Utility Baggy Cargo	style	mens_bottoms_cargo_pants	0	0			style:utility_baggy_cargo	utility_baggy_cargo	true			KEEP
+mens_bottoms_cargo_pants	MEN	Cargo Pants	subcategory	mens_bottoms	2	1	Cargo Pants		struct:cargo_pants		true			DEPRECATE
+mens_bottoms_joggers_and_sweatpants_fleece	MEN	Fleece	style	mens_bottoms_joggers_and_sweatpants	0	0			style:fleece	fleece	true			KEEP
+mens_bottoms_joggers_and_sweatpants_cargo	MEN	Cargo	style	mens_bottoms_joggers_and_sweatpants	0	0			style:cargo	cargo	true			KEEP
+mens_bottoms_joggers_and_sweatpants_twill	MEN	Twill	style	mens_bottoms_joggers_and_sweatpants	0	0			style:twill	twill	true			KEEP
+mens_bottoms_joggers_and_sweatpants	MEN	Joggers & Sweatpants	subcategory	mens_bottoms	3	1	Joggers	joggers	cat:joggers		true		activewear	KEEP
+mens_bottoms_shorts_bermuda_shorts	MEN	Bermuda Shorts	style	mens_bottoms_shorts	0	0			style:bermuda_shorts	bermuda_shorts	true			KEEP
+mens_bottoms_shorts_cargo_shorts	MEN	Cargo Shorts	style	mens_bottoms_shorts	0	0			style:cargo_shorts	cargo_shorts	true			KEEP
+mens_bottoms_shorts_chino_shorts	MEN	Chino Shorts	style	mens_bottoms_shorts	0	0			style:chino_shorts	chino_shorts	true			KEEP
+mens_bottoms_shorts_denim_shorts	MEN	Denim Shorts	style	mens_bottoms_shorts	0	0			style:denim_shorts	denim_shorts	true			KEEP
+mens_bottoms_shorts_sweat_shorts	MEN	Sweat Shorts	style	mens_bottoms_shorts	0	0			style:sweat_shorts	sweat_shorts	true		activewear	KEEP
+mens_bottoms_shorts_cycling_shorts	MEN	Cycling Shorts	style	mens_bottoms_shorts	0	0			style:cycling_shorts	cycling_shorts	true		activewear	KEEP
+mens_bottoms_shorts_sports_shorts	MEN	Sports Shorts	style	mens_bottoms_shorts	0	1	Sports Shorts		style:sports_shorts	sports_shorts	true			KEEP
+mens_bottoms_shorts	MEN	Shorts	subcategory	mens_bottoms	7	1	Shorts	shorts	cat:shorts		true			KEEP
+mens_bottoms_swim_trunks_board_shorts	MEN	Board Shorts	style	mens_bottoms_swim_trunks	0	0			style:board_shorts	board_shorts	true			KEEP
+mens_bottoms_swim_trunks_rash_guards	MEN	Rash Guards	style	mens_bottoms_swim_trunks	0	0			style:rash_guards	rash_guards	true			KEEP
+mens_bottoms_swim_trunks	MEN	Swim Trunks	subcategory	mens_bottoms	2	1	Swimwear	swimwear	cat:swimwear		true			KEEP
+mens_bottoms	MEN	Bottoms	category		6	0			struct:bottoms		true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece_slim	MEN	Slim	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece	0	0			style:slim	slim	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece_modern	MEN	Modern	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece	0	0			style:modern	modern	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece_classic	MEN	Classic	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece	0	0			style:classic	classic	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece_slim_fit	MEN	Slim Fit	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece	0	0			style:slim_fit	slim_fit	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece_classic_fit	MEN	Classic Fit	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece	0	0			style:classic_fit	classic_fit	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_twopiece	MEN	Two-Piece	style	mens_onepieces_suits_and_tailoring_suits_suit_type	5	0			struct:twopiece		true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece_slim	MEN	Slim	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece	0	0			style:slim	slim	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece_modern	MEN	Modern	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece	0	0			style:modern	modern	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece_classic	MEN	Classic	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece	0	0			style:classic	classic	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece_slim_fit	MEN	Slim Fit	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece	0	0			style:slim_fit	slim_fit	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece_classic_fit	MEN	Classic Fit	fit	mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece	0	0			style:classic_fit	classic_fit	true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type_threepiece	MEN	Three-Piece	style	mens_onepieces_suits_and_tailoring_suits_suit_type	5	0			struct:threepiece		true			KEEP
+mens_onepieces_suits_and_tailoring_suits_suit_type	MEN	Suit Type	variant	mens_onepieces_suits_and_tailoring_suits	2	0			struct:suit_type		true			KEEP
+mens_onepieces_suits_and_tailoring_suits	MEN	Suits	subcategory	mens_onepieces_suits_and_tailoring	1	1	Blazers		struct:suits		true			KEEP
+mens_onepieces_suits_and_tailoring_tuxedos_lapel_style_shawl_lapel	MEN	Shawl Lapel	style	mens_onepieces_suits_and_tailoring_tuxedos_lapel_style	0	0			style:shawl_lapel	shawl_lapel	true			KEEP
+mens_onepieces_suits_and_tailoring_tuxedos_lapel_style_peak_lapel	MEN	Peak Lapel	style	mens_onepieces_suits_and_tailoring_tuxedos_lapel_style	0	0			style:peak_lapel	peak_lapel	true			KEEP
+mens_onepieces_suits_and_tailoring_tuxedos_lapel_style	MEN	Lapel Style	variant	mens_onepieces_suits_and_tailoring_tuxedos	2	0			struct:lapel_style		true			KEEP
+mens_onepieces_suits_and_tailoring_tuxedos_slim_fit	MEN	Slim Fit	fit	mens_onepieces_suits_and_tailoring_tuxedos	0	0			style:slim_fit	slim_fit	true			KEEP
+mens_onepieces_suits_and_tailoring_tuxedos_classic_fit	MEN	Classic Fit	fit	mens_onepieces_suits_and_tailoring_tuxedos	0	0			style:classic_fit	classic_fit	true			KEEP
+mens_onepieces_suits_and_tailoring_tuxedos	MEN	Tuxedos	subcategory	mens_onepieces_suits_and_tailoring	3	1	Blazers		struct:tuxedos		true			KEEP
+mens_onepieces_suits_and_tailoring_blazers_and_sport_coats	MEN	Blazers & Sport Coats	subcategory	mens_onepieces_suits_and_tailoring	0	1	Blazers		struct:blazers_and_sport_coats		true			KEEP
+mens_onepieces_suits_and_tailoring	MEN	Suits & Tailoring	subcategory	mens_onepieces	3	1	Blazers	blazers	cat:blazers		true			KEEP
+mens_onepieces_jumpsuits_and_overalls_jumpsuits	MEN	Jumpsuits	style	mens_onepieces_jumpsuits_and_overalls	0	0			style:jumpsuits	jumpsuits	true			KEEP
+mens_onepieces_jumpsuits_and_overalls_overalls_dungarees	MEN	Overalls/Dungarees	style	mens_onepieces_jumpsuits_and_overalls	0	0			style:overalls_dungarees	overalls_dungarees	true			KEEP
+mens_onepieces_jumpsuits_and_overalls_boilersuits	MEN	Boilersuits	style	mens_onepieces_jumpsuits_and_overalls	0	0			style:boilersuits	boilersuits	true			KEEP
+mens_onepieces_jumpsuits_and_overalls	MEN	Jumpsuits & Overalls	subcategory	mens_onepieces	3	1	Jumpsuits	jumpsuits	cat:jumpsuits		true			KEEP
+mens_onepieces	MEN	One-Pieces	category		2	0			struct:onepieces		true			KEEP
+mens_outerwear_jackets_bomber_jackets	MEN	Bomber Jackets	style	mens_outerwear_jackets	0	0			style:bomber_jackets	bomber_jackets	true			KEEP
+mens_outerwear_jackets_bomber_and_tweed	MEN	Bomber & Tweed	style	mens_outerwear_jackets	0	0			style:bomber_tweed	bomber_tweed	true			KEEP
+mens_outerwear_jackets_leather_jackets	MEN	Leather Jackets	style	mens_outerwear_jackets	0	0			style:leather_jackets	leather_jackets	true			KEEP
+mens_outerwear_jackets_track_jackets	MEN	Track Jackets	style	mens_outerwear_jackets	0	0			style:track_jackets	track_jackets	true		activewear	KEEP
+mens_outerwear_jackets_trucker_denim_jackets	MEN	Trucker Denim Jackets	style	mens_outerwear_jackets	0	0			style:trucker_denim_jackets	trucker_denim_jackets	true			KEEP
+mens_outerwear_jackets_denim_jackets	MEN	Denim Jackets	style	mens_outerwear_jackets	0	0			style:denim_jackets	denim_jackets	true			KEEP
+mens_outerwear_jackets_windbreakers	MEN	Windbreakers	style	mens_outerwear_jackets	0	0			style:windbreakers	windbreakers	true			KEEP
+mens_outerwear_jackets	MEN	Jackets	subcategory	mens_outerwear	7	1	Jackets	jackets	cat:jackets		true			KEEP
+mens_outerwear_coats_wool_coats	MEN	Wool Coats	style	mens_outerwear_coats	0	0			style:wool_coats	wool_coats	true			KEEP
+mens_outerwear_coats_overcoats_wool_coats	MEN	Overcoats/Wool Coats	style	mens_outerwear_coats	0	0			style:overcoats_wool_coats	overcoats_wool_coats	true			KEEP
+mens_outerwear_coats_parkas	MEN	Parkas	style	mens_outerwear_coats	0	1	Parkas		style:parkas	parkas	true			KEEP
+mens_outerwear_coats_puffer_coats	MEN	Puffer Coats	style	mens_outerwear_coats	0	0			style:puffer_coats	puffer_coats	true			KEEP
+mens_outerwear_coats_puffer_jackets	MEN	Puffer Jackets	style	mens_outerwear_coats	0	1	Puffer Jackets		style:puffer_jackets	puffer_jackets	true			KEEP
+mens_outerwear_coats_trench_coats	MEN	Trench Coats	style	mens_outerwear_coats	0	0			style:trench_coats	trench_coats	true			KEEP
+mens_outerwear_coats_raincoats	MEN	Raincoats	style	mens_outerwear_coats	0	0			style:raincoats	raincoats	true			KEEP
+mens_outerwear_coats	MEN	Coats	subcategory	mens_outerwear	7	3	Coats|Parkas|Puffer Jackets	coats|parkas|puffer-jackets	cat:coats		true			KEEP
+mens_outerwear_vests	MEN	Vests	subcategory	mens_outerwear	0	1	Vests	vests	cat:vests		true			KEEP
+mens_outerwear_tracksuits	MEN	Tracksuits	subcategory	mens_outerwear	0	1	Sports Tops		struct:tracksuits		true		activewear	KEEP
+mens_outerwear	MEN	Outerwear	category		4	0			struct:outerwear		true			KEEP
+mens_underwear_and_sleepwear_underwear_boxer_briefs	MEN	Boxer Briefs	style	mens_underwear_and_sleepwear_underwear	0	0			style:boxer_briefs	boxer_briefs	true			KEEP
+mens_underwear_and_sleepwear_underwear_briefs	MEN	Briefs	style	mens_underwear_and_sleepwear_underwear	0	0			style:briefs	briefs	true			KEEP
+mens_underwear_and_sleepwear_underwear_undershirts	MEN	Undershirts	style	mens_underwear_and_sleepwear_underwear	0	0			style:undershirts	undershirts	true			KEEP
+mens_underwear_and_sleepwear_underwear_thermal_layers	MEN	Thermal Layers	style	mens_underwear_and_sleepwear_underwear	0	0			style:thermal_layers	thermal_layers	true			KEEP
+mens_underwear_and_sleepwear_underwear	MEN	Underwear	subcategory	mens_underwear_and_sleepwear	4	1	Underwear	underwear	cat:underwear		true			KEEP
+mens_underwear_and_sleepwear_sleepwear_pajama_sets	MEN	Pajama Sets	style	mens_underwear_and_sleepwear_sleepwear	0	0			style:pajama_sets	pajama_sets	true			KEEP
+mens_underwear_and_sleepwear_sleepwear_robes	MEN	Robes	style	mens_underwear_and_sleepwear_sleepwear	0	0			style:robes	robes	true			KEEP
+mens_underwear_and_sleepwear_sleepwear	MEN	Sleepwear	subcategory	mens_underwear_and_sleepwear	2	1	Underwear		struct:sleepwear		true			KEEP
+mens_underwear_and_sleepwear_socks	MEN	Socks	subcategory	mens_underwear_and_sleepwear	0	1	Socks	socks	cat:socks		true			KEEP
+mens_underwear_and_sleepwear	MEN	Underwear & Sleepwear	category		3	0			struct:underwear_and_sleepwear		true			KEEP
+mens_shoes_dress_shoes_oxfords	MEN	Oxfords	style	mens_shoes_dress_shoes	0	0			style:oxfords	oxfords	true			KEEP
+mens_shoes_dress_shoes_derbies	MEN	Derbies	style	mens_shoes_dress_shoes	0	0			style:derbies	derbies	true			KEEP
+mens_shoes_dress_shoes_loafers	MEN	Loafers	style	mens_shoes_dress_shoes	0	1	Loafers		style:loafers	loafers	true			KEEP
+mens_shoes_dress_shoes_monk_straps	MEN	Monk Straps	style	mens_shoes_dress_shoes	0	0			style:monk_straps	monk_straps	true			KEEP
+mens_shoes_dress_shoes_chelsea_boots	MEN	Chelsea Boots	style	mens_shoes_dress_shoes	0	1	Boots		style:chelsea_boots	chelsea_boots	true			KEEP
+mens_shoes_dress_shoes	MEN	Dress Shoes	subcategory	mens_shoes	5	1	Formal Shoes	loafers|formal-shoes	cat:loafers		true			KEEP
+mens_shoes_casual_and_sneakers_running_shoes	MEN	Running Shoes	style	mens_shoes_casual_and_sneakers	0	1	Running Trainers		style:running_shoes	running_shoes	true			KEEP
+mens_shoes_casual_and_sneakers_gym_sneakers	MEN	Gym Sneakers	style	mens_shoes_casual_and_sneakers	0	0			style:gym_sneakers	gym_sneakers	true			KEEP
+mens_shoes_casual_and_sneakers_white_canvas_sneakers	MEN	White Canvas Sneakers	style	mens_shoes_casual_and_sneakers	0	0			style:white_canvas_sneakers	white_canvas_sneakers	true			KEEP
+mens_shoes_casual_and_sneakers	MEN	Casual & Sneakers	subcategory	mens_shoes	3	1	Sneakers	sneakers|running-trainers	cat:sneakers		true		activewear	KEEP
+mens_shoes_sandals_and_slides	MEN	Sandals & Slides	subcategory	mens_shoes	0	1	Sandals	sandals	cat:sandals		true			KEEP
+mens_shoes_boots	MEN	Boots	subcategory	mens_shoes	0	1	Boots	boots	cat:boots		true			KEEP
+mens_shoes	MEN	Shoes	category		4	0			struct:shoes		true			KEEP
+mens_accessories_belts	MEN	Belts	subcategory	mens_accessories	0	1	Belts	belts	cat:belts		false			KEEP
+mens_accessories_ties_and_bow_ties	MEN	Ties & Bow Ties	subcategory	mens_accessories	0	1	Ties & Bow Ties	ties-bow-ties	cat:ties-bow-ties		false			KEEP
+mens_accessories_sunglasses	MEN	Sunglasses	subcategory	mens_accessories	0	1	Sunglasses	sunglasses	cat:sunglasses		false			KEEP
+mens_accessories_watches	MEN	Watches	subcategory	mens_accessories	0	1	Watches	watches	cat:watches		false			KEEP
+mens_accessories_jewelry_bracelets	MEN	Bracelets	style	mens_accessories_jewelry	0	0			style:bracelets	bracelets	true			KEEP
+mens_accessories_jewelry_necklaces	MEN	Necklaces	style	mens_accessories_jewelry	0	0			style:necklaces	necklaces	true			KEEP
+mens_accessories_jewelry_rings	MEN	Rings	style	mens_accessories_jewelry	0	0			style:rings	rings	true			KEEP
+mens_accessories_jewelry_earrings	MEN	Earrings	style	mens_accessories_jewelry	0	0			style:earrings	earrings	true			KEEP
+mens_accessories_jewelry	MEN	Jewelry	subcategory	mens_accessories	4	1	Jewelry	jewelry	cat:jewelry		false			KEEP
+mens_accessories_scarves_and_hijabs	MEN	Scarves & Hijabs	subcategory	mens_accessories	0	1	Scarves and Hijabs	scarves-hijabs	cat:scarves-hijabs		false			KEEP
+mens_accessories_headwear_beanies	MEN	Beanies	style	mens_accessories_headwear	0	1	Beanies		style:beanies	beanies	true			KEEP
+mens_accessories_headwear_hats	MEN	Hats	style	mens_accessories_headwear	0	1	Hats		style:hats	hats	true			KEEP
+mens_accessories_headwear_caps	MEN	Caps	style	mens_accessories_headwear	0	1	Caps		style:caps	caps	true			KEEP
+mens_accessories_headwear	MEN	Headwear	subcategory	mens_accessories	3	3	Beanies|Hats|Caps	beanies|hats|caps	cat:beanies		true			KEEP
+mens_accessories	MEN	Accessories	category		7	0			struct:accessories		true			KEEP
+womens_tops_shirts_and_blouses_buttondown_shirts_classic_fit	WOMEN	Classic Fit	style	womens_tops_shirts_and_blouses_buttondown_shirts	0	0			style:classic_fit	classic_fit	true			KEEP
+womens_tops_shirts_and_blouses_buttondown_shirts_oversized	WOMEN	Oversized	style	womens_tops_shirts_and_blouses_buttondown_shirts	0	0			style:oversized	oversized	true			KEEP
+womens_tops_shirts_and_blouses_buttondown_shirts_cropped	WOMEN	Cropped	style	womens_tops_shirts_and_blouses_buttondown_shirts	0	0			style:cropped	cropped	true			KEEP
+womens_tops_shirts_and_blouses_buttondown_shirts	WOMEN	Button-Down Shirts	subcategory	womens_tops_shirts_and_blouses	3	1	Shirts		struct:buttondown_shirts		true			KEEP
+womens_tops_shirts_and_blouses_blouses_chiffon	WOMEN	Chiffon	style	womens_tops_shirts_and_blouses_blouses	0	0			style:chiffon	chiffon	true			KEEP
+womens_tops_shirts_and_blouses_blouses_silk	WOMEN	Silk	style	womens_tops_shirts_and_blouses_blouses	0	0			style:silk	silk	true			KEEP
+womens_tops_shirts_and_blouses_blouses_lace	WOMEN	Lace	style	womens_tops_shirts_and_blouses_blouses	0	0			style:lace	lace	true			KEEP
+womens_tops_shirts_and_blouses_blouses	WOMEN	Blouses	subcategory	womens_tops_shirts_and_blouses	3	1	Blouses	blouses	cat:blouses		true			KEEP
+womens_tops_shirts_and_blouses	WOMEN	Shirts & Blouses	subcategory	womens_tops	2	2	Shirts|Blouses	shirts	cat:shirts		true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_crewneck	WOMEN	Crewneck	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:crewneck	crewneck	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_vneck	WOMEN	V-Neck	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:v_neck	v_neck	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_henley	WOMEN	Henley	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:henley	henley	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_longline	WOMEN	Longline	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:longline	longline	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_oversized	WOMEN	Oversized	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:oversized	oversized	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_boxy	WOMEN	Boxy	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:boxy	boxy	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts_scoop	WOMEN	Scoop	style	womens_tops_tshirts_and_basics_basic_tshirts	0	0			style:scoop	scoop	true			KEEP
+womens_tops_tshirts_and_basics_basic_tshirts	WOMEN	Basic T-Shirts	subcategory	womens_tops_tshirts_and_basics	7	1	T-Shirts	t-shirts	cat:t-shirts		true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles_bandeau	WOMEN	Bandeau	style	womens_tops_tshirts_and_basics_tank_tops_and_camisoles	0	0			style:bandeau	bandeau	true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles_camisole	WOMEN	Camisole	style	womens_tops_tshirts_and_basics_tank_tops_and_camisoles	0	0			style:camisole	camisole	true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles_tube_top	WOMEN	Tube Top	style	womens_tops_tshirts_and_basics_tank_tops_and_camisoles	0	0			style:tube_top	tube_top	true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles_longline_tops	WOMEN	Longline Tops	style	womens_tops_tshirts_and_basics_tank_tops_and_camisoles	0	0			style:longline_tops	longline_tops	true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles_vneck	WOMEN	V-Neck	style	womens_tops_tshirts_and_basics_tank_tops_and_camisoles	0	0			style:v_neck	v_neck	true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles_scoop	WOMEN	Scoop	style	womens_tops_tshirts_and_basics_tank_tops_and_camisoles	0	0			style:scoop	scoop	true			KEEP
+womens_tops_tshirts_and_basics_tank_tops_and_camisoles	WOMEN	Tank Tops & Camisoles	subcategory	womens_tops_tshirts_and_basics	6	1	Tank Tops	tank-tops	cat:tank-tops		true		activewear	KEEP
+womens_tops_tshirts_and_basics_corsets_and_bodysuits	WOMEN	Corsets & Bodysuits	subcategory	womens_tops_tshirts_and_basics	0	1	Bodysuits	bodysuits	cat:bodysuits		true			KEEP
+womens_tops_tshirts_and_basics	WOMEN	T-Shirts & Basics	subcategory	womens_tops	3	2	T-Shirts|Tank Tops		struct:tshirts_and_basics		true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers_cable_knit	WOMEN	Cable Knit	style	womens_tops_sweaters_and_knitwear_pullovers	0	0			style:cable_knit	cable_knit	true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers_mock_neck	WOMEN	Mock Neck	style	womens_tops_sweaters_and_knitwear_pullovers	0	0			style:mock_neck	mock_neck	true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers_turtleneck	WOMEN	Turtleneck	style	womens_tops_sweaters_and_knitwear_pullovers	0	0			style:turtleneck	turtleneck	true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers_vneck_knit	WOMEN	V-Neck Knit	style	womens_tops_sweaters_and_knitwear_pullovers	0	0			style:v_neck_knit	v_neck_knit	true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers_cropped_knit	WOMEN	Cropped Knit	style	womens_tops_sweaters_and_knitwear_pullovers	0	0			style:cropped_knit	cropped_knit	true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers_crewneck	WOMEN	Crewneck	style	womens_tops_sweaters_and_knitwear_pullovers	0	0			style:crewneck	crewneck	true			KEEP
+womens_tops_sweaters_and_knitwear_pullovers	WOMEN	Pullovers	subcategory	womens_tops_sweaters_and_knitwear	6	2	Sweaters|Jumpers	sweaters	cat:sweaters		true			KEEP
+womens_tops_sweaters_and_knitwear_cardigans_buttoned	WOMEN	Buttoned	style	womens_tops_sweaters_and_knitwear_cardigans	0	0			style:buttoned	buttoned	true			KEEP
+womens_tops_sweaters_and_knitwear_cardigans_shawl_collar	WOMEN	Shawl Collar	style	womens_tops_sweaters_and_knitwear_cardigans	0	0			style:shawl_collar	shawl_collar	true			KEEP
+womens_tops_sweaters_and_knitwear_cardigans_zippered	WOMEN	Zippered	style	womens_tops_sweaters_and_knitwear_cardigans	0	0			style:zippered	zippered	true			KEEP
+womens_tops_sweaters_and_knitwear_cardigans_longline	WOMEN	Longline	style	womens_tops_sweaters_and_knitwear_cardigans	0	0			style:longline	longline	true			KEEP
+womens_tops_sweaters_and_knitwear_cardigans	WOMEN	Cardigans	subcategory	womens_tops_sweaters_and_knitwear	4	1	Cardigans	cardigans	cat:cardigans		true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies_crewneck	WOMEN	Crewneck	style	womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	0	0			style:crewneck	crewneck	true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies_pullover	WOMEN	Pullover	style	womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	0	0			style:pullover	pullover	true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies_zipup	WOMEN	Zip-Up	style	womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	0	0			style:zip_up	zip_up	true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies_pullover_hoodies	WOMEN	Pullover Hoodies	style	womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	0	0			style:pullover_hoodies	pullover_hoodies	true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies_zipup_hoodies	WOMEN	Zip-Up Hoodies	style	womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	0	0			style:zip_up_hoodies	zip_up_hoodies	true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies_fleece	WOMEN	Fleece	style	womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	0	0			style:fleece	fleece	true			KEEP
+womens_tops_sweaters_and_knitwear_sweatshirts_and_hoodies	WOMEN	Sweatshirts & Hoodies	subcategory	womens_tops_sweaters_and_knitwear	6	2	Sweatshirts|Hoodies	sweatshirts|hoodies	cat:sweatshirts		true		activewear	KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_yoga_tops	WOMEN	Yoga Tops	style	womens_tops_sweaters_and_knitwear_yoga_and_studio_tops	0	1	Sports Tops		style:yoga_tops	yoga_tops	true			KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_longline_tops	WOMEN	Longline Tops	style	womens_tops_sweaters_and_knitwear_yoga_and_studio_tops	0	0			style:longline_tops	longline_tops	true			KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras_high_impact	WOMEN	High Impact	style	womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras	0	0			style:high_impact	high_impact	true			KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras_medium_support	WOMEN	Medium Support	style	womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras	0	0			style:medium_support	medium_support	true			KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras_low_impact	WOMEN	Low Impact	style	womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras	0	0			style:low_impact	low_impact	true			KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops_sports_bras	WOMEN	Sports Bras	style	womens_tops_sweaters_and_knitwear_yoga_and_studio_tops	3	1	Sports Bras	sports-bras	style:sports_bras	sports_bras	true		activewear	KEEP
+womens_tops_sweaters_and_knitwear_yoga_and_studio_tops	WOMEN	Yoga & Studio Tops	subcategory	womens_tops_sweaters_and_knitwear	3	1	Sports Tops	sports-tops	cat:sports-tops		true		activewear	KEEP
+womens_tops_sweaters_and_knitwear	WOMEN	Sweaters & Knitwear	subcategory	womens_tops	4	4	Sweaters|Cardigans|Sweatshirts|Hoodies		struct:sweaters_and_knitwear		true			KEEP
+womens_tops	WOMEN	Tops	category		3	0			struct:tops		true			KEEP
+womens_bottoms_jeans_skinny	WOMEN	Skinny	fit	womens_bottoms_jeans	0	0			style:skinny	skinny	true			KEEP
+womens_bottoms_jeans_slim	WOMEN	Slim	fit	womens_bottoms_jeans	0	0			style:slim	slim	true			KEEP
+womens_bottoms_jeans_regular	WOMEN	Regular	fit	womens_bottoms_jeans	0	0			style:regular	regular	true			KEEP
+womens_bottoms_jeans_straight	WOMEN	Straight	fit	womens_bottoms_jeans	0	0			style:straight	straight	true			KEEP
+womens_bottoms_jeans_relaxed	WOMEN	Relaxed	fit	womens_bottoms_jeans	0	0			style:relaxed	relaxed	true			KEEP
+womens_bottoms_jeans_tapered	WOMEN	Tapered	fit	womens_bottoms_jeans	0	0			style:tapered	tapered	true			KEEP
+womens_bottoms_jeans_bootcut	WOMEN	Bootcut	fit	womens_bottoms_jeans	0	0			style:bootcut	bootcut	true			KEEP
+womens_bottoms_jeans_bootcut_and_flare	WOMEN	Bootcut & Flare	fit	womens_bottoms_jeans	0	0			style:bootcut_and_flare	bootcut_and_flare	true			KEEP
+womens_bottoms_jeans_loose_baggy	WOMEN	Loose/Baggy	fit	womens_bottoms_jeans	0	0			style:loose_baggy	loose_baggy	true			KEEP
+womens_bottoms_jeans_wideleg	WOMEN	Wide-Leg	fit	womens_bottoms_jeans	0	0			style:wide_leg	wide_leg	true			KEEP
+womens_bottoms_jeans_boyfriend_jeans	WOMEN	Boyfriend Jeans	fit	womens_bottoms_jeans	0	0			style:boyfriend_jeans	boyfriend_jeans	true			KEEP
+womens_bottoms_jeans_mom_jeans	WOMEN	Mom Jeans	fit	womens_bottoms_jeans	0	0			style:mom_jeans	mom_jeans	true			KEEP
+womens_bottoms_jeans_elastic_waist	WOMEN	Elastic Waist	style	womens_bottoms_jeans	0	0			style:elastic_waist	elastic_waist	true			KEEP
+womens_bottoms_jeans	WOMEN	Jeans	subcategory	womens_bottoms	13	1	Jeans	jeans	cat:jeans		true			KEEP
+womens_bottoms_trousers_and_pants_tailored_trousers_palazzo	WOMEN	Palazzo	style	womens_bottoms_trousers_and_pants_tailored_trousers	0	0			style:palazzo	palazzo	true			KEEP
+womens_bottoms_trousers_and_pants_tailored_trousers_culottes	WOMEN	Culottes	style	womens_bottoms_trousers_and_pants_tailored_trousers	0	0			style:culottes	culottes	true			KEEP
+womens_bottoms_trousers_and_pants_tailored_trousers_cigarette	WOMEN	Cigarette	style	womens_bottoms_trousers_and_pants_tailored_trousers	0	0			style:cigarette	cigarette	true			KEEP
+womens_bottoms_trousers_and_pants_tailored_trousers_wideleg_trousers	WOMEN	Wide-Leg Trousers	style	womens_bottoms_trousers_and_pants_tailored_trousers	0	0			style:wide_leg_trousers	wide_leg_trousers	true			KEEP
+womens_bottoms_trousers_and_pants_tailored_trousers	WOMEN	Tailored Trousers	subcategory	womens_bottoms_trousers_and_pants	4	1	Trousers		struct:tailored_trousers		true			KEEP
+womens_bottoms_trousers_and_pants_chinos	WOMEN	Chinos	subcategory	womens_bottoms_trousers_and_pants	0	1	Chinos	chinos	cat:chinos		true			KEEP
+womens_bottoms_trousers_and_pants_leggings_and_jeggings_classic	WOMEN	Classic	fit	womens_bottoms_trousers_and_pants_leggings_and_jeggings	0	0			style:classic	classic	true			KEEP
+womens_bottoms_trousers_and_pants_leggings_and_jeggings_distressed	WOMEN	Distressed	style	womens_bottoms_trousers_and_pants_leggings_and_jeggings	0	0			style:distressed	distressed	true			KEEP
+womens_bottoms_trousers_and_pants_leggings_and_jeggings_yoga_leggings	WOMEN	Yoga Leggings	style	womens_bottoms_trousers_and_pants_leggings_and_jeggings	0	0			style:yoga_leggings	yoga_leggings	true			KEEP
+womens_bottoms_trousers_and_pants_leggings_and_jeggings	WOMEN	Leggings & Jeggings	subcategory	womens_bottoms_trousers_and_pants	3	1	Leggings	leggings	cat:leggings		true		activewear	KEEP
+womens_bottoms_trousers_and_pants_joggers_and_sweatpants_fleece_joggers	WOMEN	Fleece Joggers	style	womens_bottoms_trousers_and_pants_joggers_and_sweatpants	0	0			style:fleece_joggers	fleece_joggers	true			KEEP
+womens_bottoms_trousers_and_pants_joggers_and_sweatpants_cargo_joggers	WOMEN	Cargo Joggers	style	womens_bottoms_trousers_and_pants_joggers_and_sweatpants	0	0			style:cargo_joggers	cargo_joggers	true			KEEP
+womens_bottoms_trousers_and_pants_joggers_and_sweatpants	WOMEN	Joggers & Sweatpants	subcategory	womens_bottoms_trousers_and_pants	2	1	Joggers	joggers	cat:joggers		true		activewear	KEEP
+womens_bottoms_trousers_and_pants	WOMEN	Trousers & Pants	subcategory	womens_bottoms	4	3	Trousers|Chinos|Leggings	trousers	cat:trousers		true			KEEP
+womens_bottoms_skirts_aline	WOMEN	A-Line	style	womens_bottoms_skirts	0	0			style:a_line	a_line	true			KEEP
+womens_bottoms_skirts_pencil	WOMEN	Pencil	style	womens_bottoms_skirts	0	0			style:pencil	pencil	true			KEEP
+womens_bottoms_skirts_pleated	WOMEN	Pleated	style	womens_bottoms_skirts	0	0			style:pleated	pleated	true			KEEP
+womens_bottoms_skirts_slit	WOMEN	Slit	style	womens_bottoms_skirts	0	0			style:slit	slit	true			KEEP
+womens_bottoms_skirts_tiered_and_ruffle	WOMEN	Tiered & Ruffle	style	womens_bottoms_skirts	0	0			style:tiered_ruffle	tiered_ruffle	true			KEEP
+womens_bottoms_skirts_denim	WOMEN	Denim	style	womens_bottoms_skirts	0	0			style:denim	denim	true			KEEP
+womens_bottoms_skirts	WOMEN	Skirts	subcategory	womens_bottoms	6	1	Skirts	skirts	cat:skirts		true			KEEP
+womens_bottoms_shorts_bermuda_shorts	WOMEN	Bermuda Shorts	style	womens_bottoms_shorts	0	0			style:bermuda_shorts	bermuda_shorts	true			KEEP
+womens_bottoms_shorts_cargo_shorts	WOMEN	Cargo Shorts	style	womens_bottoms_shorts	0	0			style:cargo_shorts	cargo_shorts	true			KEEP
+womens_bottoms_shorts_chino_shorts	WOMEN	Chino Shorts	style	womens_bottoms_shorts	0	0			style:chino_shorts	chino_shorts	true			KEEP
+womens_bottoms_shorts_denim_shorts	WOMEN	Denim Shorts	style	womens_bottoms_shorts	0	0			style:denim_shorts	denim_shorts	true			KEEP
+womens_bottoms_shorts_sweat_shorts	WOMEN	Sweat Shorts	style	womens_bottoms_shorts	0	0			style:sweat_shorts	sweat_shorts	true		activewear	KEEP
+womens_bottoms_shorts_cycling_shorts	WOMEN	Cycling Shorts	style	womens_bottoms_shorts	0	0			style:cycling_shorts	cycling_shorts	true		activewear	KEEP
+womens_bottoms_shorts_sports_shorts	WOMEN	Sports Shorts	style	womens_bottoms_shorts	0	1	Sports Shorts		style:sports_shorts	sports_shorts	true			KEEP
+womens_bottoms_shorts	WOMEN	Shorts	subcategory	womens_bottoms	7	1	Shorts	shorts	cat:shorts		true			KEEP
+womens_bottoms_yoga_and_studio_bottoms_yoga_leggings	WOMEN	Yoga Leggings	style	womens_bottoms_yoga_and_studio_bottoms	0	1	Leggings		style:yoga_leggings	yoga_leggings	true			KEEP
+womens_bottoms_yoga_and_studio_bottoms_bike_shorts	WOMEN	Bike Shorts	style	womens_bottoms_yoga_and_studio_bottoms	0	0			style:bike_shorts	bike_shorts	true			KEEP
+womens_bottoms_yoga_and_studio_bottoms_flares_and_leg_warmers	WOMEN	Flares & Leg Warmers	style	womens_bottoms_yoga_and_studio_bottoms	0	0			style:flares_leg_warmers	flares_leg_warmers	true			KEEP
+womens_bottoms_yoga_and_studio_bottoms	WOMEN	Yoga & Studio Bottoms	subcategory	womens_bottoms	3	1	Leggings		struct:yoga_and_studio_bottoms		true		activewear	KEEP
+womens_bottoms	WOMEN	Bottoms	category		5	0			struct:bottoms		true			KEEP
+womens_onepieces_dresses_casual_dresses_shirt_dress	WOMEN	Shirt Dress	style	womens_onepieces_dresses_casual_dresses	0	0			style:shirt_dress	shirt_dress	true			KEEP
+womens_onepieces_dresses_casual_dresses_wrap_dress	WOMEN	Wrap Dress	style	womens_onepieces_dresses_casual_dresses	0	0			style:wrap_dress	wrap_dress	true			KEEP
+womens_onepieces_dresses_casual_dresses_slip_dress	WOMEN	Slip Dress	style	womens_onepieces_dresses_casual_dresses	0	0			style:slip_dress	slip_dress	true			KEEP
+womens_onepieces_dresses_casual_dresses_sundress	WOMEN	Sundress	style	womens_onepieces_dresses_casual_dresses	0	0			style:sundress	sundress	true			KEEP
+womens_onepieces_dresses_casual_dresses_tshirt_dress	WOMEN	T-Shirt Dress	style	womens_onepieces_dresses_casual_dresses	0	0			style:t_shirt_dress	t_shirt_dress	true			KEEP
+womens_onepieces_dresses_casual_dresses	WOMEN	Casual Dresses	subcategory	womens_onepieces_dresses	5	1	Dresses		struct:casual_dresses		true			KEEP
+womens_onepieces_dresses_formal_and_evening_dresses_cocktail_dresses	WOMEN	Cocktail Dresses	style	womens_onepieces_dresses_formal_and_evening_dresses	0	0			style:cocktail_dresses	cocktail_dresses	true			KEEP
+womens_onepieces_dresses_formal_and_evening_dresses_maxi_dresses	WOMEN	Maxi Dresses	style	womens_onepieces_dresses_formal_and_evening_dresses	0	0			style:maxi_dresses	maxi_dresses	true			KEEP
+womens_onepieces_dresses_formal_and_evening_dresses_gowns	WOMEN	Gowns	style	womens_onepieces_dresses_formal_and_evening_dresses	0	0			style:gowns	gowns	true			KEEP
+womens_onepieces_dresses_formal_and_evening_dresses	WOMEN	Formal & Evening Dresses	subcategory	womens_onepieces_dresses	3	1	Dresses		struct:formal_and_evening_dresses		true			KEEP
+womens_onepieces_dresses	WOMEN	Dresses	subcategory	womens_onepieces	2	1	Dresses	dresses	cat:dresses		true			KEEP
+womens_onepieces_jumpsuits_and_rompers_jumpsuits	WOMEN	Jumpsuits	style	womens_onepieces_jumpsuits_and_rompers	0	0			style:jumpsuits	jumpsuits	true			KEEP
+womens_onepieces_jumpsuits_and_rompers_rompers	WOMEN	Rompers	style	womens_onepieces_jumpsuits_and_rompers	0	0			style:rompers	rompers	true			KEEP
+womens_onepieces_jumpsuits_and_rompers	WOMEN	Jumpsuits & Rompers	subcategory	womens_onepieces	2	1	Jumpsuits	jumpsuits	cat:jumpsuits		true			KEEP
+womens_onepieces	WOMEN	One-Pieces	category		2	0			struct:onepieces		true			KEEP
+womens_outerwear_jackets_bomber_jackets	WOMEN	Bomber Jackets	style	womens_outerwear_jackets	0	0			style:bomber_jackets	bomber_jackets	true			KEEP
+womens_outerwear_jackets_bomber_and_tweed	WOMEN	Bomber & Tweed	style	womens_outerwear_jackets	0	0			style:bomber_tweed	bomber_tweed	true			KEEP
+womens_outerwear_jackets_leather_jackets	WOMEN	Leather Jackets	style	womens_outerwear_jackets	0	0			style:leather_jackets	leather_jackets	true			KEEP
+womens_outerwear_jackets_track_jackets	WOMEN	Track Jackets	style	womens_outerwear_jackets	0	0			style:track_jackets	track_jackets	true		activewear	KEEP
+womens_outerwear_jackets_trucker_denim_jackets	WOMEN	Trucker Denim Jackets	style	womens_outerwear_jackets	0	0			style:trucker_denim_jackets	trucker_denim_jackets	true			KEEP
+womens_outerwear_jackets_denim_jackets	WOMEN	Denim Jackets	style	womens_outerwear_jackets	0	0			style:denim_jackets	denim_jackets	true			KEEP
+womens_outerwear_jackets_windbreakers	WOMEN	Windbreakers	style	womens_outerwear_jackets	0	0			style:windbreakers	windbreakers	true			KEEP
+womens_outerwear_jackets	WOMEN	Jackets	subcategory	womens_outerwear	7	2	Jackets|Blazers	jackets|blazers	cat:jackets		true			KEEP
+womens_outerwear_coats_wool_coats	WOMEN	Wool Coats	style	womens_outerwear_coats	0	0			style:wool_coats	wool_coats	true			KEEP
+womens_outerwear_coats_overcoats_wool_coats	WOMEN	Overcoats/Wool Coats	style	womens_outerwear_coats	0	0			style:overcoats_wool_coats	overcoats_wool_coats	true			KEEP
+womens_outerwear_coats_parkas	WOMEN	Parkas	style	womens_outerwear_coats	0	1	Parkas		style:parkas	parkas	true			KEEP
+womens_outerwear_coats_puffer_coats	WOMEN	Puffer Coats	style	womens_outerwear_coats	0	0			style:puffer_coats	puffer_coats	true			KEEP
+womens_outerwear_coats_puffer_jackets	WOMEN	Puffer Jackets	style	womens_outerwear_coats	0	1	Puffer Jackets		style:puffer_jackets	puffer_jackets	true			KEEP
+womens_outerwear_coats_trench_coats	WOMEN	Trench Coats	style	womens_outerwear_coats	0	0			style:trench_coats	trench_coats	true			KEEP
+womens_outerwear_coats_raincoats	WOMEN	Raincoats	style	womens_outerwear_coats	0	0			style:raincoats	raincoats	true			KEEP
+womens_outerwear_coats	WOMEN	Coats	subcategory	womens_outerwear	7	3	Coats|Parkas|Puffer Jackets	coats|parkas|puffer-jackets	cat:coats		true			KEEP
+womens_outerwear_vests	WOMEN	Vests	subcategory	womens_outerwear	0	1	Vests	vests	cat:vests		true			KEEP
+womens_outerwear_tracksuits	WOMEN	Tracksuits	subcategory	womens_outerwear	0	1	Sports Tops		struct:tracksuits		true		activewear	KEEP
+womens_outerwear	WOMEN	Outerwear	category		4	0			struct:outerwear		true			KEEP
+womens_lingerie_and_sleepwear_bras	WOMEN	Bras	subcategory	womens_lingerie_and_sleepwear	0	1	Bras	bras	cat:bras		true			KEEP
+womens_lingerie_and_sleepwear_underwear	WOMEN	Underwear	subcategory	womens_lingerie_and_sleepwear	0	1	Underwear	underwear	cat:underwear		true			KEEP
+womens_lingerie_and_sleepwear_shapewear	WOMEN	Shapewear	subcategory	womens_lingerie_and_sleepwear	0	1	Underwear		struct:shapewear		true			KEEP
+womens_lingerie_and_sleepwear_sleepwear_pajama_sets	WOMEN	Pajama Sets	style	womens_lingerie_and_sleepwear_sleepwear	0	0			style:pajama_sets	pajama_sets	true			KEEP
+womens_lingerie_and_sleepwear_sleepwear_robes	WOMEN	Robes	style	womens_lingerie_and_sleepwear_sleepwear	0	0			style:robes	robes	true			KEEP
+womens_lingerie_and_sleepwear_sleepwear	WOMEN	Sleepwear	subcategory	womens_lingerie_and_sleepwear	2	1	Underwear		struct:sleepwear		true			KEEP
+womens_lingerie_and_sleepwear_socks	WOMEN	Socks	subcategory	womens_lingerie_and_sleepwear	0	1	Socks	socks	cat:socks		true			KEEP
+womens_lingerie_and_sleepwear	WOMEN	Lingerie & Sleepwear	category		5	0			struct:lingerie_and_sleepwear		true			KEEP
+womens_swimwear_swimwear_onepiece_swimsuits	WOMEN	One-Piece Swimsuits	style	womens_swimwear_swimwear	0	0			style:one_piece_swimsuits	one_piece_swimsuits	true			KEEP
+womens_swimwear_swimwear_bikinis	WOMEN	Bikinis	style	womens_swimwear_swimwear	0	0			style:bikinis	bikinis	true			KEEP
+womens_swimwear_swimwear_sarongs_and_coverups	WOMEN	Sarongs & Cover-Ups	style	womens_swimwear_swimwear	0	0			style:sarongs_cover_ups	sarongs_cover_ups	true			KEEP
+womens_swimwear_swimwear	WOMEN	Swimwear	subcategory	womens_swimwear	3	1	Swimwear	swimwear	cat:swimwear		true			KEEP
+womens_swimwear	WOMEN	Swimwear	category		1	0			struct:swimwear		true			KEEP
+womens_shoes_heels_stilettos	WOMEN	Stilettos	style	womens_shoes_heels	0	0			style:stilettos	stilettos	true			KEEP
+womens_shoes_heels_block_heels	WOMEN	Block Heels	style	womens_shoes_heels	0	0			style:block_heels	block_heels	true			KEEP
+womens_shoes_heels_platforms	WOMEN	Platforms	style	womens_shoes_heels	0	0			style:platforms	platforms	true			KEEP
+womens_shoes_heels_heeled_boots	WOMEN	Heeled Boots	style	womens_shoes_heels	0	1	Boots		style:heeled_boots	heeled_boots	true			KEEP
+womens_shoes_heels	WOMEN	Heels	subcategory	womens_shoes	4	1	Heels	heels	cat:heels		true			KEEP
+womens_shoes_flats_and_sneakers_ballerinas	WOMEN	Ballerinas	style	womens_shoes_flats_and_sneakers	0	1	Flats		style:ballerinas	ballerinas	true			KEEP
+womens_shoes_flats_and_sneakers_loafers	WOMEN	Loafers	style	womens_shoes_flats_and_sneakers	0	1	Loafers		style:loafers	loafers	true			KEEP
+womens_shoes_flats_and_sneakers_casual_sneakers	WOMEN	Casual Sneakers	style	womens_shoes_flats_and_sneakers	0	1	Sneakers		style:casual_sneakers	casual_sneakers	true			KEEP
+womens_shoes_flats_and_sneakers	WOMEN	Flats & Sneakers	subcategory	womens_shoes	3	3	Flats|Sneakers|Loafers	sneakers|flats|loafers	cat:sneakers		true			KEEP
+womens_shoes_sandals_and_mules	WOMEN	Sandals & Mules	subcategory	womens_shoes	0	1	Sandals	sandals	cat:sandals		true			KEEP
+womens_shoes_boots	WOMEN	Boots	subcategory	womens_shoes	0	1	Boots	boots	cat:boots		true			KEEP
+womens_shoes	WOMEN	Shoes	category		4	0			struct:shoes		true			KEEP
+womens_bags_handbags	WOMEN	Handbags	subcategory	womens_bags	0	1	Handbags	handbags	cat:handbags		false			KEEP
+womens_bags_backpacks	WOMEN	Backpacks	subcategory	womens_bags	0	1	Backpacks	backpacks	cat:backpacks		false			KEEP
+womens_bags_shoulder_and_crossbody_bags	WOMEN	Shoulder & Crossbody Bags	subcategory	womens_bags	0	2	Shoulder Bags|Crossbody Bags	shoulder-bags|crossbody-bags	cat:shoulder-bags		false			KEEP
+womens_bags_tote_bags	WOMEN	Tote Bags	subcategory	womens_bags	0	1	Tote Bags	tote-bags	cat:tote-bags		false			KEEP
+womens_bags_wallets	WOMEN	Wallets	subcategory	womens_bags	0	1	Wallets	wallets	cat:wallets		false			KEEP
+womens_bags	WOMEN	Bags	category		5	0			struct:bags		true			KEEP
+womens_accessories_jewelry_bracelets	WOMEN	Bracelets	style	womens_accessories_jewelry	0	0			style:bracelets	bracelets	true			KEEP
+womens_accessories_jewelry_necklaces	WOMEN	Necklaces	style	womens_accessories_jewelry	0	0			style:necklaces	necklaces	true			KEEP
+womens_accessories_jewelry_rings	WOMEN	Rings	style	womens_accessories_jewelry	0	0			style:rings	rings	true			KEEP
+womens_accessories_jewelry_earrings	WOMEN	Earrings	style	womens_accessories_jewelry	0	0			style:earrings	earrings	true			KEEP
+womens_accessories_jewelry	WOMEN	Jewelry	subcategory	womens_accessories	4	1	Jewelry	jewelry	cat:jewelry		false			KEEP
+womens_accessories_belts	WOMEN	Belts	subcategory	womens_accessories	0	1	Belts	belts	cat:belts		false			KEEP
+womens_accessories_scarves_and_hijabs	WOMEN	Scarves & Hijabs	subcategory	womens_accessories	0	1	Scarves and Hijabs	scarves-hijabs	cat:scarves-hijabs		false			KEEP
+womens_accessories_watches	WOMEN	Watches	subcategory	womens_accessories	0	1	Watches	watches	cat:watches		false			KEEP
+womens_accessories_sunglasses	WOMEN	Sunglasses	subcategory	womens_accessories	0	1	Sunglasses	sunglasses	cat:sunglasses		false			KEEP
+womens_accessories_headwear_beanies	WOMEN	Beanies	style	womens_accessories_headwear	0	1	Beanies		style:beanies	beanies	true			KEEP
+womens_accessories_headwear_hats	WOMEN	Hats	style	womens_accessories_headwear	0	1	Hats		style:hats	hats	true			KEEP
+womens_accessories_headwear_caps	WOMEN	Caps	style	womens_accessories_headwear	0	1	Caps		style:caps	caps	true			KEEP
+womens_accessories_headwear	WOMEN	Headwear	subcategory	womens_accessories	3	3	Beanies|Hats|Caps	beanies|hats|caps	cat:beanies		true			KEEP
+womens_accessories	WOMEN	Accessories	category		6	0			struct:accessories		true			KEEP
+kids_tops_tshirts_and_polos_graphic_tees_cartoon_and_print	KIDS	Cartoon & Print	style	kids_tops_tshirts_and_polos_graphic_tees	0	0			style:cartoon_print	cartoon_print	true			KEEP
+kids_tops_tshirts_and_polos_graphic_tees_plain	KIDS	Plain	style	kids_tops_tshirts_and_polos_graphic_tees	0	0			style:plain	plain	true			KEEP
+kids_tops_tshirts_and_polos_graphic_tees	KIDS	Graphic Tees	subcategory	kids_tops_tshirts_and_polos	2	1	T-Shirts	t-shirts	cat:t-shirts		true	all|4-14		KEEP
+kids_tops_tshirts_and_polos_polo_shirts	KIDS	Polo Shirts	subcategory	kids_tops_tshirts_and_polos	0	1	Polo Shirts	polos	cat:polos		true	all|4-14		KEEP
+kids_tops_tshirts_and_polos_baby_bodysuits_short_sleeve	KIDS	Short Sleeve	style	kids_tops_tshirts_and_polos_baby_bodysuits	0	0			style:bodysuit_short_sleeve	bodysuit_short_sleeve	true			KEEP
+kids_tops_tshirts_and_polos_baby_bodysuits_long_sleeve	KIDS	Long Sleeve	style	kids_tops_tshirts_and_polos_baby_bodysuits	0	0			style:bodysuit_long_sleeve	bodysuit_long_sleeve	true			KEEP
+kids_tops_tshirts_and_polos_baby_bodysuits_snap_button	KIDS	Snap Button	style	kids_tops_tshirts_and_polos_baby_bodysuits	0	0			style:snap_button	snap_button	true			KEEP
+kids_tops_tshirts_and_polos_baby_bodysuits	KIDS	Baby Bodysuits	subcategory	kids_tops_tshirts_and_polos	3	1	Bodysuits	bodysuits	cat:bodysuits		true	0-3		KEEP
+kids_tops_tshirts_and_polos	KIDS	T-Shirts & Polos	subcategory	kids_tops	3	2	T-Shirts|Polo Shirts		struct:tshirts_and_polos		true	all|0-3|4-14		KEEP
+kids_tops_shirts_and_blouses_flannel	KIDS	Flannel	style	kids_tops_shirts_and_blouses	0	0			style:flannel	flannel	true			KEEP
+kids_tops_shirts_and_blouses_linen	KIDS	Linen	style	kids_tops_shirts_and_blouses	0	0			style:linen	linen	true			KEEP
+kids_tops_shirts_and_blouses_denim	KIDS	Denim	style	kids_tops_shirts_and_blouses	0	0			style:denim	denim	true			KEEP
+kids_tops_shirts_and_blouses	KIDS	Shirts & Blouses	subcategory	kids_tops	3	2	Shirts|Blouses	shirts|blouses	cat:shirts		true	all|4-14		KEEP
+kids_tops_sweatshirts_and_hoodies_crewneck	KIDS	Crewneck	style	kids_tops_sweatshirts_and_hoodies	0	0			style:crewneck	crewneck	true			KEEP
+kids_tops_sweatshirts_and_hoodies_pullover	KIDS	Pullover	style	kids_tops_sweatshirts_and_hoodies	0	0			style:pullover	pullover	true			KEEP
+kids_tops_sweatshirts_and_hoodies_zipup	KIDS	Zip-Up	style	kids_tops_sweatshirts_and_hoodies	0	0			style:zip_up	zip_up	true			KEEP
+kids_tops_sweatshirts_and_hoodies_pullover_hoodies	KIDS	Pullover Hoodies	style	kids_tops_sweatshirts_and_hoodies	0	0			style:pullover_hoodies	pullover_hoodies	true			KEEP
+kids_tops_sweatshirts_and_hoodies_zipup_hoodies	KIDS	Zip-Up Hoodies	style	kids_tops_sweatshirts_and_hoodies	0	0			style:zip_up_hoodies	zip_up_hoodies	true			KEEP
+kids_tops_sweatshirts_and_hoodies_fleece	KIDS	Fleece	style	kids_tops_sweatshirts_and_hoodies	0	0			style:fleece	fleece	true			KEEP
+kids_tops_sweatshirts_and_hoodies	KIDS	Sweatshirts & Hoodies	subcategory	kids_tops	6	2	Sweatshirts|Hoodies	sweatshirts|hoodies	cat:sweatshirts		true	all|0-3|4-14	activewear	KEEP
+kids_tops_knitwear	KIDS	Knitwear	subcategory	kids_tops	0	1	Sweaters	sweaters	cat:sweaters		true	all|4-14		KEEP
+kids_tops_sports_tops_performance_tees	KIDS	Performance Tees	style	kids_tops_sports_tops	0	0			style:performance_tees	performance_tees	true			KEEP
+kids_tops_sports_tops_sports_jerseys	KIDS	Sports Jerseys	style	kids_tops_sports_tops	0	0			style:sports_jerseys	sports_jerseys	true			KEEP
+kids_tops_sports_tops	KIDS	Sports Tops	subcategory	kids_tops	2	1	Sports Tops	sports-tops	cat:sports-tops		true	all|4-14	activewear	KEEP
+kids_tops	KIDS	Tops	category		5	0			struct:tops		true			KEEP
+kids_bottoms_jeans_and_pants_jeans_skinny	KIDS	Skinny	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:skinny	skinny	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_slim	KIDS	Slim	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:slim	slim	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_regular	KIDS	Regular	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:regular	regular	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_straight	KIDS	Straight	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:straight	straight	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_relaxed	KIDS	Relaxed	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:relaxed	relaxed	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_tapered	KIDS	Tapered	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:tapered	tapered	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_bootcut	KIDS	Bootcut	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:bootcut	bootcut	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_bootcut_and_flare	KIDS	Bootcut & Flare	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:bootcut_and_flare	bootcut_and_flare	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_loose_baggy	KIDS	Loose/Baggy	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:loose_baggy	loose_baggy	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_wideleg	KIDS	Wide-Leg	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:wide_leg	wide_leg	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_boyfriend_jeans	KIDS	Boyfriend Jeans	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:boyfriend_jeans	boyfriend_jeans	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_mom_jeans	KIDS	Mom Jeans	fit	kids_bottoms_jeans_and_pants_jeans	0	0			style:mom_jeans	mom_jeans	true			KEEP
+kids_bottoms_jeans_and_pants_jeans_elastic_waist	KIDS	Elastic Waist	style	kids_bottoms_jeans_and_pants_jeans	0	0			style:elastic_waist	elastic_waist	true			KEEP
+kids_bottoms_jeans_and_pants_jeans	KIDS	Jeans	subcategory	kids_bottoms_jeans_and_pants	13	1	Jeans	jeans	cat:jeans		true	all|4-14		KEEP
+kids_bottoms_jeans_and_pants_chinos_and_cargos	KIDS	Chinos & Cargos	subcategory	kids_bottoms_jeans_and_pants	0	2	Chinos|Cargo Pants	chinos|cargo	cat:chinos		true	all|4-14		KEEP
+kids_bottoms_jeans_and_pants_joggers_and_sweatpants_fleece_joggers	KIDS	Fleece Joggers	style	kids_bottoms_jeans_and_pants_joggers_and_sweatpants	0	0			style:fleece_joggers	fleece_joggers	true			KEEP
+kids_bottoms_jeans_and_pants_joggers_and_sweatpants_tapered_joggers	KIDS	Tapered Joggers	style	kids_bottoms_jeans_and_pants_joggers_and_sweatpants	0	0			style:tapered_joggers	tapered_joggers	true			KEEP
+kids_bottoms_jeans_and_pants_joggers_and_sweatpants	KIDS	Joggers & Sweatpants	subcategory	kids_bottoms_jeans_and_pants	2	1	Joggers	joggers	cat:joggers		true	all|0-3|4-14	activewear	KEEP
+kids_bottoms_jeans_and_pants_leggings	KIDS	Leggings	subcategory	kids_bottoms_jeans_and_pants	0	1	Leggings	leggings	cat:leggings		true	all|0-3|4-14	activewear	KEEP
+kids_bottoms_jeans_and_pants	KIDS	Jeans & Pants	subcategory	kids_bottoms	4	3	Jeans|Trousers|Chinos	trousers	cat:trousers		true	all|4-14		KEEP
+kids_bottoms_shorts_bermuda_shorts	KIDS	Bermuda Shorts	style	kids_bottoms_shorts	0	0			style:bermuda_shorts	bermuda_shorts	true			KEEP
+kids_bottoms_shorts_cargo_shorts	KIDS	Cargo Shorts	style	kids_bottoms_shorts	0	0			style:cargo_shorts	cargo_shorts	true			KEEP
+kids_bottoms_shorts_chino_shorts	KIDS	Chino Shorts	style	kids_bottoms_shorts	0	0			style:chino_shorts	chino_shorts	true			KEEP
+kids_bottoms_shorts_denim_shorts	KIDS	Denim Shorts	style	kids_bottoms_shorts	0	0			style:denim_shorts	denim_shorts	true			KEEP
+kids_bottoms_shorts_sweat_shorts	KIDS	Sweat Shorts	style	kids_bottoms_shorts	0	0			style:sweat_shorts	sweat_shorts	true		activewear	KEEP
+kids_bottoms_shorts_cycling_shorts	KIDS	Cycling Shorts	style	kids_bottoms_shorts	0	0			style:cycling_shorts	cycling_shorts	true		activewear	KEEP
+kids_bottoms_shorts_sports_shorts	KIDS	Sports Shorts	style	kids_bottoms_shorts	0	1	Sports Shorts	sports-shorts	style:sports_shorts	sports_shorts	true			KEEP
+kids_bottoms_shorts	KIDS	Shorts	subcategory	kids_bottoms	7	1	Shorts	shorts	cat:shorts		true	all|0-3|4-14		KEEP
+kids_bottoms_skirts_skort_tutu	KIDS	Tutu	style	kids_bottoms_skirts_skort	0	0			style:tutu	tutu	true			KEEP
+kids_bottoms_skirts_skort_denim	KIDS	Denim	style	kids_bottoms_skirts_skort	0	0			style:denim	denim	true			KEEP
+kids_bottoms_skirts_skort_chino	KIDS	Chino	style	kids_bottoms_skirts_skort	0	0			style:chino	chino	true			KEEP
+kids_bottoms_skirts_skort_jersey	KIDS	Jersey	style	kids_bottoms_skirts_skort	0	0			style:jersey	jersey	true			KEEP
+kids_bottoms_skirts_skort	KIDS	Skort	variant	kids_bottoms_skirts	4	0			struct:skort		true	all|4-14		KEEP
+kids_bottoms_skirts_aline	KIDS	A-Line	style	kids_bottoms_skirts	0	0			style:a_line	a_line	true			KEEP
+kids_bottoms_skirts_pencil	KIDS	Pencil	style	kids_bottoms_skirts	0	0			style:pencil	pencil	true			KEEP
+kids_bottoms_skirts_pleated	KIDS	Pleated	style	kids_bottoms_skirts	0	0			style:pleated	pleated	true			KEEP
+kids_bottoms_skirts_slit	KIDS	Slit	style	kids_bottoms_skirts	0	0			style:slit	slit	true			KEEP
+kids_bottoms_skirts_tiered_and_ruffle	KIDS	Tiered & Ruffle	style	kids_bottoms_skirts	0	0			style:tiered_ruffle	tiered_ruffle	true			KEEP
+kids_bottoms_skirts_denim	KIDS	Denim	style	kids_bottoms_skirts	0	0			style:denim	denim	true			KEEP
+kids_bottoms_skirts	KIDS	Skirts	subcategory	kids_bottoms	7	1	Skirts	skirts	cat:skirts		true	all|4-14		KEEP
+kids_bottoms	KIDS	Bottoms	category		3	0			struct:bottoms		true			KEEP
+kids_onepieces_infants_onesies	KIDS	Onesies	style	kids_onepieces_infants	0	1	Bodysuits		style:onesies	onesies	true			KEEP
+kids_onepieces_infants_sleepsuits	KIDS	Sleepsuits	style	kids_onepieces_infants	0	0			style:sleepsuits	sleepsuits	true			KEEP
+kids_onepieces_infants_footie_pajamas	KIDS	Footie Pajamas	style	kids_onepieces_infants	0	0			style:footie_pajamas	footie_pajamas	true			KEEP
+kids_onepieces_infants	KIDS	Infants	subcategory	kids_onepieces	3	1	Jumpsuits		struct:infants		true	0-3		KEEP
+kids_onepieces_kids_dresses_everyday_dresses	KIDS	Everyday Dresses	style	kids_onepieces_kids_dresses	0	0			style:everyday_dresses	everyday_dresses	true			KEEP
+kids_onepieces_kids_dresses_party_dresses	KIDS	Party Dresses	style	kids_onepieces_kids_dresses	0	0			style:party_dresses	party_dresses	true			KEEP
+kids_onepieces_kids_dresses_sundresses	KIDS	Sundresses	style	kids_onepieces_kids_dresses	0	0			style:sundresses	sundresses	true			KEEP
+kids_onepieces_kids_dresses	KIDS	Kids Dresses	subcategory	kids_onepieces	3	1	Dresses	dresses	cat:dresses		true	4-14		KEEP
+kids_onepieces_overalls_and_jumpsuits_dungarees	KIDS	Dungarees	style	kids_onepieces_overalls_and_jumpsuits	0	0			style:dungarees	dungarees	true			KEEP
+kids_onepieces_overalls_and_jumpsuits_jumpsuits	KIDS	Jumpsuits	style	kids_onepieces_overalls_and_jumpsuits	0	0			style:jumpsuits	jumpsuits	true			KEEP
+kids_onepieces_overalls_and_jumpsuits	KIDS	Overalls & Jumpsuits	subcategory	kids_onepieces	2	1	Jumpsuits	jumpsuits	cat:jumpsuits		true	all|4-14		KEEP
+kids_onepieces	KIDS	One-Pieces	category		3	0			struct:onepieces		true			KEEP
+kids_outerwear_jackets_and_coats_windbreakers	KIDS	Windbreakers	style	kids_outerwear_jackets_and_coats	0	0			style:windbreakers	windbreakers	true			KEEP
+kids_outerwear_jackets_and_coats_denim_jackets	KIDS	Denim Jackets	style	kids_outerwear_jackets_and_coats	0	0			style:denim_jackets	denim_jackets	true			KEEP
+kids_outerwear_jackets_and_coats_puffer_jackets	KIDS	Puffer Jackets	style	kids_outerwear_jackets_and_coats	0	1	Puffer Jackets		style:puffer_jackets	puffer_jackets	true			KEEP
+kids_outerwear_jackets_and_coats_parkas	KIDS	Parkas	style	kids_outerwear_jackets_and_coats	0	1	Parkas		style:parkas	parkas	true			KEEP
+kids_outerwear_jackets_and_coats_raincoats	KIDS	Raincoats	style	kids_outerwear_jackets_and_coats	0	0			style:raincoats	raincoats	true			KEEP
+kids_outerwear_jackets_and_coats	KIDS	Jackets & Coats	subcategory	kids_outerwear	5	2	Jackets|Coats	jackets|coats|parkas|puffer-jackets	cat:jackets		true	all|0-3|4-14		KEEP
+kids_outerwear_vests	KIDS	Vests	subcategory	kids_outerwear	0	1	Vests	vests	cat:vests		true	all|4-14		KEEP
+kids_outerwear_tracksuits	KIDS	Tracksuits	subcategory	kids_outerwear	0	1	Track Pants	track-pants	cat:track-pants		true	all|4-14	activewear	KEEP
+kids_outerwear	KIDS	Outerwear	category		3	0			struct:outerwear		true			KEEP
+kids_underwear_and_sleepwear_underwear	KIDS	Underwear	subcategory	kids_underwear_and_sleepwear	0	1	Underwear	underwear	cat:underwear		true	all|0-3|4-14		KEEP
+kids_underwear_and_sleepwear_sleepwear	KIDS	Sleepwear	subcategory	kids_underwear_and_sleepwear	0	1	Underwear		struct:sleepwear		true	all|0-3|4-14		KEEP
+kids_underwear_and_sleepwear_socks	KIDS	Socks	subcategory	kids_underwear_and_sleepwear	0	1	Socks	socks	cat:socks		true	all|0-3|4-14		KEEP
+kids_underwear_and_sleepwear	KIDS	Underwear & Sleepwear	category		3	0			struct:underwear_and_sleepwear		true			KEEP
+kids_swimwear_swimwear_onepiece_swimsuits	KIDS	One-Piece Swimsuits	style	kids_swimwear_swimwear	0	0			style:one_piece_swimsuits	one_piece_swimsuits	true			KEEP
+kids_swimwear_swimwear_swim_sets	KIDS	Swim Sets	style	kids_swimwear_swimwear	0	0			style:swim_sets	swim_sets	true			KEEP
+kids_swimwear_swimwear	KIDS	Swimwear	subcategory	kids_swimwear	2	1	Swimwear	swimwear	cat:swimwear		true	all|0-3|4-14		KEEP
+kids_swimwear	KIDS	Swimwear	category		1	0			struct:swimwear		true			KEEP
+kids_shoes_everyday_shoes_runners	KIDS	Runners	style	kids_shoes_everyday_shoes	0	1	Running Trainers		style:runners	runners	true			KEEP
+kids_shoes_everyday_shoes_lightup_shoes	KIDS	Light-Up Shoes	style	kids_shoes_everyday_shoes	0	0			style:light_up_shoes	light_up_shoes	true			KEEP
+kids_shoes_everyday_shoes_canvas_sneakers	KIDS	Canvas Sneakers	style	kids_shoes_everyday_shoes	0	0			style:canvas_sneakers	canvas_sneakers	true			KEEP
+kids_shoes_everyday_shoes	KIDS	Everyday Shoes	subcategory	kids_shoes	3	1	Sneakers	sneakers|running-trainers	cat:sneakers		true	all|0-3|4-14	activewear	KEEP
+kids_shoes_formal_shoes	KIDS	Formal Shoes	subcategory	kids_shoes	0	1	Formal Shoes	formal-shoes	cat:formal-shoes		true	all|4-14		KEEP
+kids_shoes_boots_and_sandals	KIDS	Boots & Sandals	subcategory	kids_shoes	0	2	Boots|Sandals	boots|sandals	cat:boots		true	all|0-3|4-14		KEEP
+kids_shoes	KIDS	Shoes	category		3	0			struct:shoes		true			KEEP
+kids_accessories_headwear_beanies	KIDS	Beanies	style	kids_accessories_headwear	0	1	Beanies		style:beanies	beanies	true			KEEP
+kids_accessories_headwear_hats	KIDS	Hats	style	kids_accessories_headwear	0	1	Hats		style:hats	hats	true			KEEP
+kids_accessories_headwear_caps	KIDS	Caps	style	kids_accessories_headwear	0	1	Caps		style:caps	caps	true			KEEP
+kids_accessories_headwear	KIDS	Headwear	subcategory	kids_accessories	3	3	Beanies|Hats|Caps	beanies|hats|caps	cat:beanies		true	all|0-3|4-14		KEEP
+kids_accessories_backpacks	KIDS	Backpacks	subcategory	kids_accessories	0	1	Backpacks	backpacks	cat:backpacks		false	all|4-14		KEEP
+kids_accessories	KIDS	Accessories	category		2	0			struct:accessories		true			KEEP

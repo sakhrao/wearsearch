@@ -17,8 +17,21 @@ import {
 import { hasRealProductPage } from "@/lib/product-url";
 import {
   buildServerFacetBlock,
+  countProductsForFacetValue,
+  type ActiveFacetFilters,
   type FacetsBlock,
 } from "@/lib/search-facets";
+import {
+  buildSizeSectionColumns,
+  SIZE_SECTION_ORDER,
+  type SizeSectionColumn,
+  type SizeSectionKey,
+} from "@/lib/size-sections";
+import {
+  filterByCanonicalSize,
+  filterBySizeSystem,
+  findProductIdsBySizeFilter,
+} from "@/lib/size-domain/query";
 import {
   canonicalColorsFromOffer,
   canonicalColorFromOffer,
@@ -160,6 +173,8 @@ type ProjectedProduct = {
       value: string | null;
       system: string | null;
     } | null;
+    canonicalSizeOptionId: string | null;
+    sizeResolutionStatus: string | null;
   }[];
   attributes: {
     value: string;
@@ -226,6 +241,8 @@ const projectProduct = (
         value: string | null;
         system: string | null;
       } | null;
+      canonicalSizeOptionId?: string | null;
+      sizeResolutionStatus?: string | null;
     }[];
     attributes: {
       value: string;
@@ -270,6 +287,10 @@ const projectProduct = (
               variant.size.system ?? null,
           }
         : null,
+      canonicalSizeOptionId:
+        variant.canonicalSizeOptionId ?? null,
+      sizeResolutionStatus:
+        variant.sizeResolutionStatus ?? null,
     })),
     attributes:
       product.attributes.map(
@@ -818,6 +839,11 @@ type SearchEnvelope = {
   } | null;
   similarMessage: string | null;
   facets: FacetsBlock;
+  /* H1: computed once over the full unfiltered ranked set. */
+  sizeSections: Record<
+    SizeSectionKey,
+    SizeSectionColumn[]
+  >;
   diagnostics: unknown[];
   serializableExactProducts: Array<
     Parameters<typeof projectProduct>[0]
@@ -842,10 +868,16 @@ const respondFromEnvelope = (
     debug: boolean;
     limit: number;
     offset: number;
+    sizeMatchedIds: Set<string> | null;
   }
 ): NextResponse => {
-  const { query, debug, limit, offset } =
-    options;
+  const {
+    query,
+    debug,
+    limit,
+    offset,
+    sizeMatchedIds,
+  } = options;
 
   /* F10: the serialized lists are bounded to one ranked page
      (limit/offset) except under ?debug=1, which returns the
@@ -853,18 +885,36 @@ const respondFromEnvelope = (
      exactHasMore/similarHasMore drive Load-more. The facet
      truth block (computed during the pipeline, cached) comes
      from the full ranked set before slicing, so truncating the
-     payload can never truncate facet options or their counts. */
-  const fullExactProducts =
-    envelope.serializableExactProducts.map(
-      (product) =>
-        projectProduct(product, debug)
-    );
+     payload can never truncate facet options or their counts.
 
-  const fullSimilarProducts =
-    envelope.serializableSimilarProducts.map(
-      (product) =>
-        projectProduct(product, debug)
-    );
+     H1: when a canonical size filter is active, the ranked set
+     is intersected with the Stage F index match set BEFORE
+     slicing, so counts, hasMore, and pagination all describe
+     the filtered set, while facets/sizeSections remain the
+     unfiltered truth. */
+  const exactSource = sizeMatchedIds
+    ? envelope.serializableExactProducts.filter(
+        (product) => sizeMatchedIds.has(product.id)
+      )
+    : envelope.serializableExactProducts;
+
+  const similarSource = sizeMatchedIds
+    ? envelope.serializableSimilarProducts.filter(
+        (product) => sizeMatchedIds.has(product.id)
+      )
+    : envelope.serializableSimilarProducts;
+
+  const fullExactProducts = exactSource.map(
+    (product) => projectProduct(product, debug)
+  );
+
+  const fullSimilarProducts = similarSource.map(
+    (product) => projectProduct(product, debug)
+  );
+
+  const exactTotal = fullExactProducts.length;
+
+  const similarTotal = fullSimilarProducts.length;
 
   const returnedExactProducts = debug
     ? fullExactProducts
@@ -883,12 +933,12 @@ const respondFromEnvelope = (
   const exactHasMore =
     !debug &&
     offset + returnedExactProducts.length <
-      envelope.exactTotal;
+      exactTotal;
 
   const similarHasMore =
     !debug &&
     offset + returnedSimilarProducts.length <
-      envelope.similarTotal;
+      similarTotal;
 
   return NextResponse.json({
     success: true,
@@ -900,15 +950,19 @@ const respondFromEnvelope = (
 
     categoryStatus: envelope.categoryStatus,
 
-    exactCount: envelope.exactTotal,
+    exactCount: exactTotal,
 
-    similarCount: envelope.similarTotal,
+    similarCount: similarTotal,
 
     exactHasMore,
 
     similarHasMore,
 
     facets: envelope.facets,
+
+    sizeSections: sizeMatchedIds
+      ? envelope.sizeSections
+      : undefined,
 
     similarMessage: envelope.similarMessage,
 
@@ -998,6 +1052,49 @@ export async function GET(
         .map((value) => value.trim())
         .filter(Boolean)
         .map((value) => normalizeText(value));
+
+    /* H1: canonical size filter channel. The public facet sends one
+       repeated `size` param per selected canonical identity; the
+       questionnaire path (H2) may pin a `sizeSystem` instead. The
+       canonical decision is made by the Stage F query primitive at the
+       database boundary (index-backed); the pipeline itself only
+       intersects the ranked set with the returned product ids, so no
+       size identity is ever reproduced in JS. */
+    const sizeIdentities = searchParams
+      .getAll("size")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const sizeSystems = searchParams
+      .getAll("sizeSystem")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const canonicalSizeFilters =
+      sizeIdentities.length > 0
+        ? sizeIdentities.map((identity) =>
+            filterByCanonicalSize(identity)
+          )
+        : sizeSystems.map((system) =>
+            filterBySizeSystem(system)
+          );
+
+    const sizeMatchedIds: Set<string> | null =
+      canonicalSizeFilters.length === 0
+        ? null
+        : new Set(
+            (
+              await Promise.all(
+                canonicalSizeFilters.map((filter) =>
+                  findProductIdsBySizeFilter(
+                    prisma,
+                    filter,
+                    { availability: "AVAILABLE" }
+                  )
+                )
+              )
+            ).flat()
+          );
 
     /* =====================================================
        EMPTY QUERY
@@ -1480,6 +1577,9 @@ export async function GET(
                   system: true,
                 },
               },
+
+              canonicalSizeOptionId: true,
+              sizeResolutionStatus: true,
             },
           },
 
@@ -2798,6 +2898,40 @@ Boolean(
       ...serializableSimilarProducts,
     ]);
 
+    /* H1: the size facet block is always computed over the FULL
+       unfiltered ranked set, so selecting one size can never collapse
+       the multi-select chips. Counts are plain per-identity product
+       counts; the window-scoped client counts stay the interactive
+       truth once the filtered response returns. */
+    const sizeFacetProducts = [
+      ...serializableExactProducts,
+      ...serializableSimilarProducts,
+    ];
+
+    const sizeSections =
+      buildSizeSectionColumns(sizeFacetProducts);
+
+    const emptyActiveFilters: ActiveFacetFilters = {
+      gender: new Set(),
+      category: new Set(),
+      color: new Set(),
+      size: new Set(),
+      brand: new Set(),
+    };
+
+    for (const key of SIZE_SECTION_ORDER) {
+      for (const column of sizeSections[key]) {
+        for (const chip of column.chips) {
+          chip.count = countProductsForFacetValue(
+            "size",
+            chip.identity,
+            emptyActiveFilters,
+            sizeFacetProducts
+          );
+        }
+      }
+    }
+
     const exactTotal =
       serializableExactProducts.length;
 
@@ -2976,6 +3110,7 @@ Boolean(
         categoryStatus,
         similarMessage,
         facets,
+        sizeSections,
         diagnostics,
         serializableExactProducts,
         serializableSimilarProducts,
@@ -2995,6 +3130,7 @@ Boolean(
       debug,
       limit,
       offset,
+      sizeMatchedIds,
     });
   } catch (error) {
     console.error(

@@ -16,7 +16,7 @@ const LEGAL_LINKS = [
 export function SiteFooter() {
   return (
     <footer className="border-t border-line bg-paper-soft">
-      <div className="mx-auto grid max-w-6xl gap-12 px-6 py-16 sm:grid-cols-12">
+      <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:grid-cols-12 sm:px-6">
         <div className="sm:col-span-6">
           <p className="font-display text-xl font-medium tracking-tight text-ink">
             FitWear
@@ -64,7 +64,7 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t border-line">
-        <div className="mx-auto max-w-6xl px-6 py-6 text-xs text-ink-faint">
+        <div className="mx-auto max-w-6xl px-4 py-6 text-xs text-ink-faint sm:px-6">
           © {new Date().getFullYear()} FitWear.{" "}
           Find the pieces that feel like you.
         </div>

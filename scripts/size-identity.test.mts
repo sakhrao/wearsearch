@@ -33,6 +33,9 @@ import {
   type ActiveFacetFilters,
   type FacetProduct,
 } from "../src/lib/search-facets";
+import { SHOE_CATEGORY_NAMES } from "../src/lib/facets";
+
+const SHOE_SET = new Set(SHOE_CATEGORY_NAMES);
 
 let passed = 0;
 let failed = 0;
@@ -62,11 +65,27 @@ function prod(
   category: string,
   variants: ReturnType<typeof sized>[] | null
 ): FacetProduct {
+  /* H1: the identity is canonical. derive it from the product's
+     audience + productType + stored system (never guessed from the
+     value); the source label stays on size.value for display. */
+  const productType = SHOE_SET.has(category)
+    ? "shoes"
+    : "clothing";
+  const audience = normalizeAudience(gender);
+
   return {
     gender,
     category: { id: category, name: category },
     brand: { id: "b", name: "B" },
-    variants: variants ?? [],
+    variants: (variants ?? []).map((variant) => {
+      const system =
+        variant.size.system ?? "INTERNATIONAL";
+      return {
+        ...variant,
+        canonicalSizeOptionId: `${audience}|${productType}|${system}|${variant.size.value}`,
+        sizeResolutionStatus: "RESOLVED",
+      };
+    }),
   };
 }
 
@@ -414,13 +433,21 @@ const identityOf = (
   );
 }
 
-/* I10. legacy bare-value semantics survive (server-block contract) */
+/* I10. no raw-value fallback: only the canonical identity matches */
 {
   const product = prod("UNISEX", "Hoodies", [sized(null, "XL")]);
   check(
-    "I10 old bare-value size match still holds for server-block equivalence",
-    productMatchesFilters(product, filters(["XL"])) === true,
-    "bare XL must still match (o4 legacy path)"
+    "I10 a bare legacy value no longer matches without canonical context",
+    productMatchesFilters(product, filters(["XL"])) === false,
+    "bare XL must not match"
+  );
+  check(
+    "I10 the canonical identity still matches the product",
+    productMatchesFilters(
+      product,
+      filters(["UNISEX|clothing|INTERNATIONAL|XL"])
+    ) === true,
+    "canonical XL must match"
   );
 }
 

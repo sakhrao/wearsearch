@@ -87,15 +87,20 @@ export type QuestionnaireAnswers = {
 };
 
 /* The size answer is contextual (Stage 3-A): the questionnaire
-   stores which value was picked and what context it belongs to. The
-   URL/q payload stays a bare value token — context lives in this
-   answer only, never in the query string (URL/q semantics are 3-C). */
+   stores which value was picked and what context it belongs to.
+   H2 adds the canonical identity the Stage A–F domain derives from
+   that context: `canonicalSizeOptionId` is the identity the search
+   channel filters on (null when the value is unresolved - never a
+   guessed identity), while `value` stays the untouched source label
+   the step displays (`Medium` stays `Medium`). */
 export type SizeAnswer = {
   value: string;
   audience: ContextualSizeAudience | null;
   productType: ContextualProductType | null;
   category: string | null;
   system: string | null;
+  canonicalSizeOptionId: string | null;
+  resolutionStatus: "RESOLVED" | "UNRESOLVED";
 };
 
 export const EMPTY_ANSWERS: QuestionnaireAnswers = {

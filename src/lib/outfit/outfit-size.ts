@@ -11,7 +11,8 @@
    numeric magnitudes within the SAME system unless normalized matches). */
 
 import { isNumericSize } from "@/lib/facets";
-import type { OutfitProduct } from "./types";
+import type { SizeReadState } from "@/lib/size-domain";
+import type { OutfitProduct, OutfitVariantSize } from "./types";
 
 export type SizePreference = {
   value: string;
@@ -44,6 +45,25 @@ export function sizeMatchScore(
   match: SizeMatch
 ): number {
   return SCORES[match];
+}
+
+/* G1 — expose the canonical resolution state carried by an outfit variant.
+   A missing state (fixture/legacy in-memory shape) is treated as
+   NOT_BACKFILLED, never as resolved. */
+export function sizeResolutionState(
+  size: OutfitVariantSize | null | undefined
+): SizeReadState {
+  return size?.state ?? "NOT_BACKFILLED";
+}
+
+/* True when the product carries at least one size whose canonical
+   normalization was attempted and safely failed (UNRESOLVED). Used by the
+   Product Detail unresolved-size indication (G2); it never reinterprets
+   the raw source value. NOT_BACKFILLED is deliberately excluded. */
+export function hasUnresolvedSize(product: OutfitProduct): boolean {
+  return (product.variants ?? []).some(
+    (v) => v.size?.state === "UNRESOLVED"
+  );
 }
 
 /* A variant "carries" the requested size value exactly. */

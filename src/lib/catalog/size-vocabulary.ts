@@ -30,6 +30,7 @@ import type {
   ContextualProductType,
   ContextualSizeRow,
 } from "../sizes";
+import type { SizeCategoryId } from "../size-domain/types";
 
 export type SizeVocabularyProduct = {
   slug: string;
@@ -223,6 +224,34 @@ function isBelts(category: SizeVocabularyProduct): boolean {
     /belt/i.test(category.slug) ||
     /belt/i.test(category.name)
   );
+}
+
+/* The canonical SizeCategoryId a category maps to, reusing the exact
+   same classification the size vocabulary is built from. H2 uses it as
+   the normalizer's `category` context (e.g. so a bra value needs
+   `bra`), never as a second classification table. */
+export function sizeCategoryIdForCategory(
+  category: SizeVocabularyProduct
+): SizeCategoryId {
+  if (category.rootSlug === "shoes") {
+    return "footwear";
+  }
+  if (isBras(category)) {
+    return "bra";
+  }
+  if (isSocks(category)) {
+    return "socks";
+  }
+  if (isBelts(category)) {
+    return "belt";
+  }
+  if (category.rootSlug === "headwear") {
+    return "hat";
+  }
+  if (category.rootSlug === "accessories") {
+    return "one_size";
+  }
+  return "clothing";
 }
 
 export function vocabularyForCategory(

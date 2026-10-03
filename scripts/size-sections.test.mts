@@ -39,12 +39,31 @@ type Fixture = {
   category: { name: string };
   variants: {
     size: { value: string | null; system: string | null } | null;
+    canonicalSizeOptionId?: string | null;
+    sizeResolutionStatus?: string | null;
   }[];
 };
 
-const eu = (v: string | null) => ({ size: { value: v, system: "EU" } });
-const us = (v: string | null) => ({ size: { value: v, system: "US" } });
-const none = (v: string | null) => ({ size: { value: v, system: null } });
+/* H1: the section/value view is canonical. The identity carries the
+   stored system (never guessed from the number); the source label
+   stays on size.value for display. */
+const eu = (v: string | null) => ({
+  size: { value: v, system: "EU" },
+  canonicalSizeOptionId: v ? `UNISEX|shoes|EU|${v}` : null,
+  sizeResolutionStatus: v ? "RESOLVED" : null,
+});
+const us = (v: string | null) => ({
+  size: { value: v, system: "US" },
+  canonicalSizeOptionId: v ? `UNISEX|shoes|US|${v}` : null,
+  sizeResolutionStatus: v ? "RESOLVED" : null,
+});
+const none = (v: string | null) => ({
+  size: { value: v, system: null },
+  canonicalSizeOptionId: v
+    ? `UNISEX|clothing|INTERNATIONAL|${v}`
+    : null,
+  sizeResolutionStatus: v ? "RESOLVED" : null,
+});
 
 const shoeProduct = (
   category: string,

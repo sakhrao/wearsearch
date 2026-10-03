@@ -23,6 +23,10 @@ import {
   type SizeCatalog,
   type SizeSection,
 } from "@/lib/sizes";
+import { sizeCategoryIdForCategory } from "@/lib/catalog/size-vocabulary";
+import { canonicalizeQuestionnaireSize } from "@/lib/size-domain/questionnaire";
+import { isPersistedSizeSystem } from "@/lib/size-domain/normalize";
+import { isSizeSystemId } from "@/lib/size-domain/registry";
 import {
   detailOptionGroupsFor,
   type DetailOptionGroup,
@@ -97,6 +101,10 @@ type FindIntent = {
     budgetCurrency: "USD" | "EUR" | null;
     budgetDisplayMin: string | null;
     budgetDisplayMax: string | null;
+    /* H2: canonical size filter (identities) and system pins for
+       unresolved picks - never a raw size token in `query`. */
+    size: string[];
+    sizeSystem: string[];
   };
 };
 
@@ -272,13 +280,13 @@ function OptionCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border px-5 py-3.5 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
+      className={`flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl border px-4 py-3.5 text-center text-sm font-medium transition-all duration-200 active:scale-[0.98] sm:px-5 ${
         selected
           ? "border-ink bg-ink text-paper shadow-md"
           : "border-line bg-paper-soft text-ink-soft hover:-translate-y-px hover:border-ink/40 hover:text-ink hover:shadow-md"
       }`}
     >
-      <span>{label}</span>
+      <span className="min-w-0 break-words">{label}</span>
       {selected && (
         <span className="text-paper">
           <CheckIcon />
@@ -375,6 +383,9 @@ export function FindQuestionnaire({
   >(null);
 
   const [step, setStep] = useState(0);
+  /* Which way the last step change moved, so the step carousel slides
+     in from the direction of travel (presentation only). */
+  const [direction, setDirection] = useState<1 | -1>(1);
   const [answers, setAnswers] =
     useState<Answers>(EMPTY_ANSWERS);
   const [colorFilter, setColorFilter] =
@@ -694,7 +705,7 @@ export function FindQuestionnaire({
         </button>
         {open && (
           <div className="border-t border-line bg-surface p-4">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
               {section.categories.map((category) => (
                 <OptionCard
                   key={category.slug}
@@ -902,11 +913,11 @@ export function FindQuestionnaire({
   > = {
     0: {
       ask: "Who is it for?",
-      hint: "For Women, Men or Kids � we'll tailor the categories, sizes and results to the person you're shopping for.",
+      hint: "For Women, Men or Kids — we'll tailor the categories, sizes and results to the person you're shopping for.",
     },
     1: {
       ask: "What are you shopping for?",
-      hint: "Pick a category tuned to your pick � you can change it later.",
+      hint: "Pick a category tuned to your pick — you can change it later.",
     },
     2: {
       ask: "What size do you need?",
@@ -953,7 +964,7 @@ export function FindQuestionnaire({
   /* A detail chip is attribute-backed only when its group maps to an
      attribute group the catalog ACTUALLY exposes; such picks become
      soft filters. Every other chip is added to detailTokens and turns
-     into a real query token on submit � never a UI-only filter. */
+     into a real query token on submit — never a UI-only filter. */
   function toggleDetail(
     optionGroup: DetailOptionGroup,
     value: string
@@ -1061,7 +1072,10 @@ export function FindQuestionnaire({
         currentIndex: step,
         decision,
       });
-      if (target !== null) setStep(target);
+      if (target !== null) {
+        setDirection(1);
+        setStep(target);
+      }
     }
   }
 
@@ -1131,12 +1145,62 @@ export function FindQuestionnaire({
     });
   }
 
+  /* The canonical SizeCategoryId of the picked category, reusing the
+     questionnaire's own vocabulary classification. Null when the
+     category is unknown to the payload (the normalizer then keeps only
+     category-independent values resolvable). */
+  function sizeCategoryIdForName(name: string | null) {
+    const found = name
+      ? meta?.categories.find(
+          (category) => category.name === name
+        )
+      : undefined;
+    if (!found) {
+      return null;
+    }
+    return sizeCategoryIdForCategory({
+      slug: found.slug,
+      name: found.name,
+      rootSlug: found.root,
+      group: found.group,
+    });
+  }
+
+  /* H2: turn a section chip into its canonical identity using the
+     current context. The section owns productType/system; the picked
+     category owns the category context; the gender owns the audience. */
+  function canonicalizeSizeFor(
+    section: SizeSection,
+    value: string
+  ) {
+    return canonicalizeQuestionnaireSize(value, {
+      audience: genderToAudience(answers.gender) ?? "UNKNOWN",
+      productType: section.productType,
+      system: section.system,
+      category: sizeCategoryIdForName(answers.category),
+    });
+  }
+
   function isSizeChipSelected(
     section: SizeSection,
     value: string
   ): boolean {
     const picked = answers.size;
-    if (!picked || picked.value !== value) {
+    if (!picked) {
+      return false;
+    }
+
+    /* H2: a canonical pick preselects by identity, so a restored
+       "M" still lights up the "Medium" chip it belongs to. */
+    if (picked.canonicalSizeOptionId) {
+      return (
+        canonicalizeSizeFor(section, value)
+          .canonicalSizeOptionId ===
+        picked.canonicalSizeOptionId
+      );
+    }
+
+    if (picked.value !== value) {
       return false;
     }
     if (
@@ -1146,8 +1210,9 @@ export function FindQuestionnaire({
       picked.audience !== null
     ) {
       return (
-        section.system === picked.system &&
-        section.productType === picked.productType
+        section.productType === picked.productType &&
+        (picked.system === null ||
+          section.system === picked.system)
       );
     }
     /* value-only restored pick: pre-select only when the value is
@@ -1172,16 +1237,28 @@ export function FindQuestionnaire({
       }));
       return;
     }
-    setAnswers((previous) => ({
-      ...previous,
-      size: {
-        value,
-        audience: genderToAudience(previous.gender),
+    setAnswers((previous) => {
+      const selection = canonicalizeQuestionnaireSize(value, {
+        audience:
+          genderToAudience(previous.gender) ?? "UNKNOWN",
         productType: section.productType,
-        category: previous.category,
         system: section.system,
-      },
-    }));
+        category: sizeCategoryIdForName(previous.category),
+      });
+      return {
+        ...previous,
+        size: {
+          value,
+          audience: genderToAudience(previous.gender),
+          productType: section.productType,
+          category: previous.category,
+          system: selection.system,
+          canonicalSizeOptionId:
+            selection.canonicalSizeOptionId,
+          resolutionStatus: selection.resolutionStatus,
+        },
+      };
+    });
   }
 
   /* Revisiting a step on Back never carries the old picks forward: the
@@ -1223,6 +1300,7 @@ export function FindQuestionnaire({
 
   function back() {
     if (step > 0) {
+      setDirection(-1);
       const landingStep = STEP_KEYS[step - 1];
       /* Editing the category steps back INSIDE the drill-down (the level
          above the current selection) instead of wiping it, so the
@@ -1249,12 +1327,21 @@ export function FindQuestionnaire({
 
   function next() {
     if (canProceed && nextStep !== null) {
+      setDirection(1);
       setStep(nextStep);
     }
   }
 
   function buildIntent(): FindIntent | null {
     const parts: string[] = [];
+
+    /* H2: the size pick never becomes a free-text `q` token. A resolved
+       pick contributes its canonical identity; an unresolved pick (or a
+       system-only pin) contributes at most an honest `sizeSystem`
+       filter. The canonical decision is made at the database boundary -
+       the questionnaire only forwards the identity it derived. */
+    let size: string[] = [];
+    let sizeSystem: string[] = [];
 
     if (answers.gender) {
       parts.push(answers.gender);
@@ -1263,31 +1350,19 @@ export function FindQuestionnaire({
       parts.push(color);
     }
     if (answers.size) {
-      /* R8: carry the size system the user explicitly chose (EU/US/
-         UK/IT/FR/INTERNATIONAL) as an adjacent token so the engine's
-         existing strict parser (detectSizeSystem +
-         variantMatchesSizeSystem) enforces it instead of collapsing
-         to bare-size legacy matching. When the section has no system
-         (e.g. a generic CLOTHING section) or an unrecognized value,
-         we emit the bare size exactly as before - never guess. */
-      const sys = answers.size.system
-        ?.trim()
-        .toLowerCase();
-      const systemIsKnown =
-        sys != null &&
-        [
-          "eu",
-          "us",
-          "uk",
-          "it",
-          "fr",
-          "international",
-        ].includes(sys);
-      parts.push(
-        systemIsKnown
-          ? `${sys} ${answers.size.value}`
-          : answers.size.value
-      );
+      const picked = answers.size;
+      if (
+        picked.resolutionStatus === "RESOLVED" &&
+        picked.canonicalSizeOptionId
+      ) {
+        size = [picked.canonicalSizeOptionId];
+      } else if (
+        picked.system !== null &&
+        isSizeSystemId(picked.system) &&
+        isPersistedSizeSystem(picked.system)
+      ) {
+        sizeSystem = [picked.system];
+      }
     }
     /* Structured detail chips that are not attribute-backed become
        REAL query tokens, exactly as if the user typed them. */
@@ -1386,6 +1461,8 @@ export function FindQuestionnaire({
           min === null ? null : String(min),
         budgetDisplayMax:
           max === null ? null : String(max),
+        size,
+        sizeSystem,
       },
     };
   }
@@ -1498,7 +1575,12 @@ export function FindQuestionnaire({
         aria-busy={!meta}
       >
         {meta && (
-          <div key={step} className="step-animate flex min-h-full w-full flex-col justify-center">
+          <div
+            key={step}
+            className={`flex min-h-full w-full flex-col justify-center ${
+              direction === -1 ? "step-slide-prev" : "step-slide-next"
+            }`}
+          >
             {step === 0 && (
               <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-6 sm:grid-cols-3">
                 {GENDER_OPTIONS.map((value) => (
@@ -1574,7 +1656,7 @@ export function FindQuestionnaire({
                 {taxonomyRenderOptions.length === 0 ? (
                   <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
-                      Nothing in stock here yet � go
+                      Nothing in stock here yet — go
                       back and pick another.
                     </p>
                   </div>
@@ -1600,7 +1682,7 @@ export function FindQuestionnaire({
                 <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                   <p className="text-sm text-ink-soft">
                     There are no categories in
-                    stock for that audience yet �
+                    stock for that audience yet —
                     go back and pick another.
                   </p>
                 </div>
@@ -1636,7 +1718,7 @@ export function FindQuestionnaire({
                     id="find-color-filter"
                     value={colorFilter}
                     onChange={setColorFilter}
-                    placeholder="Search colors⬦"
+                    placeholder="Search colors…"
                     icon
                   />
                 </div>
@@ -1680,13 +1762,13 @@ export function FindQuestionnaire({
                       )
                   ).length === 0 && (
                     <p className="mt-4 text-center text-sm text-ink-faint">
-                      No colors match �S{colorFilter}⬝.
+                      No colors match “{colorFilter}”.
                     </p>
                   )}
                 {meta.colors.length === 0 && (
                   <p className="mt-4 text-center text-sm text-ink-faint">
                     No colors are available from the
-                    current catalog right now � you
+                    current catalog right now — you
                     can skip this step.
                   </p>
                 )}
@@ -1751,7 +1833,7 @@ export function FindQuestionnaire({
                   <div className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
                       No sizes are available for your
-                      picks right now � you can skip
+                      picks right now — you can skip
                       this step.
                     </p>
                   </div>
@@ -1860,21 +1942,21 @@ export function FindQuestionnaire({
                 <p className="text-center text-xs leading-relaxed text-ink-faint">
                   {budgetCurrencyLabel === "USD"
                     ? `Your budget is compared fairly across currencies
-                       using the ECB reference rate (1 EUR �0�
-                       ${fxRate?.toFixed(4) ?? "�"} USD,
+                       using the ECB reference rate (1 EUR ≈
+                       ${fxRate?.toFixed(4) ?? "—"} USD,
                        ${meta?.fx?.asOf ?? "latest"}). Cards
                        always show each product's original price.
                        Matches just outside your range appear under
                        Similar.`
                     : `Prices are matched at their listed value. No
                        rate is needed for ${budgetCurrencyLabel}{" "}
-                       budgets � nothing is invented or converted.`}
+                       budgets — nothing is invented or converted.`}
                 </p>
                 {!fxRate && budgetCurrencyLabel === "USD" && (
                   <p className="text-center text-xs text-warning">
                     No reliable USD rate is available right now, so
                     your budget is matched at its listed value. Nothing
-                    is invented � conversion applies automatically once
+                    is invented — conversion applies automatically once
                     a rate is reachable.
                   </p>
                 )}
@@ -1948,7 +2030,7 @@ export function FindQuestionnaire({
                 {detailGroups.length === 0 && (
                   <p className="mx-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-4 text-center text-sm text-ink-soft">
                     This category has no structured details
-                    yet � describe what matters in your own
+                    yet — describe what matters in your own
                     words above.
                   </p>
                 )}
@@ -1967,14 +2049,14 @@ export function FindQuestionnaire({
               aria-hidden="true"
             />
             <p className="text-sm text-ink-soft">
-              Finding your options⬦
+              Finding your options…
             </p>
           </div>
         )}
       </section>
 
-      {/* Bottom navigation � stays pinned at the bottom of the window */}
-      <div className="mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-6">
+      {/* Bottom navigation — stays pinned at the bottom of the window */}
+      <div className="wizard-actions mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-6">
         <button
           type="button"
           onClick={back}
@@ -2000,7 +2082,10 @@ export function FindQuestionnaire({
             {meta && stepState.canSkip && (
               <button
                 type="button"
-                onClick={() => setStep(step + 1)}
+                onClick={() => {
+                  setDirection(1);
+                  setStep(step + 1);
+                }}
                 className={TERTIARY_BTN}
               >
                 Skip for now

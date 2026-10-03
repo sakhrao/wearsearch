@@ -7,7 +7,7 @@ export function OutfitPromo() {
       aria-labelledby="outfit-promo-title"
       className="py-16 sm:py-24"
     >
-      <div className="relative overflow-hidden bg-ink px-6 py-16 sm:px-16 sm:py-20">
+      <div className="relative overflow-hidden bg-ink px-5 py-16 sm:px-16 sm:py-20">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border border-paper/15"

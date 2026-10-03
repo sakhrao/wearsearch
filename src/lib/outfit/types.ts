@@ -2,6 +2,8 @@
    Independent layer above the catalog; reads products only.
    No DB writes, no changes to the search engine. */
 
+import type { SizeReadState } from "@/lib/size-domain";
+
 export type Gender = "MEN" | "WOMEN" | "UNISEX" | "KIDS";
 
 export type Occasion =
@@ -44,7 +46,13 @@ export type StyleProfile = {
 };
 
 /* The minimal product shape the outfit engine consumes. It mirrors
-   the search route's select + invariants (F1/F7/F8). */
+   the search route's select + invariants (F1/F7/F8).
+
+   As of G1 the variant `size` is the application-level view produced by
+   the canonical read path (`readCanonicalSize`): `state` and
+   `canonicalSizeOptionId` come from persisted canonical data, while
+   `value` / `normalizedValue` / `system` remain the preserved legacy
+   source representation used for exact matching and display. */
 export type OutfitProduct = {
   id: string;
   name: string;
@@ -61,14 +69,22 @@ export type OutfitProduct = {
     currency: string | null;
     availability: string;
     color: { name: string; hex: string | null } | null;
-    size?: {
-      system: string | null;
-      value: string | null;
-      normalizedValue: string | null;
-      productType: string | null;
-    } | null;
+    size?: OutfitVariantSize | null;
   }[];
   attributes: { value: string; attribute: { name: string } }[];
+};
+
+/* The canonical + legacy size view attached to an outfit variant. */
+export type OutfitVariantSize = {
+  /* RESOLVED | UNRESOLVED | NOT_BACKFILLED — never collapsed. */
+  state: SizeReadState;
+  /* Present only when state === "RESOLVED". */
+  canonicalSizeOptionId: string | null;
+  /* Raw source label, preserved verbatim (display + exact matching). */
+  value: string | null;
+  system: string | null;
+  normalizedValue: string | null;
+  productType: string | null;
 };
 
 export type ColorInfo = {

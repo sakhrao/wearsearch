@@ -50,31 +50,44 @@ function product(
   variants: {
     color: string | null;
     size: string | null;
+    id?: string | null;
   }[]
 ): FacetProduct {
   return {
     gender,
     category,
     brand: { id: "b" + category.id, name: category.name },
-    variants: variants.map(({ color, size }) => ({
+    variants: variants.map(({ color, size, id }) => ({
       color: color ? { id: "c-" + color, name: color } : null,
       size: size ? { value: size } : null,
+      canonicalSizeOptionId: id ?? null,
+      sizeResolutionStatus: id ? "RESOLVED" : null,
     })),
   };
 }
 
+/* H1: size facet values are canonical identities now; the source
+   label stays on `size.value` for display only. */
+const SIZE = {
+  womenM: "WOMEN|clothing|INTERNATIONAL|M",
+  womenL: "WOMEN|clothing|INTERNATIONAL|L",
+  women32: "WOMEN|clothing|INTERNATIONAL|32",
+  unisexXL: "UNISEX|clothing|INTERNATIONAL|XL",
+  menL: "MEN|clothing|INTERNATIONAL|L",
+};
+
 const womenRedTshirt = product("WOMEN", { id: "tshirts", name: "T-Shirts" }, [
-  { color: "Red", size: "M" },
-  { color: "Red", size: "L" },
+  { color: "Red", size: "M", id: SIZE.womenM },
+  { color: "Red", size: "L", id: SIZE.womenL },
 ]);
 const womenBlueJeans = product("WOMEN", { id: "jeans", name: "Jeans" }, [
-  { color: "Blue", size: "32" },
+  { color: "Blue", size: "32", id: SIZE.women32 },
 ]);
 const unisexBlackHoodie = product("UNISEX", { id: "hoodies", name: "Hoodies" }, [
-  { color: "Black", size: "XL" },
+  { color: "Black", size: "XL", id: SIZE.unisexXL },
 ]);
 const menRedHoodie = product("MEN", { id: "hoodies", name: "Hoodies" }, [
-  { color: "Red", size: "L" },
+  { color: "Red", size: "L", id: SIZE.menL },
 ]);
 
 const products = [
@@ -121,11 +134,11 @@ check(
 );
 check(
   "D2 gender=Women -> size counts reflect the women+unisex universe",
-  countProductsForFacetValue("size", "M", genderWomen, products) === 1 &&
-    countProductsForFacetValue("size", "L", genderWomen, products) === 1 &&
-    countProductsForFacetValue("size", "XL", genderWomen, products) === 1 &&
-    countProductsForFacetValue("size", "32", genderWomen, products) === 1,
-  `M=${countProductsForFacetValue("size", "M", genderWomen, products)} L=${countProductsForFacetValue("size", "L", genderWomen, products)} XL=${countProductsForFacetValue("size", "XL", genderWomen, products)} 32=${countProductsForFacetValue("size", "32", genderWomen, products)}`
+  countProductsForFacetValue("size", SIZE.womenM, genderWomen, products) === 1 &&
+    countProductsForFacetValue("size", SIZE.womenL, genderWomen, products) === 1 &&
+    countProductsForFacetValue("size", SIZE.unisexXL, genderWomen, products) === 1 &&
+    countProductsForFacetValue("size", SIZE.women32, genderWomen, products) === 1,
+  `M=${countProductsForFacetValue("size", SIZE.womenM, genderWomen, products)} L=${countProductsForFacetValue("size", SIZE.womenL, genderWomen, products)} XL=${countProductsForFacetValue("size", SIZE.unisexXL, genderWomen, products)} 32=${countProductsForFacetValue("size", SIZE.women32, genderWomen, products)}`
 );
 
 /* --- D3: AND across sections --- */
@@ -150,8 +163,8 @@ check(
 for (const [key, value] of [
   ["color", "c-Red"],
   ["color", "c-Black"],
-  ["size", "L"],
-  ["size", "XL"],
+  ["size", SIZE.womenL],
+  ["size", SIZE.unisexXL],
   ["gender", "WOMEN"],
 ] as [FacetKey, string][]) {
   const count = countProductsForFacetValue(

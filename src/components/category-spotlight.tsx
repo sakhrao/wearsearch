@@ -115,7 +115,7 @@ export function CategorySpotlight({
       <Reveal delay={160}>
         <Link
           href="/find"
-          className="group mt-12 flex items-center justify-between gap-6 rounded-2xl border border-line bg-surface px-6 py-8 transition hover:border-ink/30 sm:px-8"
+          className="group mt-12 flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface px-4 py-8 transition hover:border-ink/30 sm:gap-6 sm:px-8"
         >
         <span>
           <span className="block font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">

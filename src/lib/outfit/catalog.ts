@@ -12,11 +12,73 @@
    price mirrors the primary offer when the mirror is missing. */
 
 import type { PrismaClient } from "@/generated/prisma/client";
-import type { OutfitProduct } from "./types";
+import type { OutfitProduct, OutfitVariantSize } from "./types";
 import {
   canonicalColorFromOffer,
   expandOfferSizeChips,
 } from "@/lib/catalog/offer-vocab";
+import {
+  pickCanonicalFields,
+  readCanonicalSize,
+  type SizeCanonicalFields,
+} from "@/lib/size-domain";
+
+/* G1 — the application-level size read for an outfit variant. The raw
+   legacy label stays authoritative for matching/display; the canonical
+   boundary supplies the state and (when resolved) the identity. No local
+   `if (!canonical) use legacy` branching exists here: the centralized
+   fallback inside `readCanonicalSize` decides. */
+
+export type LegacyVariantSizeRow = SizeCanonicalFields & {
+  size: {
+    system: string | null;
+    value: string | null;
+    normalizedValue?: string | null;
+    productType?: string | null;
+  } | null;
+};
+
+export function projectVariantSize(
+  row: LegacyVariantSizeRow
+): OutfitVariantSize | null {
+  if (!row.size) return null;
+  const read = readCanonicalSize({
+    canonical: pickCanonicalFields(row),
+    legacy: {
+      sourceSizeLabel: row.size.value,
+      legacySystem: row.size.system,
+    },
+  });
+  return {
+    state: read.state,
+    canonicalSizeOptionId: read.canonicalSizeOptionId,
+    value: row.size.value,
+    /* Canonical system when known, otherwise the legacy system fallback. */
+    system: read.system,
+    normalizedValue: row.size.normalizedValue ?? null,
+    productType: row.size.productType ?? null,
+  };
+}
+
+export function projectOfferVariantSize(
+  canonical: SizeCanonicalFields,
+  chip: string | null,
+  legacySystem: string | null
+): OutfitVariantSize | null {
+  if (!chip) return null;
+  const read = readCanonicalSize({
+    canonical: pickCanonicalFields(canonical),
+    legacy: { sourceSizeLabel: chip, legacySystem },
+  });
+  return {
+    state: read.state,
+    canonicalSizeOptionId: read.canonicalSizeOptionId,
+    value: chip,
+    system: read.system,
+    normalizedValue: null,
+    productType: null,
+  };
+}
 
 export async function loadOutfitCatalog(
   prisma: PrismaClient
@@ -39,6 +101,10 @@ export async function loadOutfitCatalog(
           currency: true,
           availability: true,
           color: { select: { name: true, hex: true } },
+          canonicalSizeOptionId: true,
+          sizeResolutionStatus: true,
+          sizeResolutionProvenance: true,
+          sizeResolutionSystem: true,
           size: {
             select: {
               system: true,
@@ -64,6 +130,10 @@ export async function loadOutfitCatalog(
               availability: true,
               originalPrice: true,
               originalCurrency: true,
+              canonicalSizeOptionId: true,
+              sizeResolutionStatus: true,
+              sizeResolutionProvenance: true,
+              sizeResolutionSystem: true,
             },
           },
         },
@@ -79,20 +149,13 @@ export async function loadOutfitCatalog(
     const offers = r.offers ?? [];
     const primaryOffer = offers[0] ?? null;
 
-    /* Legacy variants, verbatim (pre-Phase-0). */
+    /* Legacy variants, verbatim source + canonical read state. */
     const legacyVariants = (r.variants ?? []).map((v) => ({
       price: String(v.price),
       currency: v.currency,
       availability: v.availability,
       color: v.color,
-      size: v.size
-        ? {
-            system: v.size.system,
-            value: v.size.value,
-            normalizedValue: v.size.normalizedValue,
-            productType: v.size.productType,
-          }
-        : null,
+      size: projectVariantSize(v),
     }));
 
     /* Phase-0 offer lines, synthesized as product variants so the
@@ -113,14 +176,11 @@ export async function loadOutfitCatalog(
           })(),
           size: (() => {
             const chips = expandOfferSizeChips(ov.sizeValue);
-            return chips.length > 0
-              ? {
-                  system: ov.sizeSystem ?? null,
-                  value: chips[0],
-                  normalizedValue: null,
-                  productType: null,
-                }
-              : null;
+            return projectOfferVariantSize(
+              ov,
+              chips.length > 0 ? chips[0] : null,
+              ov.sizeSystem ?? null
+            );
           })(),
         });
       }

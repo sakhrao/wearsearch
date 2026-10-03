@@ -55,7 +55,7 @@ function v(
     currency: "EUR",
     availability,
     color: { name: "Black", hex: "#000000" },
-    size: { system, value: sizeValue, normalizedValue: sizeValue, productType: "CLOTHING" },
+    size: { system, value: sizeValue, normalizedValue: sizeValue, productType: "CLOTHING", state: "NOT_BACKFILLED", canonicalSizeOptionId: null },
   };
 }
 

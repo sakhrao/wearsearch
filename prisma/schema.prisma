@@ -202,12 +202,24 @@ model ProductOfferVariant {
   lastSyncedAt        DateTime  @default(now())
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+
+  /* ---- Stage E: canonical size persistence (additive) ---- */
+  /* Same contract as ProductVariant above. Size ownership is at the
+     offer-variant grain, so the canonical fields live here too rather
+     than only on the parent Product. */
+  canonicalSizeOptionId    String?
+  sizeResolutionStatus     String?
+  sizeResolutionProvenance String?
+  sizeResolutionSystem     String?
+
   offer               ProductOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
   @@unique([offerId, variantKey])
   @@index([offerId])
   @@index([gtin])
   @@index([availability])
+  @@index([canonicalSizeOptionId])
+  @@index([sizeResolutionSystem])
 }
 
 /* Identity records for deduplication. A canonical Product may carry
@@ -353,9 +365,24 @@ model ProductVariant {
   product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   size         Size?        @relation(fields: [sizeId], references: [id])
 
+  /* ---- Stage E: canonical size persistence (additive) ---- */
+  /* The canonical identity is the existing Stage A/B wire id
+     `audience|discipline|system|value` (== sizeIdentity()). There is
+     deliberately no second identity column. NULL means "not yet
+     backfilled"; a non-null sizeResolutionStatus means "processed".
+     sizeResolutionSystem is stored separately because it can be known
+     while canonicalSizeOptionId is null, and because non-persisted
+     systems (JP/BRA/ONE_SIZE/...) cannot live in the SizeSystem enum. */
+  canonicalSizeOptionId    String?
+  sizeResolutionStatus     String?
+  sizeResolutionProvenance String?
+  sizeResolutionSystem     String?
+
   @@index([productId])
   @@index([sizeId])
   @@index([colorId])
+  @@index([canonicalSizeOptionId])
+  @@index([sizeResolutionSystem])
 }
 
 model Size {
