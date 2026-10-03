@@ -131,50 +131,26 @@ body {
 
 /*
    The options are the primary content: the question chrome is intentionally
-   tiny. The title is responsive (roughly one or two lines) and the
-   supporting hint is dropped on phones and short viewports so it can never
-   push the option grid down.
+   tiny. The title is responsive (roughly one or two lines) so the grid keeps
+   the reclaimed height.
 */
 .wizard-title {
   font-size: clamp(1.0625rem, 0.95rem + 1.4vw, 1.5rem);
   line-height: 1.2;
 }
-.wizard-hint {
-  font-size: 0.8125rem;
-  line-height: 1.35;
-}
-
-@media (max-width: 480px) {
-  .wizard-head {
-    display: none;
-  }
-  .wizard-hint {
-    display: none;
-  }
-}
 
 /*
-   Short viewports (small phones and landscape): keep the single screen,
-   but reclaim vertical space from the chrome - smaller question, and on
-   the shortest screens drop the eyebrow header and the helper line - so
-   the option grid still fits without scrolling.
+   Short viewports (small phones and landscape): keep the single screen, but
+   reclaim vertical space from the question so the option grid still fits
+   without scrolling.
 */
 @media (max-height: 700px) {
   .wizard-title {
     font-size: 1.0625rem;
     line-height: 1.2;
   }
-  .wizard-hint {
-    display: none;
-  }
-  .wizard-details-banner {
-    display: none;
-  }
 }
 @media (max-height: 620px) {
-  .wizard-head {
-    display: none;
-  }
   .wizard-progress {
     margin-top: 0.375rem;
   }

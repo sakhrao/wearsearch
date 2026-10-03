@@ -708,15 +708,6 @@ export function FindQuestionnaire({
     taxonomyDecision.kind !== "children" &&
     taxonomyPath.length > 0;
 
-  /* Labels for the breadcrumb, root first. */
-  const taxonomyTrail = useMemo(
-    () =>
-      taxonomyPath
-        .map((id) => taxonomyTree?.nodes[id])
-        .filter((node): node is TaxonomyNodeView => Boolean(node)),
-    [taxonomyPath, taxonomyTree]
-  );
-
   const categorySections = useMemo(() => {
     const rootMap = new Map<string, { leaves: Meta["categories"]; subgroups: Map<string, Meta["categories"]> }>();
     for (const category of visibleCategories) {
@@ -885,18 +876,6 @@ export function FindQuestionnaire({
     );
   }
 
-  const selectedCategoryGroup = useMemo(() => {
-    if (!meta || !answers.category) {
-      return null;
-    }
-    return (
-      meta.categories.find(
-        (category) =>
-          category.name === answers.category
-      )?.group ?? null
-    );
-  }, [meta, answers.category]);
-
   /* Stage 3-A: size options are the union, per category, of every size
      the catalog carries for it (all audiences) with the full standard
      surface for its product type (orders fit every possible size). The
@@ -953,20 +932,6 @@ export function FindQuestionnaire({
     answers.category,
     budgetCurrencyLabel,
   ]);
-
-  const sizeStepLabel = useMemo(() => {
-    const group = selectedCategoryGroup;
-    if (group === "Shoes") {
-      return "Shoe size";
-    }
-    if (group === "Accessories") {
-      return "Accessory size";
-    }
-    if (group === "Headwear") {
-      return "Headwear size";
-    }
-    return "Clothing size";
-  }, [selectedCategoryGroup]);
 
   /* Detail chips are context-aware structured options for the picked
      category's product type (shoes/headwear/accessories/general
@@ -1090,35 +1055,14 @@ export function FindQuestionnaire({
   const canProceed =
     stepState.canNext && !categoryNeedsDeeperPick && sizeStepApplies;
 
-  /* Conversation-style ask + helper line per step. */
-  const stepCopy: Record<
-    number,
-    { ask: string; hint: string }
-  > = {
-    0: {
-      ask: "Who is it for?",
-      hint: "For Women, Men or Kids — we'll tailor the categories, sizes and results to the person you're shopping for.",
-    },
-    1: {
-      ask: "What are you shopping for?",
-      hint: "Pick a category tuned to your pick — you can change it later.",
-    },
-    2: {
-      ask: "What size do you need?",
-      hint: `Optional · ${sizeStepLabel} options that fit your picks.`,
-    },
-    3: {
-      ask: "Which colors do you like?",
-      hint: "Optional · pick as many as you like, tap again to remove.",
-    },
-    4: {
-      ask: "What's your budget?",
-      hint: `Optional · set a range in ${budgetCurrencyLabel}.`,
-    },
-    5: {
-      ask: "Anything else that matters?",
-      hint: "Optional · tell us in your own words or pick a detail.",
-    },
+  /* The single question per step. Nothing else competes with the options. */
+  const stepQuestion: Record<number, string> = {
+    0: "Who is it for?",
+    1: "What are you shopping for?",
+    2: "What size do you need?",
+    3: "Which colors do you like?",
+    4: "What's your budget?",
+    5: "Anything else that matters?",
   };
 
   function setAnswer<K extends keyof Answers>(
@@ -1727,7 +1671,7 @@ export function FindQuestionnaire({
      rendered so SSR produces a meaningful first paint. Only
      the data-dependent option area waits, showing a localized
      loader while /api/meta is in flight. */
-  const copy = stepCopy[step];
+  const question = stepQuestion[step];
   const Shell = embedded ? "div" : "main";
   const Heading = embedded ? "h2" : "h1";
 
@@ -1739,24 +1683,6 @@ export function FindQuestionnaire({
           : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-5 pb-3 pt-4"
       }
     >
-      {/* Small header */}
-      <div className="wizard-head flex items-center justify-between gap-4">
-        {embedded ? (
-          <span />
-        ) : (
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-sm font-medium text-ink-faint transition-colors hover:text-accent-deep"
-          >
-            <ArrowIcon dir="left" />
-            Search
-          </Link>
-        )}
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
-          Your preferences
-        </p>
-      </div>
-
       {/* Minimal progress: a tiny step count and a hairline bar. It is
           deliberately low-contrast and steals no height from the options. */}
       <div className="wizard-progress mt-2 flex items-center gap-2.5">
@@ -1782,16 +1708,12 @@ export function FindQuestionnaire({
         </div>
       </div>
 
-      {/* Question title: compact and immediately followed by the options.
-          The hint is supporting copy and is dropped on small viewports
-          (see globals.css) so it can never push the grid down. */}
+      {/* Question title: compact, immediately followed by the options.
+          No supporting line — the options state the choice. */}
       <div className="wizard-question mt-2">
         <Heading className="wizard-title font-display font-medium tracking-tight text-ink">
-          {copy.ask}
+          {question}
         </Heading>
-        <p className="wizard-hint mt-1 text-ink-soft">
-          {copy.hint}
-        </p>
       </div>
 
       <section
@@ -1854,35 +1776,7 @@ export function FindQuestionnaire({
 
             {step === 1 &&
             taxonomyTree !== null ? (
-              <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-                {taxonomyRenderPath.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={back}
-                    className="mb-2 inline-flex shrink-0 items-center gap-2 text-sm font-medium text-accent-deep"
-                  >
-                    <ChevronIcon open={false} />
-                    {taxonomyRenderPath.length > 1
-                      ? taxonomyTree?.nodes[
-                          taxonomyRenderPath[
-                            taxonomyRenderPath.length - 2
-                          ] ?? ""
-                        ]?.label
-                      : "All categories"}
-                  </button>
-                )}
-                {taxonomyTrail.length > 0 && (
-                  <p className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
-                    {taxonomyTrail
-                      .map((node) => node.label)
-                      .join(" / ")}
-                  </p>
-                )}
-                <p className="mb-2 shrink-0 text-sm text-ink-soft">
-                  {taxonomyRenderPath.length === 0
-                    ? "Pick a category"
-                    : `Pick a ${taxonomyTrail[taxonomyTrail.length - 1]?.type === "fit" ? "fit" : "detail"}`}
-                </p>
+                <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
                 {taxonomyRenderOptions.length === 0 ? (
                   <div className="m-auto max-w-sm rounded-2xl border border-line bg-paper-soft px-5 py-6 text-center">
                     <p className="text-sm text-ink-soft">
@@ -1923,9 +1817,6 @@ export function FindQuestionnaire({
                 </div>
               ) : openKey === null ? (
                 <div className="mx-auto w-full max-w-3xl">
-                  <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-faint">
-                    Tap a section to expand it
-                  </p>
                   <div className="grid w-full auto-rows-[3.25rem] grid-cols-2 gap-2 sm:grid-cols-3">
                     {categorySections.map((section) =>
                       renderSection(section)
@@ -2167,50 +2058,15 @@ export function FindQuestionnaire({
                     className="w-full accent-[var(--ink)]"
                   />
                 </div>
-                <p className="text-center text-xs leading-relaxed text-ink-faint">
-                  {budgetCurrencyLabel === "USD"
-                    ? `Your budget is compared fairly across currencies
-                       using the ECB reference rate (1 EUR ≈
-                       ${fxRate?.toFixed(4) ?? "—"} USD,
-                       ${meta?.fx?.asOf ?? "latest"}). Cards
-                       always show each product's original price.
-                       Matches just outside your range appear under
-                       Similar.`
-                    : `Prices are matched at their listed value. No
-                       rate is needed for ${budgetCurrencyLabel}{" "}
-                       budgets — nothing is invented or converted.`}
-                </p>
-                {!fxRate && budgetCurrencyLabel === "USD" && (
-                  <p className="text-center text-xs text-warning">
-                    No reliable USD rate is available right now, so
-                    your budget is matched at its listed value. Nothing
-                    is invented — conversion applies automatically once
-                    a rate is reachable.
-                  </p>
-                )}
               </div>
             )}
 
             {step === 5 && (
                 <div className="wizard-details mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col gap-3">
-                <div className="wizard-details-banner flex shrink-0 items-center gap-2 rounded-xl border border-accent/20 bg-accent-tint px-3 py-2">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-deep text-paper">
-                    <CheckIcon />
-                  </span>
-                  <p className="text-xs leading-snug">
-                    <span className="font-semibold text-ink">
-                      We&apos;ve got your preferences.
-                    </span>{" "}
-                    <span className="text-ink-soft">
-                      Let&apos;s find something you&apos;ll love.
-                    </span>
-                  </p>
-                </div>
-
                 <div className="shrink-0">
                   <label
                     htmlFor="find-search-text"
-                    className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-ink-faint"
+                    className="sr-only"
                   >
                     Your own words
                   </label>
