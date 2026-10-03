@@ -43,7 +43,6 @@ import { ValuePromise } from "@/components/value-promise";
 import { OutfitPromo } from "@/components/outfit-promo";
 import { BrandsMarquee } from "@/components/brands-marquee";
 import { FindQuestionnaire } from "@/components/find-questionnaire";
-import { SectionHeading } from "@/components/section-heading";
 import type {
   CategorySpotlight as CategorySpotlightType,
 } from "@/lib/discovery";
@@ -1561,15 +1560,14 @@ function Home({
               aria-labelledby="questionnaire-title"
               className="wizard-window mx-auto flex w-full max-w-4xl flex-col justify-center px-4 py-6 sm:py-8"
             >
-              <div className="wizard-card w-full rounded-2xl border border-ink/15 bg-surface px-6 pb-7 pt-7 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] sm:px-9 sm:pt-9">
-                <SectionHeading
+              <div className="wizard-card w-full rounded-2xl border border-ink/15 bg-surface px-6 pb-6 pt-5 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] sm:px-9 sm:pt-6">
+                <p
                   id="questionnaire-title"
-                  eyebrow="Find your match"
-                  title="Tell us what you're looking for"
-                  description="A few quick questions and we&apos;ll narrow it down for you &mdash; or use the search bar above."
-                  align="center"
-                />
-                <div className="mt-5 flex min-h-0 min-w-0 flex-1 flex-col sm:mt-6">
+                  className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint"
+                >
+                  Find your match
+                </p>
+                <div className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col">
                   <FindQuestionnaire embedded />
                 </div>
               </div>
