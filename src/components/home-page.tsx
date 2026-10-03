@@ -1567,7 +1567,10 @@ function Home({
                 >
                   Find your match
                 </p>
-                <div className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col">
+                <p className="mt-1.5 text-center text-xs text-ink-soft">
+                  A few quick questions to narrow your matches.
+                </p>
+                <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
                   <FindQuestionnaire embedded />
                 </div>
               </div>

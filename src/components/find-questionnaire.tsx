@@ -298,7 +298,7 @@ function OptionCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex h-full min-h-0 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-xl border px-2 py-1 text-center text-[13px] font-medium leading-tight transition-all duration-200 active:scale-[0.98] sm:gap-2 sm:rounded-2xl sm:px-4 sm:py-2.5 sm:text-sm ${
+      className={`flex min-h-0 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-xl border px-2 py-1 text-center text-[13px] font-medium leading-tight transition-all duration-200 active:scale-[0.98] sm:gap-2 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-sm ${
         selected
           ? "border-ink bg-ink text-paper shadow-md"
           : "border-line bg-paper-soft text-ink-soft hover:-translate-y-px hover:border-ink/40 hover:text-ink hover:shadow-md"
@@ -328,7 +328,7 @@ function OptionPill({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex h-full min-h-0 w-full items-center justify-center gap-1.5 overflow-hidden rounded-full border px-2 py-1 text-[13px] font-medium leading-tight transition-all duration-150 sm:px-4 sm:py-2 sm:text-sm ${
+      className={`flex min-h-0 w-full items-center justify-center gap-1.5 overflow-hidden rounded-full border px-2 py-1 text-[13px] font-medium leading-tight transition-all duration-150 sm:px-4 sm:py-2 sm:text-sm ${
         selected
           ? "border-ink bg-ink text-paper"
           : "border-line bg-paper-soft text-ink-soft hover:border-ink/40 hover:text-ink"
@@ -409,7 +409,7 @@ function FitGrid({
     return () => observer.disconnect();
   }, []);
 
-  const gap = size.w >= 640 ? 12 : 8;
+  const gap = size.w >= 560 ? 14 : 10;
   const columns = computeColumns(
     count,
     size.w,
@@ -422,9 +422,10 @@ function FitGrid({
     size.h > 0
       ? (size.h - (rows - 1) * gap) / rows
       : 0;
-  /* Cards grow into the reclaimed height (larger phones breathe more)
-     but stay capped so a one-row question never becomes a giant slab. */
-  const maxRow = size.w >= 640 ? 168 : 144;
+  /* Restrained card height. Rows never stretch to consume the section, so
+     spare space reads as breathing room around the grid instead of giant
+     cards. Short viewports still shrink the rows to fit (no scroll). */
+  const maxRow = size.w >= 560 ? 104 : 88;
   const rowHeight = Math.max(0, Math.min(rawRow, maxRow));
 
   return (
@@ -1683,6 +1684,14 @@ export function FindQuestionnaire({
           : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-5 pb-3 pt-4"
       }
     >
+      {/* Compact introduction: one small line of context. The embedded
+          questionnaire already sits under its own section label. */}
+      {!embedded && (
+        <p className="mb-1 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint">
+          Find your match
+        </p>
+      )}
+
       {/* Minimal progress: a tiny step count and a hairline bar. It is
           deliberately low-contrast and steals no height from the options. */}
       <div className="wizard-progress mt-2 flex items-center gap-2.5">
@@ -1861,7 +1870,7 @@ export function FindQuestionnaire({
                 ) : (
                   <FitGrid
                     count={filteredColors.length}
-                    minCell={72}
+                    minCell={56}
                     maxCols={8}
                     className="min-h-0 w-full flex-1"
                   >
@@ -2125,7 +2134,7 @@ export function FindQuestionnaire({
                         count={
                           activeDetailGroup.values.length
                         }
-                        minCell={64}
+                        minCell={56}
                         maxCols={8}
                         className="min-h-0 w-full flex-1"
                       >
