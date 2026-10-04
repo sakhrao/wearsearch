@@ -380,17 +380,20 @@ function FitGrid({
   count,
   minCell,
   maxCols = 6,
+  availableH = 0,
   className,
   children,
 }: {
   count: number;
   minCell: number;
   maxCols?: number;
+  availableH?: number;
   className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [others, setOthers] = useState(0);
 
   useEffect(() => {
     const element = ref.current;
@@ -402,31 +405,71 @@ function FitGrid({
           ? previous
           : { w: rect.width, h: rect.height }
       );
+      /* Chrome that shares this grid's flex parent (a filter field,
+         the detail tabs, or a size section label) must come out of the
+         grid's allowance. The parent is content-sized, so its height
+         minus the grid's own height is that sibling chrome. */
+      const parent = element.parentElement;
+      const next = parent
+        ? Math.max(
+            0,
+            parent.getBoundingClientRect().height -
+              rect.height
+          )
+        : 0;
+      setOthers((previous) =>
+        Math.abs(previous - next) < 0.5 ? previous : next
+      );
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
+    if (element.parentElement)
+      observer.observe(element.parentElement);
     return () => observer.disconnect();
   }, []);
 
-  const gap = size.w >= 560 ? 14 : 10;
-  const columns = computeColumns(
-    count,
-    size.w,
-    gap,
-    minCell,
-    maxCols
-  );
+  const gap =
+    size.w >= 600 ? 12 : size.w >= 330 ? 10 : 8;
+  /* On very short viewports (landscape phones) there is not enough
+     height for the designed row count. Rather than crush rows to an
+     unreadable height, allow denser columns so fewer rows are needed. */
+  const dense = availableH > 0 && availableH < 340;
+  const effMinCell = dense ? Math.min(minCell, 60) : minCell;
+  const columns = dense
+    ? Math.max(
+        1,
+        Math.min(
+          count,
+          maxCols,
+          Math.floor((size.w + gap) / (effMinCell + gap))
+        )
+      )
+    : computeColumns(
+        count,
+        size.w,
+        gap,
+        minCell,
+        maxCols
+      );
   const rows = Math.max(1, Math.ceil(count / columns));
-  const rawRow =
-    size.h > 0
-      ? (size.h - (rows - 1) * gap) / rows
-      : 0;
-  /* Restrained card height. Rows never stretch to consume the section, so
-     spare space reads as breathing room around the grid instead of giant
-     cards. Short viewports still shrink the rows to fit (no scroll). */
-  const maxRow = size.w >= 560 ? 104 : 88;
-  const rowHeight = Math.max(0, Math.min(rawRow, maxRow));
+  /* Moderate, density-tiered card height. Cards read as selection
+     controls, not feature panels: a sensible size independent of the
+     viewport, capped per density tier and only shrinking on short
+     viewports so a step never scrolls. */
+  const maxRow =
+    size.w >= 600 ? 72 : size.w >= 330 ? 64 : 56;
+  const natural = rows * maxRow + (rows - 1) * gap;
+  const usable = Math.max(0, availableH - others - 8);
+  let rowHeight = maxRow;
+  if (usable > 0 && usable < natural) {
+    const basis =
+      size.h > 0 ? Math.min(size.h, usable) : usable;
+    rowHeight = Math.max(
+      0,
+      Math.min((basis - (rows - 1) * gap) / rows, maxRow)
+    );
+  }
 
   return (
     <div
@@ -539,6 +582,9 @@ export function FindQuestionnaire({
   const [detailGroupName, setDetailGroupName] =
     useState<string | null>(null);
   const optionsRef = useRef<HTMLElement | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const groupRef = useRef<HTMLDivElement | null>(null);
+  const [gridAvail, setGridAvail] = useState(0);
 
   /* Any step change (forward, backward, or expanding/collapsing a
      category section) restarts the options area at its top so a deep
@@ -546,6 +592,39 @@ export function FindQuestionnaire({
   useEffect(() => {
     optionsRef.current?.scrollTo({ top: 0, left: 0 });
   }, [step, openSection]);
+
+  /* The option area is allowed the height left over once the surrounding
+     chrome (intro, progress, question, actions and its spacing) is
+     measured. Passing this down lets the grid keep a sensible card size
+     on tall screens while still shrinking to fit on short ones. */
+  useEffect(() => {
+    const shell = shellRef.current;
+    const group = groupRef.current;
+    if (!shell || !group) return;
+    const measure = () => {
+      const section = optionsRef.current;
+      const sectionH = section
+        ? section.getBoundingClientRect().height
+        : 0;
+      const available = Math.max(
+        0,
+        shell.clientHeight -
+          (group.getBoundingClientRect().height - sectionH)
+      );
+      setGridAvail((previous) =>
+        Math.abs(previous - available) < 0.5
+          ? previous
+          : available
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(shell);
+    observer.observe(group);
+    const section = optionsRef.current;
+    if (section) observer.observe(section);
+    return () => observer.disconnect();
+  }, [meta, step]);
 
   /* A saved draft is a ONE-SHOT handoff, never a persistent answer
      store. It is read back exactly once on mount (the results-page
@@ -1678,17 +1757,29 @@ export function FindQuestionnaire({
 
   return (
     <Shell
+      ref={shellRef}
       className={
         embedded
-          ? "flex min-h-0 w-full flex-1 flex-col"
-          : "wizard-window mx-auto flex w-full max-w-2xl flex-col px-5 pb-3 pt-4"
+          ? "flex min-h-0 w-full flex-1 flex-col justify-center"
+          : "wizard-window mx-auto flex w-full max-w-2xl flex-col justify-center px-5 pb-3 pt-4"
       }
     >
-      {/* Compact introduction: one small line of context. The embedded
-          questionnaire already sits under its own section label. */}
-      {!embedded && (
-        <p className="mb-1 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint">
-          Find your match
+      <div
+        ref={groupRef}
+        data-wizard-group
+        className="flex w-full min-w-0 flex-col"
+      >
+      {/* Compact introduction: a single small label, plus one short
+          supporting phrase on the embedded home questionnaire. */}
+      <p
+        id="questionnaire-title"
+        className="wizard-title-compact text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint"
+      >
+        Find your match
+      </p>
+      {embedded && (
+        <p className="wizard-subtitle mt-1 text-center text-xs text-ink-soft">
+          A few quick questions to narrow your matches.
         </p>
       )}
 
@@ -1717,8 +1808,7 @@ export function FindQuestionnaire({
         </div>
       </div>
 
-      {/* Question title: compact, immediately followed by the options.
-          No supporting line — the options state the choice. */}
+      {/* Question title: compact, immediately followed by the options. */}
       <div className="wizard-question mt-2">
         <Heading className="wizard-title font-display font-medium tracking-tight text-ink">
           {question}
@@ -1727,7 +1817,8 @@ export function FindQuestionnaire({
 
       <section
         ref={optionsRef}
-        className="min-h-0 flex-1 overflow-hidden"
+        data-grid-section
+        className="mt-3 max-h-[fit-content] min-h-0 flex-1 overflow-hidden"
         aria-busy={!meta}
       >
         {meta && (
@@ -1739,6 +1830,7 @@ export function FindQuestionnaire({
           >
             {step === 0 && (
               <FitGrid
+                availableH={gridAvail}
                 count={GENDER_OPTIONS.length}
                 minCell={88}
                 maxCols={3}
@@ -1795,6 +1887,7 @@ export function FindQuestionnaire({
                   </div>
                 ) : (
                   <FitGrid
+                availableH={gridAvail}
                     count={taxonomyRenderOptions.length}
                     minCell={88}
                     maxCols={6}
@@ -1848,7 +1941,7 @@ export function FindQuestionnaire({
 
             {step === 3 && (
               <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-                <div className="mx-auto mb-2 w-full max-w-sm shrink-0">
+                <div className="wizard-color-filter mx-auto mb-2 w-full max-w-sm shrink-0">
                   <FieldInput
                     id="find-color-filter"
                     value={colorFilter}
@@ -1869,8 +1962,9 @@ export function FindQuestionnaire({
                   </p>
                 ) : (
                   <FitGrid
+                    availableH={gridAvail}
                     count={filteredColors.length}
-                    minCell={56}
+                    minCell={48}
                     maxCols={8}
                     className="min-h-0 w-full flex-1"
                   >
@@ -1907,6 +2001,10 @@ export function FindQuestionnaire({
                           {section.label}
                         </h2>
                         <FitGrid
+                          availableH={
+                            gridAvail /
+                            Math.max(1, sizeSections.length)
+                          }
                           count={section.values.length}
                           minCell={56}
                           maxCols={8}
@@ -1932,6 +2030,10 @@ export function FindQuestionnaire({
                       </div>
                     ) : (
                       <FitGrid
+                        availableH={
+                          gridAvail /
+                          Math.max(1, sizeSections.length)
+                        }
                         key="sizes"
                         count={section.values.length}
                         minCell={56}
@@ -2130,11 +2232,12 @@ export function FindQuestionnaire({
                     </div>
                     {activeDetailGroup && (
                       <FitGrid
+                        availableH={gridAvail}
                         key={activeDetailGroup.name}
                         count={
                           activeDetailGroup.values.length
                         }
-                        minCell={56}
+                        minCell={48}
                         maxCols={8}
                         className="min-h-0 w-full flex-1"
                       >
@@ -2181,7 +2284,7 @@ export function FindQuestionnaire({
       </section>
 
       {/* Bottom navigation — stays pinned at the bottom of the window */}
-      <div className="wizard-actions mt-auto flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-3">
+      <div className="wizard-actions mt-3 flex shrink-0 items-center justify-between gap-4 border-t border-line pb-1 pt-3">
         <button
           type="button"
           onClick={back}
@@ -2236,6 +2339,7 @@ export function FindQuestionnaire({
             </button>
           </div>
         )}
+      </div>
       </div>
     </Shell>
   );

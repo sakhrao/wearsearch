@@ -1561,18 +1561,7 @@ function Home({
               className="wizard-window mx-auto flex w-full max-w-4xl flex-col justify-center px-4 py-6 sm:py-8"
             >
               <div className="wizard-card w-full rounded-2xl border border-ink/15 bg-surface px-6 pb-6 pt-5 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.22)] sm:px-9 sm:pt-6">
-                <p
-                  id="questionnaire-title"
-                  className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint"
-                >
-                  Find your match
-                </p>
-                <p className="mt-1.5 text-center text-xs text-ink-soft">
-                  A few quick questions to narrow your matches.
-                </p>
-                <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
-                  <FindQuestionnaire embedded />
-                </div>
+                <FindQuestionnaire embedded />
               </div>
             </section>
 
